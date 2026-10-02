@@ -53,6 +53,16 @@ export const MAX_YOE = num("SEARCH_MAX_YOE", 99);
 export const MAX_POSTING_AGE_DAYS = num("SEARCH_MAX_POSTING_AGE_DAYS", 0);
 
 /**
+ * Whether a posting is recent enough to ingest. Undated postings pass: no date is
+ * not evidence of age. Every arm goes through this so that 0 means no limit
+ * everywhere; comparing against 0 directly dropped every dated posting.
+ */
+export function isFreshPosting(posted: Date | null | undefined): boolean {
+  if (!MAX_POSTING_AGE_DAYS || !posted) return true;
+  return (Date.now() - posted.getTime()) / 86_400_000 <= MAX_POSTING_AGE_DAYS;
+}
+
+/**
  * Seniority words that put a role out of reach. Empty by default, because which
  * rungs are yours is the most personal judgement in the whole filter: the same
  * "Senior" title is a stretch at one company and a step down at another.

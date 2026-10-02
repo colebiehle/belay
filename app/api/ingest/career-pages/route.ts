@@ -9,7 +9,7 @@ import {
   isUsLocation,
   extractMinYoe,
   MAX_YOE,
-  MAX_POSTING_AGE_DAYS,
+  isFreshPosting,
   passesStatedRules,
   canonicalCompany,
 } from "@/lib/role-filter";
@@ -117,7 +117,7 @@ async function fetchAmazonListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => !j.posted || (Date.now() - j.posted.getTime()) / 86400000 <= MAX_POSTING_AGE_DAYS)
+      .filter((j) => isFreshPosting(j.posted))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))
@@ -185,7 +185,7 @@ async function fetchWorkdayListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => !j.posted || (Date.now() - j.posted.getTime()) / 86400000 <= MAX_POSTING_AGE_DAYS)
+      .filter((j) => isFreshPosting(j.posted))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))
@@ -238,7 +238,7 @@ async function fetchEightfoldListings(
         posted: p.t_create ? new Date(Number(p.t_create) * 1000) : undefined,
       }))
       .filter((j) => j.id && j.title && j.url)
-      .filter((j) => !j.posted || (Date.now() - j.posted.getTime()) / 86400000 <= MAX_POSTING_AGE_DAYS)
+      .filter((j) => isFreshPosting(j.posted))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location));
@@ -401,7 +401,7 @@ async function fetchAtsListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => !j.posted || (Date.now() - j.posted.getTime()) / 86400000 <= MAX_POSTING_AGE_DAYS)
+      .filter((j) => isFreshPosting(j.posted))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))

@@ -8,6 +8,7 @@ import {
 } from "@/lib/search-config";
 
 export { MAX_POSTING_AGE_DAYS, MAX_YOE };
+export { isFreshPosting } from "@/lib/search-config";
 // Shared role filter.
 //
 // Both intake paths use this: the career-page scanner and the LinkedIn alert

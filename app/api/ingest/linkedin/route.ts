@@ -10,7 +10,7 @@ import {
   isUsLocation,
   extractMinYoe,
   MAX_YOE,
-  MAX_POSTING_AGE_DAYS,
+  isFreshPosting,
 } from "@/lib/role-filter";
 import { logJournal } from "@/lib/journal";
 
@@ -146,11 +146,7 @@ export async function POST() {
     // all with impeccable design titles.
     .filter((c) => !isExcludedCompany(c.company))
     .filter((c) => passesStatedRules(c.title, c.company))
-    .filter(
-      (c) =>
-        !c.posted ||
-        (Date.now() - c.posted.getTime()) / 86_400_000 <= MAX_POSTING_AGE_DAYS
-    );
+    .filter((c) => isFreshPosting(c.posted));
 
   const candidates = beforeTrackedGate.filter((c) => isTrackedEmployer(c.company, tierMap));
   const untracked = beforeTrackedGate.length - candidates.length;

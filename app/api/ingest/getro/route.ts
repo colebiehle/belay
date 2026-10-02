@@ -7,7 +7,7 @@ import {
   passesStatedRules,
   isExcludedCompany,
   isReachableLevel,
-  MAX_POSTING_AGE_DAYS,
+  isFreshPosting,
 } from "@/lib/role-filter";
 import { COMP_FLOOR_USD } from "@/lib/search-config";
 import { logJournal } from "@/lib/journal";
@@ -138,10 +138,7 @@ export async function POST() {
     if (!isReachableLevel(title)) return false;
     if (isExcludedCompany(company)) return false;
     // created_at is unix seconds. Undated postings are kept, as everywhere else.
-    if (job.created_at) {
-      const ageDays = (Date.now() / 1000 - job.created_at) / 86_400;
-      if (ageDays > MAX_POSTING_AGE_DAYS) return false;
-    }
+    if (job.created_at && !isFreshPosting(new Date(job.created_at * 1000))) return false;
     return true;
   });
 
