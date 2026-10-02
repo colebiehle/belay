@@ -51,8 +51,8 @@ what makes the scoring and the drafts useful, so start here.
 
 ## Running it
 
-You need Node 20+, and either [Claude Code](https://claude.com/claude-code) installed
-(`claude` on your PATH) or an Anthropic API key.
+You need Node 20+ and [Claude Code](https://claude.com/claude-code) installed and signed
+in (`claude` on your PATH). Every model call goes through it.
 
 ```bash
 git clone https://github.com/colebiehle/belay
@@ -102,8 +102,8 @@ resumes, notes and exports in the gitignored `private/` directory.
 
 - **No authentication.** Belay is designed to run on `localhost`. Put an access layer
   in front of it before exposing it on a network.
-- **Model calls are billed to you**, through your Claude Code subscription or your own
-  API key. Scoring a role takes seconds; the deep research routes take minutes.
+- **Model calls are billed to you**, through your Claude Code subscription. Scoring a
+  role takes seconds; the deep research routes take minutes.
 - **The ingest arms depend on third-party job boards and ATS APIs**, which change
   without notice. A source that stops returning results needs its adapter updated in
   `lib/ats-boards.ts`.
