@@ -75,16 +75,16 @@ DATABASE_URL=file:./demo.db npx tsx scripts/demo.ts
 DATABASE_URL=file:./demo.db npm run dev
 ```
 
-That writes a plausible search into a throwaway database, which is what the screenshots
-above show. Everything in it is invented, the people especially.
+That writes a sample search into a throwaway database, which is what the screenshots
+above show. All of the data in it is fictional.
 
 ### Configuration
 
 Copy `.env.example` to `.env`. Everything in it is optional.
 
-The ingest arms need credentials only if you want them: a LinkedIn session cookie for
-the LinkedIn scan, Google credentials for the Gmail alert parser. The app runs fine
-without either; those arms just stay quiet.
+Two ingest arms need credentials: a LinkedIn session cookie for the LinkedIn scan, and
+Google credentials for the Gmail alert parser. Without them those two arms are skipped
+and the rest of the scan runs normally.
 
 The search filters all ship **off**, so a fresh install shows you everything. Set
 `SEARCH_COMP_FLOOR_USD`, `SEARCH_MAX_YOE`, `SEARCH_LEVEL_EXCLUDE` and the rest to
@@ -92,20 +92,23 @@ narrow what reaches your queue. See `lib/search-config.ts` for what each one doe
 
 ## Your data
 
-`belay.db` and `.env` are gitignored. That holds if you fork this and make your fork
-public, but it only covers those files — if you keep your resume or your notes as
-markdown inside the repo, they go up with your next push. There is a `private/`
-directory in `.gitignore` for exactly that.
+Everything lives in `belay.db`, a SQLite file in the project root. It is gitignored,
+as is `.env`, so a public fork will not carry your data.
 
-## Caveats
+That covers those two files only. Anything else you add to the repo is tracked, so keep
+resumes, notes and exports in the gitignored `private/` directory.
 
-The ingest arms scrape job boards that change shape without notice, and a broken one
-stays broken until somebody fixes it. Every model call costs you, against a Claude Code
-subscription or your own API key, and the research runs are long. There is no auth,
-because it is meant to run on your laptop: do not put it on the open internet without
-something in front of it.
+## Limitations
 
-Issues and pull requests are welcome, and may sit for a while.
+- **No authentication.** Belay is designed to run on `localhost`. Put an access layer
+  in front of it before exposing it on a network.
+- **Model calls are billed to you**, through your Claude Code subscription or your own
+  API key. Scoring a role takes seconds; the deep research routes take minutes.
+- **The ingest arms depend on third-party job boards and ATS APIs**, which change
+  without notice. A source that stops returning results needs its adapter updated in
+  `lib/ats-boards.ts`.
+- **LinkedIn profiles cannot be fetched.** Paste a person's background into their panel
+  if you want the drafts to reference their actual work.
 
 ## Licence
 
