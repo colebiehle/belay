@@ -1,0 +1,269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Job {
+  id           String   @id @default(cuid())
+  company      String
+  roleTitle    String
+  jobUrl       String   @unique
+  description  String   @default("")
+  location     String   @default("")
+  compRange    String   @default("Not disclosed")
+  expRange     String   @default("")
+  fitScore     Int      @default(0)
+  fitRationale String   @default("")
+  greenFlags   String   @default("")
+  redFlags     String   @default("")
+  priority     String   @default("MONITOR")
+  dateFound    DateTime @default(now())
+  // When the source site originally posted the role. Distinct from dateFound
+  // (which is when we discovered it). Nullable because not every source
+  // exposes it and historical rows pre-date this column.
+  datePosted   DateTime?
+  // When the source last touched the listing. A req first published 300 days
+  // ago but refreshed last month is being actively maintained, which is a very
+  // different thing from one nobody has looked at since. Both are written by
+  // ingest and neither is rendered yet; the age gate at intake is what uses them.
+  dateUpdated  DateTime?
+
+  verdict      String?
+  verdictNotes String?
+  verdictAt    DateTime?
+
+  queueEnrichment String?
+  enrichedAt      DateTime?
+
+  application  Application?
+  createdAt    DateTime @default(now())
+}
+
+model Application {
+  id                String         @id @default(cuid())
+  jobId             String         @unique
+  job               Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status            String         @default("Applying")
+  dateApplied       DateTime?
+  resumeTailored    String?
+  coverLetterUrl    String?
+  recruiterMessage        String?
+  recruiterMessageSentAt  DateTime?
+  connectionMessage       String?
+  connectionMessageSentAt DateTime?
+  resumeContent           String?
+  coverLetterContent      String?
+  decisionsLog            String?
+  applicationQA           String?
+  companyResearch         String?
+  deepDive          String?
+  deepDiveAt        DateTime?
+  lastFollowedUpAt  DateTime?
+  interviewPrep     String?
+  interviewLog      String?
+  notes             String?
+  statusHistory     String?
+
+  // --- The Applying state: everything between "accepted" and "sent" ---
+  // What the form will actually demand, seeded from Job.redFlags (the extracted
+  // applicationNeeds) the first time the row is opened, then ticked off by hand.
+  needsChecklist    String?   // JSON [{ label, done }]
+  // Where the form lives, which is often not the posting URL.
+  portalUrl         String?
+
+  // Versions you chose to keep, rather than the live drafts above. resumeContent
+  // is overwritten every time it is regenerated, so the copy you actually pasted
+  // into a form was gone the moment you iterated. This holds what you submitted,
+  // tied to the role, for reference later.
+  // JSON [{ kind, label, content, savedAt }]
+  savedArtifacts    String?
+
+  // Titled notes on this role, kept separate from `notes` (a single free-text
+  // field) because these accumulate: one per meeting, one per question, one for
+  // whatever gets harvested out of the chat.
+  // JSON [{ id, title, body, createdAt }]
+  noteList          String?
+
+  // Scheduled interviews on this application. The activity recap counted
+  // "interviews" off a status that had been renamed out of existence, so it read 0
+  // with an application at final round; and nothing anywhere held a date, so there
+  // was no way to see what was coming up.
+  // JSON [{ id, label, at, notes }]
+  interviewList     String?
+
+  // The Contact who actually agreed to refer you, not merely someone who works
+  // there. Set by hand, because "I know a person at Google" and "a person at
+  // Google is putting my name in" are different facts and only the second one
+  // changes how the application is read.
+  referrerId        String?
+  // Stamped when work on the application begins, so a greenlit-but-unsent role
+  // ages visibly instead of sitting silently in a list.
+  applyStartedAt    DateTime?
+  // Set when something external is in the way ("needs portfolio PDF", "login
+  // broken"). Keeps a stuck application visible rather than quietly rotting.
+  blockedReason     String?
+  // Per-artifact generation state. Previously a failed run and a never-started
+  // run were both NULL, which is why three dead applications were
+  // indistinguishable from three fresh ones for six days.
+  materialsStatus   String?   // JSON { resume|coverLetter|deepDive: {state, at, error} }
+  archivedAt        DateTime?
+  outcome           String?
+  chatMessages      ChatMessage[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model ChatMessage {
+  id            String       @id @default(cuid())
+  applicationId String?
+  // Outreach chats hang off a Contact the same way role chats hang off an
+  // Application. Separate column rather than overloading `scope`, so the same
+  // per-scope threading and history logic works for both.
+  contactId     String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  // materialId scopes a chat to a single profile cell (positioning, voice, etc.).
+  // Profile cell chats: applicationId=null, materialId set.
+  // Cross-cutting studio chats: both null, scope="studio".
+  materialId    String?
+  material      Material?    @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  // cellKey scopes a chat to a single application cell (resume / coverLetter / qa#N).
+  // Application cell chats: applicationId set, cellKey set.
+  // Whole-application chats: applicationId set, cellKey=null.
+  cellKey       String?
+  scope         String       @default("role")
+  role          String
+  content       String
+  createdAt     DateTime     @default(now())
+  // Soft-hide for "Clear chat" — the row stays in the DB so brain distillation
+  // can still see it, but it's filtered out of UI fetches and active prompts.
+  hiddenAt      DateTime?
+
+  @@index([materialId])
+  @@index([applicationId, cellKey])
+  @@index([contactId])
+}
+
+model HuntSite {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  domain    String
+  note      String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  // What the site is *for*, not how good it is. The four tracked sites do four
+  // different jobs — broad search, ATS aggregation, early-stage startups, university
+  // recruiting — so a quality tier like the company list would imply a ranking that
+  // does not exist between them.
+  category  String?
+}
+
+model TargetCompany {
+  id         String   @id @default(cuid())
+  name       String
+  domain     String
+  careersUrl String
+  // 1 = somewhere you would drop everything for. 2 = somewhere you would be
+  // glad to work, but which does not create leverage. The distinction drives
+  // how hard a role is worth chasing, so it needs to be visible rather than
+  // implied by list order.
+  tier       Int      @default(2)
+  // Why this company is at this tier, in one line. Without it the tier is a
+  // number nobody can audit six weeks later.
+  note       String?
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  // The company's LinkedIn slug, so outreach can open their People tab directly
+  // rather than guessing at a keyword search. Backfilled from the domain's first
+  // label, which is right more often than the display name — nytimes, not
+  // the-new-york-times — and editable when it is not.
+  linkedinSlug  String?
+}
+
+model Material {
+  id        String   @id @default(cuid())
+  kind      String
+  title     String?
+  content   String?
+  url       String?
+  notes     String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chatMessages ChatMessage[]
+}
+
+
+
+
+// Answers you have already written and approved, keyed by a normalised form of
+// the question ("why-this-company", "work-authorization"). Screening prompts
+// repeat across applications, so without this the tenth application costs the
+// same as the first. Reused answers are counted so the bank can show what is
+// actually earning its place.
+model AnswerBank {
+  id          String    @id @default(cuid())
+  questionKey String    @unique
+  question    String
+  answer      String
+  tags        String?
+  useCount    Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Contact {
+  id                    String    @id @default(cuid())
+  type                  String
+  name                  String
+  company               String
+  title                 String?
+  role                  String?
+  linkedinUrl           String?
+  email                 String?
+  status                String?
+  introVia              String?
+  introVias             String?
+  msgToMutual           String?
+  msgToMutualSentAt     DateTime?
+  msgToContact          String?
+  msgToContactSentAt    DateTime?
+  // A blurb written in the connector's voice, for them to forward on. Distinct
+  // from msgToMutual (which is you asking the favour): an intro only actually
+  // happens if the connector has something they can paste without composing it
+  // themselves.
+  forwardable           String?
+  connectionNote        String?
+  connectionNoteSentAt  DateTime?
+  connectedAt           DateTime?
+  dateAdded             DateTime  @default(now())
+  lastChat              DateTime?
+  notes                 String?
+  tags                  String?
+  research              String?
+  researchAt            DateTime?
+  conversationGuide     String?
+  thankYou              String?
+
+  // --- The networking queue, mirroring Application ---------------------------
+  // Networking turned out to have the same shape as an application: a stage it
+  // moves through, a history of how it got there, dated events, and notes that
+  // accumulate. `status` above was a free-text field nothing agreed on; `stage` is
+  // the one the queue groups by.
+  stage                 String?
+  // JSON [{ stage, at }]
+  stageHistory          String?
+  // JSON [{ id, title, body, createdAt }]
+  noteList              String?
+  // JSON [{ id, label, at }] — calls and coffee chats, which also feed the
+  // progress chart's networking channel.
+  eventList             String?
+  // Pasted from LinkedIn. Nothing here can fetch a profile — LinkedIn blocks
+  // server-side requests — so the paste is the input the draft works from.
+  profileText           String?
+}

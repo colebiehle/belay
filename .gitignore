@@ -1,0 +1,26 @@
+node_modules/
+.next/
+*.tsbuildinfo
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# Your data. The database holds the queue, your applications, your contacts and
+# every note you write. It never belongs in git, and that stays true if you fork
+# this repo and make your fork public.
+*.db
+*.db-journal
+
+# Every env file except the committed example. Listing .env and .env.local by name
+# let .env.production and .env.test through.
+.env*
+!.env.example
+
+gmail_token.json
+credentials.json
+*.pem
+*.key
+
+# Anything personal you keep beside the app. Resumes, notes, exports.
+private/

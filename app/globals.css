@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent-pink: #ff8de3;
+  --color-accent-pink-light: #ffb3ed;
+  --color-accent-blue: #8fcdfd;
+  /* The one alarm hue. Pink and blue both already mean "this side of the app", so
+     neither can also mean "this has gone stale" — a one-off amber in the pipeline
+     row and a one-off rose in the queue were the symptom of that gap. Declared
+     once here so there is a single answer. */
+  --color-alarm: #f6a6a0;
+  /* A day where both halves of the search happened. Literally between the two
+     accents, because that is what it means, and distinguishable from either at the
+     12px the activity grid draws. */
+  --color-accent-both: #c6a4f3;
+}
+
+:root {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+}
+
+/* Reserve the scrollbar gutter so fixed-position elements (like the floating
+   chat button) don't shift when modals lock body scroll and the scrollbar
+   visually disappears. */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
