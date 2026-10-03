@@ -14,7 +14,7 @@ import {
   canonicalCompany,
 } from "@/lib/role-filter";
 import { ATS_BOARDS, MANUAL_ONLY } from "@/lib/ats-boards";
-import { stripHtml } from "@/lib/html";
+import { stripHtml, stripHtmlKeepLinks } from "@/lib/html";
 import { identityLine } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +30,11 @@ type ExtractedListing = {
   compRange?: string;
   expRange?: string;
   descriptionSnippet?: string;
-  // Only the ATS fast path can supply this; the Claude extraction path leaves it
-  // undefined because careers pages rarely render a reliable posting date.
+  // Only the ATS fast path can supply this. Careers pages rarely render a
+  // reliable posting date; job sites usually say "11 days ago" instead, which the
+  // extractor returns as postedDaysAgo.
   datePosted?: Date;
+  postedDaysAgo?: number | null;
   // When the board last touched the listing. Greenhouse exposes updated_at;
   // Ashby's posting API does not, so Ashby-sourced rows carry only datePosted.
   dateUpdated?: Date;
@@ -565,7 +567,10 @@ export async function POST(req?: NextRequest) {
       continue;
     }
 
-    const text = stripHtml(html).slice(0, 25_000);
+    // Multi-employer sites keep their link addresses, so each role arrives with
+    // its own URL; their pages are longer for it, hence the larger slice.
+    const text =
+      src.kind === "site" ? stripHtmlKeepLinks(html).slice(0, 40_000) : stripHtml(html).slice(0, 25_000);
     if (text.length < 200) {
       results.push({ source: src.displayName, kind: src.kind, status: "CHECK MANUALLY — JS-rendered, nothing readable", added: 0 });
       continue;
@@ -594,6 +599,8 @@ ${text}
 TASK:
 Extract product design / UX / interaction design / design research listings that fit their profile. For each, return the role title, the employer company, the job URL (absolute if possible — base URL: ${src.baseUrl}), location, and a 1-2 sentence description if visible. Skip listings that are clearly out of scope.
 
+Links appear in the page text as "link text [address]". Use the address next to each role's title as its jobUrl. If the page shows how long ago a role was posted ("11 days ago", "7 months ago", "1 day ago"), return that as postedDaysAgo, a whole number of days; otherwise null.
+
 Return ONLY a valid JSON array. No preamble. If you can't find any plausible listings, return [].
 
 Format:
@@ -604,7 +611,8 @@ Format:
     "jobUrl": "https://${src.domain}/careers/...",
     "location": "San Francisco / Remote",
     "expRange": "3-5 yrs",
-    "descriptionSnippet": "What the role is in 1-2 sentences"
+    "descriptionSnippet": "What the role is in 1-2 sentences",
+    "postedDaysAgo": 11
   }
 ]`;
 
@@ -642,6 +650,12 @@ Format:
       if (!isReachableLevel(listing.roleTitle)) continue;
       if (!passesStatedRules(listing.roleTitle, employer)) continue;
       if (!isUsLocation(listing.location ?? "")) continue;
+      // Sites show age as "11 days ago", which the extractor returns as a number.
+      const posted =
+        typeof listing.postedDaysAgo === "number" && listing.postedDaysAgo >= 0
+          ? new Date(Date.now() - listing.postedDaysAgo * 86_400_000)
+          : undefined;
+      if (!isFreshPosting(posted)) continue;
       if (await alreadyHave(canonicalCompany(employer), listing.roleTitle, normalizeJobUrl(absUrl))) continue;
       await prisma.job.create({
         data: {
@@ -652,6 +666,7 @@ Format:
           compRange: listing.compRange ?? "Not disclosed",
           expRange: listing.expRange ?? "",
           description: listing.descriptionSnippet ?? "",
+          ...(posted ? { datePosted: posted } : {}),
           fitScore: 0,
           fitRationale: `Surfaced from ${src.displayName} during broad ingest.`,
           priority: "MONITOR",

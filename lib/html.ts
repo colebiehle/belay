@@ -8,6 +8,23 @@
  * requirement bullets out of it for levelSignals and applicationNeeds, and a wall
  * of text is measurably worse input for that than a list.
  */
+/**
+ * The same, but each link keeps its address: `<a href="/jobs/1">Designer</a>`
+ * becomes `Designer [/jobs/1]`. Job boards that list many employers link every
+ * role, and without the addresses the extractor could see the roles but had no
+ * link to store for any of them.
+ */
+export function stripHtmlKeepLinks(html: string): string {
+  const withLinks = html.replace(
+    /<a\b[^>]*?href="([^"#][^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+    (whole, href: string, inner: string) =>
+      /^(javascript|mailto|tel):/i.test(href) || !inner.replace(/<[^>]+>/g, "").trim()
+        ? whole
+        : `${inner} [${href}] `,
+  );
+  return stripHtml(withLinks);
+}
+
 export function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")

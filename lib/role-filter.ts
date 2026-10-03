@@ -56,6 +56,9 @@ export const TITLE_INCLUDE = [
   "experience designer", "human interface",
   "design engineer", "design technologist", "ux engineer",
   "model designer", "conversation designer", "prototyper",
+  // Startup titles for the first design hire. "Founding Designer" names no
+  // discipline, so without these it read as off-discipline and never arrived.
+  "founding designer", "founding design", "first designer",
 ];
 // Off-discipline titles that would otherwise slip through on a substring match
 // (e.g. "Senior Brand Designer" contains neither, but "Product Design Manager"
@@ -82,6 +85,9 @@ export const RESEARCH_TERMS = ["researcher", "research"];
  */
 export function isReachableLevel(title: string): boolean {
   const t = title.toLowerCase();
+  // A founding role is titled by what it will become ("Founding Design Lead"),
+  // not by the seniority it screens for. The years gate still applies to it.
+  if (t.includes("founding") || t.includes("first designer")) return true;
   return !LEVEL_EXCLUDE.some((x) => t.includes(x));
 }
 
@@ -240,5 +246,7 @@ export function isDesignRole(title: string, allowResearch = false): boolean {
   if (TITLE_EXCLUDE.some((x) => t.includes(x))) return false;
   if (DISCIPLINE_EXCLUDE.some((x) => t.includes(x))) return false;
   if (t.includes("design engineer")) return true;
+  // Founding titles come in any order ("Design Lead (Founding)").
+  if (t.includes("founding") && t.includes("design")) return true;
   return TITLE_INCLUDE.some((k) => t.includes(k));
 }

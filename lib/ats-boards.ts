@@ -83,7 +83,9 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
  */
 export const MANUAL_ONLY = new Set([
   "google", "apple", "microsoft", "meta", "uber", "tiktok", "linkedin",
-  "wellfound", "handshake", "y combinator", "workatastartup",
+  // Wellfound and YC's public board (ycombinator.com/jobs) render their listings
+  // server-side and are read like any site. Work at a Startup blocks scripts.
+  "handshake", "workatastartup",
   // Consider-powered VC boards: React apps that keep both the job data and the
   // filter state off the URL, so there is nothing to fetch or deep-link.
   "a16z portfolio", "lightspeed", "sequoia", "levels.fyi jobs",
