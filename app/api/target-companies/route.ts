@@ -21,7 +21,7 @@ export async function GET() {
   // Derived, not stored: coverage follows the board table, and a stored copy
   // would go stale the moment a token is added there.
   return NextResponse.json(
-    companies.map((c) => ({ ...c, coverage: coverageFor(c.name, c.tier) })),
+    companies.map((c) => ({ ...c, coverage: coverageFor(c.name) })),
   );
 }
 

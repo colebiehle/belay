@@ -66,6 +66,9 @@ npm run dev                 # http://localhost:3001
 Open `/profile` and answer what you can. Then add the companies you care about on the
 dashboard, and press **Run ingest** on the Applications page to fill the queue.
 
+To run the same scan every day at noon on macOS, run `bash scripts/daily-ingest.sh --install`.
+It starts the dev server if it isn't running, and logs to `private/logs/`.
+
 ### Try it with example data first
 
 ```bash

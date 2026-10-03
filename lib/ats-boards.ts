@@ -100,7 +100,7 @@ export const MANUAL_ONLY = new Set([
  * uncovered and aren't: eight of the Google/Microsoft/Meta/Apple rows sitting
  * in the queue right now arrived through the LinkedIn arm.
  */
-export type Coverage = "board" | "on-demand" | "search" | "manual";
+export type Coverage = "board" | "search" | "manual";
 
 // Employers large enough that a LinkedIn title search reliably returns their
 // postings. A small company can go weeks without appearing in one, so calling
@@ -109,19 +109,11 @@ const SEARCH_COVERED = new Set([
   "google", "apple", "microsoft", "meta", "uber", "tiktok", "linkedin",
 ]);
 
-// The daily scan covers S and A only (DEFAULT_MAX_TIER = 2 in the career-pages
-// route), so a company with a board arm below A is NOT scanned every run — it is
-// only reached by the on-demand "All tiers" sweep. Reporting those as "scanned
-// automatically" made most of the green dots a lie, which is worse than
-// grey: you see green and does not click.
-export const DAILY_MAX_TIER = 2;
-
-export function coverageFor(companyName: string, tier?: number | null): Coverage {
+// Every ingest scans every tracked company with a board, whatever its tier, so
+// tier no longer decides coverage.
+export function coverageFor(companyName: string): Coverage {
   const key = companyName.toLowerCase();
-  if (ATS_BOARDS[key]) {
-    if (tier !== undefined && tier !== null && tier > DAILY_MAX_TIER) return "on-demand";
-    return "board";
-  }
+  if (ATS_BOARDS[key]) return "board";
   if (SEARCH_COVERED.has(key)) return "search";
   return "manual";
 }

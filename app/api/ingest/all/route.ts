@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 600;
+export const maxDuration = 1800;
 
 /**
  * Orchestrates a broad ingest pass:
@@ -16,23 +16,22 @@ export async function POST(req: NextRequest) {
   const origin = new URL(req.url).origin;
   const results: Record<string, unknown> = {};
 
-  // Forwarded to the career-pages arm, which defaults to S and A only. The
-  // other four arms are company-blind and have no tier to scope by.
-  let maxTier: number | "all" | undefined;
+  // Forwarded to the career-pages arm. Every tracked company by default: the
+  // daily run and the button used to differ here (S and A only versus all), so
+  // the same words meant two different scans. Pass a number to narrow. The other
+  // four arms are company-blind and have no tier to scope by.
+  let maxTier: number | "all" = "all";
   try {
     const body = await req.json();
-    if (body?.maxTier === "all" || typeof body?.maxTier === "number") maxTier = body.maxTier;
+    if (typeof body?.maxTier === "number") maxTier = body.maxTier;
   } catch {
-    // bare POST: career-pages uses its own default
+    // bare POST, as the daily run sends: keep the default
   }
-  const careerPagesInit: RequestInit =
-    maxTier === undefined
-      ? { method: "POST" }
-      : {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ maxTier }),
-        };
+  const careerPagesInit: RequestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ maxTier }),
+  };
 
   // Run them in parallel — they hit independent paths and Claude can handle it.
   const [gmailRes, careerRes, deepRes, linkedinRes, getroRes] = await Promise.allSettled([
@@ -114,15 +113,17 @@ export async function POST(req: NextRequest) {
   if (gt.summary) parts.push(gt.summary);
   if (gt.error) parts.push(`Portfolio boards failed: ${gt.error}`);
 
-  // Score whatever just landed. The rubric pass existed but nothing called it, so
-  // every ingested role was written with fitScore 0 and sank to the bottom of a
-  // score-sorted queue — the reason the pipeline looked empty.
+  // Score whatever just landed, all of it. The rubric pass existed but nothing
+  // called it, so every ingested role was written with fitScore 0 and sank to the
+  // bottom of a score-sorted queue. It then scored only the first 12, which left
+  // the rest of a large run blank. Enrichment fetches any missing description
+  // before scoring.
   let scored = 0;
   try {
     const r = await fetch(`${origin}/api/jobs/enrich-batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 12 }),
+      body: JSON.stringify({ limit: 200 }),
     });
     if (r.ok) scored = (await r.json())?.processed ?? 0;
   } catch {

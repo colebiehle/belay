@@ -512,17 +512,13 @@ export default function ApplicationsPage() {
     return matchText && matchCompany;
   });
 
-  // `full` widens the career-pages arm from its S-and-A default to every tier.
-  // The daily run stays narrow on purpose; this is the on-demand sweep.
-  const runIngest = async (full = false) => {
+  // The same scan the daily run does: every source, every tracked company, then
+  // every new role scored.
+  const runIngest = async () => {
     setIngesting(true);
     setIngestMsg(null);
     try {
-      const res = await fetch("/api/ingest/all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(full ? { maxTier: "all" } : {}),
-      });
+      const res = await fetch("/api/ingest/all", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
         // Per-source failures live in results.careerPages.perCompany and were
@@ -572,12 +568,10 @@ export default function ApplicationsPage() {
               {ingestMsg}
             </span>
           )}
-          {/* One button, and it scans every tracked company. The daily cron is
-              the narrow one (S and A only) because it runs unattended; a scan they
-              presses on purpose should look everywhere, which made the separate
-              "All tiers" button a distinction they had to think about for no gain. */}
+          {/* One button, and it runs the same scan as the daily schedule, so
+              "ingest" means one thing wherever it starts. */}
           <button
-            onClick={() => runIngest(true)}
+            onClick={() => runIngest()}
             disabled={ingesting}
             title="Scan every tracked company's board, plus LinkedIn, the VC boards and Gmail alerts"
             className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 border border-zinc-700 bg-zinc-900 text-zinc-200 rounded-lg hover:border-accent-pink/50 hover:text-accent-pink disabled:opacity-50 transition-all duration-150"

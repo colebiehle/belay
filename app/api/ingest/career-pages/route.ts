@@ -438,11 +438,10 @@ type ScanSource = {
   tier: number;              // 1 = top target; relaxes the research-title gate
 };
 
-// How deep the scan goes by default. The daily run stays on S and A, because a
-// queue you don't triage is worse than a queue that's short — and the
-// company-blind arms (LinkedIn title search, the VC boards) still surface
-// everything else. Pass `maxTier` to widen: 3 adds B, 5 is the whole list.
-const DEFAULT_MAX_TIER = 2;
+// How deep the scan goes by default: every tracked company. The daily run and
+// the button used to differ here, so one word meant two scans. Pass `maxTier` to
+// narrow: 2 is S and A only, 3 adds B.
+const DEFAULT_MAX_TIER = 99;
 
 export async function POST(req?: NextRequest) {
   // Body is optional so the launchd job and the dashboard button can both POST

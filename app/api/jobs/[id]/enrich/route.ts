@@ -7,6 +7,10 @@ import { FIT_RUBRIC } from "@/lib/fit-rubric";
 import { verdictSignalBlock } from "@/lib/verdict-signal";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
+import { fetchPostingText } from "@/lib/posting";
+
+// Below this a stored description is a snippet or a blank, not a posting.
+const MIN_DESCRIPTION_CHARS = 500;
 
 const SEARCH_KINDS = [
   "search_target_companies",
@@ -45,8 +49,19 @@ type Enrichment = {
 };
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = await prisma.job.findUnique({ where: { id } });
-  if (!job) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const found = await prisma.job.findUnique({ where: { id } });
+  if (!found) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // Alert mail, capped LinkedIn detail fetches and Workday listings all store a
+  // role without its body, and scoring a title produces a blank card. Fetch the
+  // posting first and keep it, so the panel has the full text too.
+  let job = found;
+  if ((job.description ?? "").length < MIN_DESCRIPTION_CHARS) {
+    const text = await fetchPostingText(job.jobUrl);
+    if (text && text.length > (job.description ?? "").length) {
+      job = await prisma.job.update({ where: { id }, data: { description: text } });
+    }
+  }
 
   const [criteria, understanding, verdictSignal] = await Promise.all([
     prisma.material.findMany({ where: { kind: { in: SEARCH_KINDS } } }),
