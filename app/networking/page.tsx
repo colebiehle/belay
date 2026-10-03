@@ -4,7 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Plus, Search } from "lucide-react";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
-import { CONTACT_STAGES, CONTACT_STAGE_COLORS, DEFAULT_STAGE } from "@/lib/contact-stages";
+import {
+  CONTACT_STAGES,
+  CONTACT_STAGE_COLORS,
+  DEFAULT_STAGE,
+  FOLLOW_UP_STAGES,
+  NUDGE_AFTER_DAYS,
+} from "@/lib/contact-stages";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { PersonPicker } from "@/components/PersonPicker";
 
@@ -67,6 +73,10 @@ export default function NetworkingPage() {
   const [filter, setFilter] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
+  // Read once per visit for the follow-up counters, rather than during every render.
+  const [now] = useState(() => Date.now());
+  // Whether the open panel was reached from another panel's mutual.
+  const [switched, setSwitched] = useState(false);
 
   // The add flow. One company (or one mutual) at a time, then paste URLs.
   const [addCompany, setAddCompany] = useState("");
@@ -88,9 +98,13 @@ export default function NetworkingPage() {
       fetch("/api/jobs").then((r) => (r.ok ? r.json() : [])),
     ])
       .then(([cs, co, js]) => {
+        // Queue and pipeline only, which is what the panel's link lands on. Counting
+        // every row also counted passed and archived roles, so Google read 12 and
+        // the page showed 4.
         const counts: Record<string, number> = {};
         if (Array.isArray(js)) {
-          for (const j of js as { company?: string }[]) {
+          for (const j of js as { company?: string; verdict?: string | null }[]) {
+            if (j.verdict && j.verdict !== "Apply") continue;
             const k = (j.company ?? "").trim().toLowerCase();
             if (k) counts[k] = (counts[k] ?? 0) + 1;
           }
@@ -140,14 +154,15 @@ export default function NetworkingPage() {
     setAddUrl("");
     setAddName("");
     setAddRole("");
+    setAddVia("");
     setPickingVia(false);
   };
 
   // A name is the only hard requirement. The LinkedIn URL is optional because the
   // people worth tracking are not all findable that way, and the name is pre-filled
   // from the URL's slug when there is one, so the common case is still paste, Enter.
-  // The company and the mutual carry over to the next person, because they arrive in
-  // batches from one search.
+  // The company carries over to the next person, because they arrive in batches from
+  // one search. The mutual does not: it belongs to the person just saved.
   const addOne = async () => {
     const name = addName.trim();
     if (!name) return;
@@ -455,6 +470,14 @@ export default function NetworkingPage() {
                         return [];
                       }
                     })();
+                    // Days since the last stage change or recorded nudge, for people
+                    // who have accepted but have no call booked.
+                    const last = hist.length ? new Date(hist[hist.length - 1].at).getTime() : NaN;
+                    const quietDays =
+                      FOLLOW_UP_STAGES.includes(c.stage ?? DEFAULT_STAGE) && !Number.isNaN(last)
+                        ? Math.max(0, Math.floor((now - last) / 86_400_000))
+                        : null;
+                    const overdue = quietDays !== null && quietDays >= NUDGE_AFTER_DAYS;
                     return (
                       <div
                         key={c.id}
@@ -490,6 +513,32 @@ export default function NetworkingPage() {
                             </p>
                           </button>
                           <div className="flex items-center gap-2 shrink-0">
+                            {quietDays !== null && (
+                              <span
+                                className={`text-xs tabular-nums ${overdue ? "text-accent-blue font-medium" : "text-zinc-600"}`}
+                                title={overdue ? "Time to reach out again" : "Days since your last touch"}
+                              >
+                                {quietDays}d
+                              </span>
+                            )}
+                            {/* A nudge does not change the stage, so it is recorded as a
+                                history entry of its own, which restarts the count. */}
+                            {overdue && (
+                              <button
+                                onClick={() =>
+                                  update(c.id, {
+                                    stageHistory: JSON.stringify([
+                                      ...hist,
+                                      { stage: c.stage ?? DEFAULT_STAGE, at: new Date().toISOString(), nudge: true },
+                                    ]),
+                                  })
+                                }
+                                className="text-xs font-semibold text-accent-blue border border-accent-blue/40 rounded-full px-2 py-0.5 hover:bg-accent-blue/10 transition-all duration-150"
+                                title="You followed up; restart the count"
+                              >
+                                Nudged
+                              </button>
+                            )}
                             <select
                               value={c.stage ?? DEFAULT_STAGE}
                               onChange={(e) => {
@@ -527,12 +576,22 @@ export default function NetworkingPage() {
 
       {open && (
         <ContactPanel
+          // Keyed by person so each one mounts fresh. Reusing one instance kept the
+          // previous person's mutuals, notes and calls in its state.
+          key={open.id}
           contact={open}
           allContacts={contacts.map((c) => ({ id: c.id, name: c.name, company: c.company }))}
           rolesAtCompany={roleCounts[open.company.trim().toLowerCase()] ?? 0}
-          onOpenContact={setOpenId}
+          onOpenContact={(id) => {
+            setSwitched(true);
+            setOpenId(id);
+          }}
+          arrivedFromSwitch={switched}
           onDelete={remove}
-          onClose={() => setOpenId(null)}
+          onClose={() => {
+            setSwitched(false);
+            setOpenId(null);
+          }}
           onUpdate={update}
         />
       )}

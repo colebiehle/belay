@@ -118,6 +118,7 @@ export function ContactPanel({
   onUpdate,
   onOpenContact,
   onDelete,
+  arrivedFromSwitch = false,
 }: {
   contact: PanelContact;
   // Everyone else on file, so a mutual can be picked by name and opened by click.
@@ -128,6 +129,9 @@ export function ContactPanel({
   onUpdate: (id: string, patch: Record<string, unknown>) => void;
   onOpenContact?: (id: string) => void;
   onDelete?: (id: string) => void;
+  // Opened by clicking a mutual in another panel. The backdrop is already up, so
+  // it starts visible instead of fading in a second time.
+  arrivedFromSwitch?: boolean;
 }) {
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [scope, setScope] = useState<string | null>(null);
@@ -161,6 +165,7 @@ export function ContactPanel({
   const [addingEvent, setAddingEvent] = useState(false);
   const [profileDraft, setProfileDraft] = useState(contact.profileText ?? "");
   const [shown, setShown] = useState(false);
+  const [backdropShown, setBackdropShown] = useState(arrivedFromSwitch);
   const [pick, setPick] = useState<{ text: string; top: number } | null>(null);
   const [staged, setStaged] = useState<{ text: string; target: string | null; title: string } | null>(null);
   const [markers, setMarkers] = useState<Record<number, string>>({});
@@ -178,7 +183,7 @@ export function ContactPanel({
   // label survives a company whose colour is #000000.
   const accentInk = accentHex ? readableOn(accentHex) : "#000000";
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
-  const history = parseJson<{ stage: string; at: string }[]>(contact.stageHistory, []);
+  const history = parseJson<{ stage: string; at: string; nudge?: boolean }[]>(contact.stageHistory, []);
   // Newest first, because the note you want is almost always the one you just made or
   // the call you just had. Search covers title and body.
   const visibleNotes = [...notes]
@@ -190,7 +195,10 @@ export function ContactPanel({
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   useEffect(() => {
-    const t = requestAnimationFrame(() => setShown(true));
+    const t = requestAnimationFrame(() => {
+      setShown(true);
+      setBackdropShown(true);
+    });
     return () => cancelAnimationFrame(t);
   }, []);
 
@@ -211,7 +219,16 @@ export function ContactPanel({
 
   const close = () => {
     setShown(false);
+    setBackdropShown(false);
     setTimeout(onClose, 200);
+  };
+
+  // Moving to a mutual slides this panel out before theirs slides in, so it is
+  // clear a different person is now open. Swapping the contents in place read as
+  // the same panel with its name changed.
+  const switchTo = (id: string) => {
+    setShown(false);
+    setTimeout(() => onOpenContact?.(id), 200);
   };
 
   useEffect(() => {
@@ -322,7 +339,7 @@ export function ContactPanel({
     <>
       <div
         className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-200 ${
-          shown ? "opacity-100" : "opacity-0"
+          backdropShown ? "opacity-100" : "opacity-0"
         }`}
         onClick={close}
         aria-hidden
@@ -592,7 +609,7 @@ export function ContactPanel({
                     <span className="text-xs text-zinc-600 tabular-nums shrink-0 w-14">
                       {new Date(h.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                     </span>
-                    <span className="text-xs text-zinc-400">{h.stage}</span>
+                    <span className="text-xs text-zinc-400">{h.nudge ? "Nudged" : h.stage}</span>
                     {i > 0 && (
                       <span className="text-xs text-zinc-700">
                         {Math.max(
@@ -652,7 +669,7 @@ export function ContactPanel({
                   <div key={name} className="flex items-center gap-1.5 group">
                     {person ? (
                       <button
-                        onClick={() => onOpenContact?.(person.id)}
+                        onClick={() => switchTo(person.id)}
                         className="text-xs text-zinc-200 hover:opacity-80 transition-opacity duration-150 text-left"
                         title="Open their panel"
                       >

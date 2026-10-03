@@ -58,16 +58,18 @@ export const CONTACT_STAGE_COLORS: Record<string, string> = {
   "No response": "bg-zinc-900 text-zinc-600",
 };
 
-/** Sent, and the ball is with them. Used to decide who needs a nudge. */
-/** Sent, and the ball is with them. */
-export const WAITING_STAGES: string[] = ["Sent", "Connected"];
+/**
+ * Stages where a conversation is open but no call is booked: they have accepted,
+ * so a follow-up is possible, and nothing is on the calendar yet. Sent is not one
+ * of them, because until a request is accepted there is no one to follow up with.
+ */
+export const FOLLOW_UP_STAGES: string[] = ["Connected", "Replied"];
 
 /**
- * How long to wait before a nudge is worth sending. A single follow-up around this
- * mark is where most replies to cold outreach come from, which is the lever nothing
- * in the old surface tracked.
+ * Days without a stage change or a recorded nudge before a row asks for another
+ * message.
  */
-export const NUDGE_AFTER_DAYS = 8;
+export const NUDGE_AFTER_DAYS = 7;
 
 /**
  * LinkedIn's connection-note limit. Hard, not advisory: the draft is useless if it
