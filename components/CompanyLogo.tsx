@@ -16,6 +16,17 @@ const ATS_PLATFORMS = [
   "taleo.net",
   "jobvite.com",
   "bamboohr.com",
+  // Multi-employer job sites. Their URL says where the listing was found, not who
+  // is hiring, so a role from one would otherwise wear the site's logo.
+  "wellfound.com",
+  "ycombinator.com",
+  "workatastartup.com",
+  "simplify.jobs",
+  "hiring.cafe",
+  "welcometothejungle.com",
+  "builtin.com",
+  "joinhandshake.com",
+  "getro.com",
 ];
 
 const KNOWN_DOMAINS: Record<string, string> = {

@@ -59,6 +59,11 @@ export const TITLE_INCLUDE = [
   // Startup titles for the first design hire. "Founding Designer" names no
   // discipline, so without these it read as off-discipline and never arrived.
   "founding designer", "founding design", "first designer",
+  // Titles that name the work rather than a ladder, common at startups and AI
+  // companies.
+  "ui designer", "ai designer", "creative technologist", "software designer",
+  "design generalist", "generalist designer", "mobile designer", "app designer",
+  "design systems designer", "design lead",
 ];
 // Off-discipline titles that would otherwise slip through on a substring match
 // (e.g. "Senior Brand Designer" contains neither, but "Product Design Manager"
@@ -88,6 +93,8 @@ export function isReachableLevel(title: string): boolean {
   // A founding role is titled by what it will become ("Founding Design Lead"),
   // not by the seniority it screens for. The years gate still applies to it.
   if (t.includes("founding") || t.includes("first designer")) return true;
+  // "Member of Technical Staff" is a flat title, not the Staff rung.
+  if (t.includes("member of technical staff")) return !LEVEL_EXCLUDE.some((x) => x !== "staff" && t.includes(x));
   return !LEVEL_EXCLUDE.some((x) => t.includes(x));
 }
 
@@ -146,7 +153,8 @@ export function extractMinYoe(text: string): number | null {
 // transparency block…"), and storing that prose in compRange would put a
 // paragraph on the queue card. Only a real figure counts, so the card can keep
 // saying nothing when the posting genuinely says nothing.
-const COMP_RANGE = /\$\s?[\d,]{5,}(?:\s*(?:-|–|—|to)\s*\$?\s?[\d,]{5,})?/gi;
+const COMP_RANGE =
+  /\$\s?(?:[\d,]{5,}|\d{2,3}(?:\.\d)?\s?k)(?:\s*(?:-|–|—|to)\s*\$?\s?(?:[\d,]{5,}|\d{2,3}(?:\.\d)?\s?k))?/gi;
 
 export function extractCompRange(text: unknown): string | null {
   if (!text) return null;
@@ -155,8 +163,8 @@ export function extractCompRange(text: unknown): string | null {
   if (!hits) return null;
   const best = hits.reduce((a, b) => (b.length > a.length ? b : a)).trim();
   // Guard against picking up equity figures or stray numbers: a real base
-  // salary reads as six figures with a thousands separator.
-  if (!/\d{2,3},\d{3}/.test(best)) return null;
+  // salary reads as six figures with a thousands separator, or as "$180k".
+  if (!/\d{2,3},\d{3}|\d{2,3}(?:\.\d)?\s?k/i.test(best)) return null;
   return best.replace(/\s+/g, " ");
 }
 
@@ -246,6 +254,10 @@ export function isDesignRole(title: string, allowResearch = false): boolean {
   if (TITLE_EXCLUDE.some((x) => t.includes(x))) return false;
   if (DISCIPLINE_EXCLUDE.some((x) => t.includes(x))) return false;
   if (t.includes("design engineer")) return true;
+  // A bare "Designer" or "Senior Designer" is the whole title at many startups.
+  if (/^(senior |sr\.? )?designer$/.test(t.replace(/[^a-z. ]/g, "").trim())) return true;
+  // AI labs give everyone "Member of Technical Staff"; the discipline follows it.
+  if (t.includes("member of technical staff") && t.includes("design")) return true;
   // Founding titles come in any order ("Design Lead (Founding)").
   if (t.includes("founding") && t.includes("design")) return true;
   return TITLE_INCLUDE.some((k) => t.includes(k));

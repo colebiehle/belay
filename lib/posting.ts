@@ -95,12 +95,21 @@ async function workday(url: URL): Promise<string | null> {
   return body ? stripHtml(String(body)) : null;
 }
 
-async function page(url: URL): Promise<string | null> {
-  const res = await get(url.toString());
-  return res ? stripHtml(await res.text()) : null;
+// A whole page carries the site's own header and menus ahead of the posting. The
+// role title appears once in the page title and again where the posting starts,
+// so when it reappears near the top, everything before that is chrome.
+function fromPostingStart(text: string, roleTitle?: string): string {
+  if (!roleTitle) return text;
+  const at = text.indexOf(roleTitle, roleTitle.length + 1);
+  return at > 0 && at < 3000 ? text.slice(at) : text;
 }
 
-export async function fetchPostingText(jobUrl: string): Promise<string | null> {
+async function page(url: URL, roleTitle?: string): Promise<string | null> {
+  const res = await get(url.toString());
+  return res ? fromPostingStart(stripHtml(await res.text()), roleTitle) : null;
+}
+
+export async function fetchPostingText(jobUrl: string, roleTitle?: string): Promise<string | null> {
   let url: URL;
   try {
     url = new URL(jobUrl);
@@ -118,6 +127,6 @@ export async function fetchPostingText(jobUrl: string): Promise<string | null> {
           ? workday
           : null;
 
-  const text = (specific && (await specific(url).catch(() => null))) || (await page(url).catch(() => null));
+  const text = (specific && (await specific(url).catch(() => null))) || (await page(url, roleTitle).catch(() => null));
   return text?.trim() ? text.trim().slice(0, MAX_CHARS) : null;
 }

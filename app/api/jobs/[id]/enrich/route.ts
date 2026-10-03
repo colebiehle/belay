@@ -57,7 +57,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // posting first and keep it, so the panel has the full text too.
   let job = found;
   if ((job.description ?? "").length < MIN_DESCRIPTION_CHARS) {
-    const text = await fetchPostingText(job.jobUrl);
+    const text = await fetchPostingText(job.jobUrl, job.roleTitle);
     if (text && text.length > (job.description ?? "").length) {
       job = await prisma.job.update({ where: { id }, data: { description: text } });
     }
@@ -92,7 +92,7 @@ ${(job.description || "(no description)").slice(0, 8000)}
 Return ONLY valid JSON, no preamble, no code fences:
 
 {
-  "headline": "ONE short sentence, under 18 words: what the role is and which team. Nothing else.",
+  "headline": "ONE sentence, under 28 words: what the designer would own, and the one fact that sets this role apart from other design roles.",
   "tags": ["short label", "..."],
   "askingFor": ["stated requirement, close to the posting's own words", "..."],
   "levelSignals": "Years required and any seniority language, exactly as written. If unstated, say so.",
@@ -110,9 +110,10 @@ Rules:
 - If the description is empty, say so plainly in whatItIs and keep the rest short rather than inventing.
 - Voice: direct, no em-dashes, no marketing language.
 - applicationNeeds: only what the posting states or clearly implies. Empty array if it says nothing.
-- headline and tags must not overlap. The headline says what the job is and whose team it sits on, in one short sentence. The tags are the SKILLS AND SUBJECT AREAS the work needs — what they would be doing and what domain it is in.
+- headline and tags must not overlap. The headline says what the designer would own and what is distinctive: the company's stage and size when it is small ("first design hire at a 13-person YC W24 startup"), the product and who uses it, or how central AI is. A reader should be able to tell this role from the other twenty in the queue by the headline alone. "Product Designer on the Growth team" fails that test; "Owns onboarding and activation for a usage-billed developer API, first designer on the team" passes. Facts from the posting only.
+- The tags are what distinguishes the work: the domain, the product type, the stage, the users, the specific craft the posting leans on.
 - tags: at most 5, one to three words each and never more than 28 characters, lowercase except proper nouns. Count the characters. They read like a skills list, not like observations. Good: "ai prototyping", "design systems", "creativity tools", "brand design", "interaction design", "0-to-1", "user research", "data viz", "developer tools", "growth", "trust and safety", "motion". Bad: anything that reads as a sentence or a judgement — "AI is the product", "no AI mentioned", "scope unstated", "8+ yrs required" all belong nowhere near the tag row, because they are commentary rather than the substance of the work.
-- Take tags from what the posting actually asks the designer to do. If it names a domain (health, payments, creator tools, enterprise), that is a tag. If it names a craft (prototyping, systems, research, visual), that is a tag.
+- Take tags from what the posting actually asks the designer to do. If it names a domain (health, payments, creator tools, enterprise), that is a tag. If it names a craft, it is a tag only when the posting leans on it: "prototyping", "ui/ux design", "user research" and "collaboration" describe nearly every design role, so they earn a tag only when the posting makes them central.
 - Give 3 if the posting only supports 3, and never invent a skill it does not mention. An empty array beats padding.
 - Years and seniority belong in levelSignals, application requirements in applicationNeeds. Neither is a tag.
 - Location, hours and comp are already columns on the card. Never spend a bullet on them.
