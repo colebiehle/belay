@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
-import { getLogoDomain } from "@/components/CompanyLogo";
+import { domainFromEnrichment, getLogoDomain } from "@/components/CompanyLogo";
 import { brandColor, readableOn, usableAccent } from "@/lib/brand-colors";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, metaTokens } from "@/lib/role-meta";
@@ -185,7 +185,11 @@ export function RoleWorkspace({
     ...SCOPES_LATE.filter((sc) => sc.from.includes(app.status)).map(({ key, label, hint }) => ({ key, label, hint })),
   ];
   const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
-  const logoDomain = getLogoDomain(app.job.company, app.job.jobUrl);
+  const logoDomain = getLogoDomain(
+    app.job.company,
+    app.job.jobUrl,
+    domainFromEnrichment(app.job.queueEnrichment),
+  );
   const brand = brandColor(logoDomain);
   const accentHex = brand ? usableAccent(brand) : null;
   const accent = accentHex ?? "rgb(255 141 227)";

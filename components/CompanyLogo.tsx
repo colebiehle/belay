@@ -67,7 +67,21 @@ const KNOWN_DOMAINS: Record<string, string> = {
   "github": "github.com",
 };
 
-export function getLogoDomain(company: string, jobUrl: string): string {
+// The employer's own domain, found while scoring a role (from the posting page, or
+// from the model when it knows the company). Small startups rarely own
+// "<name>.com", so without it a Wellfound or YC role guessed someone else's logo.
+export function domainFromEnrichment(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const d = (JSON.parse(raw) as { companyDomain?: unknown }).companyDomain;
+    return typeof d === "string" && d.includes(".") ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getLogoDomain(company: string, jobUrl: string, known?: string | null): string {
+  if (known) return known;
   const slug = company.toLowerCase();
   for (const [key, domain] of Object.entries(KNOWN_DOMAINS)) {
     if (slug.includes(key)) return domain;
@@ -83,13 +97,15 @@ export function CompanyLogo({
   company,
   jobUrl = "",
   size = 36,
+  domain: known = null,
 }: {
   company: string;
   jobUrl?: string;
   size?: number;
+  domain?: string | null;
 }) {
   const [attempt, setAttempt] = useState(0);
-  const domain = getLogoDomain(company, jobUrl);
+  const domain = getLogoDomain(company, jobUrl, known);
   const px = `${size}px`;
 
   if (attempt >= 2) {

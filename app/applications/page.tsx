@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, ExternalLink, Plus, X, Search, Mail, Users } from "lucide-react";
-import { CompanyLogo } from "@/components/CompanyLogo";
+import { CompanyLogo, domainFromEnrichment } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
@@ -948,7 +948,12 @@ function JobCard({
   // worse than no company at all.
   const head = (
     <div className="flex items-start gap-2.5 pr-32">
-      <CompanyLogo company={job.company} jobUrl={job.jobUrl} size={40} />
+      <CompanyLogo
+        company={job.company}
+        jobUrl={job.jobUrl}
+        domain={domainFromEnrichment(job.queueEnrichment)}
+        size={40}
+      />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5 min-w-0">
           <span className="shrink-0">{displayCompany(job.company)}</span>
@@ -1115,7 +1120,12 @@ function PassedRow({ job }: { job: Job }) {
   return (
     <div className="px-3.5 py-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all duration-150">
       <div className="flex items-start gap-3">
-        <CompanyLogo company={job.company} jobUrl={job.jobUrl} size={40} />
+        <CompanyLogo
+          company={job.company}
+          jobUrl={job.jobUrl}
+          domain={domainFromEnrichment(job.queueEnrichment)}
+          size={40}
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -1187,7 +1197,12 @@ function PipelineRow({
           role, and the dates it was actually asking about are in the panel's history,
           where they sit against the stage they belong to. */}
       <div className="flex items-center gap-3 px-3.5 py-3">
-        <CompanyLogo company={app.job.company} jobUrl={app.job.jobUrl} size={40} />
+        <CompanyLogo
+          company={app.job.company}
+          jobUrl={app.job.jobUrl}
+          domain={domainFromEnrichment(app.job.queueEnrichment)}
+          size={40}
+        />
         <button
           onClick={() => onOpenWorkspace(app.id)}
           className="flex-1 min-w-0 text-left"

@@ -7,7 +7,7 @@ import { FIT_RUBRIC } from "@/lib/fit-rubric";
 import { verdictSignalBlock } from "@/lib/verdict-signal";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
-import { fetchPostingText } from "@/lib/posting";
+import { fetchCompanyDomain, fetchPostingText } from "@/lib/posting";
 
 // Below this a stored description is a snippet or a blank, not a posting.
 const MIN_DESCRIPTION_CHARS = 500;
@@ -46,6 +46,7 @@ type Enrichment = {
   applicationNeeds: string[]; // portfolio, cover letter, screening questions
   askingFor: string[];     // stated requirements, close to the posting's words
   refinedFitScore: number; // written to Job.fitScore, shown bottom-right on the card
+  companyWebsite?: string;
 };
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -98,7 +99,8 @@ Return ONLY valid JSON, no preamble, no code fences:
   "levelSignals": "Years required and any seniority language, exactly as written. If unstated, say so.",
   "comp": "The stated range, or 'Not disclosed'.",
   "applicationNeeds": ["portfolio required", "cover letter optional", "3 screening questions", "..."],
-  "refinedFitScore": <integer 1-10, scored against the rubric below>
+  "refinedFitScore": <integer 1-10, scored against the rubric below>,
+  "companyWebsite": "The employer's own website domain, e.g. \"medal.tv\". From the posting if it states one, or from your own knowledge only if you are sure which company this is. Empty string otherwise. Never guess from the name."
 }
 
 How to score refinedFitScore:
@@ -125,8 +127,19 @@ Rules:
     return NextResponse.json({ error: "could not parse enrichment", raw: raw.slice(0, 500) }, { status: 500 });
   }
 
+  // The logo reads this. The page's own link beats the model's knowledge.
+  const companyDomain =
+    (await fetchCompanyDomain(job.jobUrl).catch(() => null)) ??
+    (parsed.companyWebsite ?? "")
+      .trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/^www\./, "")
+      .replace(/\/.*$/, "") ??
+    "";
+
   const enrichment = {
     ...parsed,
+    ...(companyDomain.includes(".") ? { companyDomain } : {}),
     enrichedAt: new Date().toISOString(),
   };
 

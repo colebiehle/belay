@@ -109,6 +109,36 @@ async function page(url: URL, roleTitle?: string): Promise<string | null> {
   return res ? fromPostingStart(stripHtml(await res.text()), roleTitle) : null;
 }
 
+/**
+ * The employer's own domain for a role listed on YC's board, whose posting pages
+ * link the company site ahead of any other external link. Wellfound's pages carry
+ * links from inside the posting body instead, so they are not read this way.
+ */
+export async function fetchCompanyDomain(jobUrl: string): Promise<string | null> {
+  let host: string;
+  try {
+    host = new URL(jobUrl).hostname;
+  } catch {
+    return null;
+  }
+  if (!/(^|\.)ycombinator\.com$/.test(host)) return null;
+  const res = await get(jobUrl);
+  if (!res) return null;
+  const html = await res.text();
+  for (const m of html.matchAll(/href="(https?:\/\/[^"]+)"/g)) {
+    let link: string;
+    try {
+      link = new URL(m[1]).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (!/ycombinator|workatastartup|google|gstatic|linkedin|twitter|x\.com|facebook|instagram|youtube|github|crunchbase|bookface|startupschool/.test(link)) {
+      return link;
+    }
+  }
+  return null;
+}
+
 export async function fetchPostingText(jobUrl: string, roleTitle?: string): Promise<string | null> {
   let url: URL;
   try {
