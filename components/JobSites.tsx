@@ -20,9 +20,9 @@ type Site = {
 // records: the ones it reads, and the ones you have to open yourself. The old
 // groups said what a site was for, which did not tell you which ones needed you.
 const GROUPS = [
-  { key: "daily", label: "Scanned daily" },
-  { key: "manual", label: "Check by hand" },
-  { key: "unscanned", label: "Not scanned yet" },
+  { key: "daily", label: "Scanned for you" },
+  { key: "manual", label: "Check yourself" },
+  { key: "unscanned", label: "Not checked yet" },
 ];
 const groupOf = (s: Site) => (s.scanStatus === "daily" || s.scanStatus === "manual" ? s.scanStatus : "unscanned");
 
@@ -184,7 +184,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             </button>
           </div>
           <p className="text-xs text-zinc-600">
-            {addError ?? "The name comes from the page itself. The next daily scan sorts it into a group."}
+            {addError ?? "The name comes from the page itself, and a test scan sorts it into a group."}
           </p>
         </div>
       )}

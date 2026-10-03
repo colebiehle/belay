@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { probeSite } from "@/lib/site-probe";
 
 
 function domainFromUrl(url: string): string {
@@ -30,14 +31,20 @@ export async function POST(req: NextRequest) {
     where: { category },
     orderBy: { position: "desc" },
   });
+  // Test-read the site now, so it lands in the right home-page group straight
+  // away rather than after the next daily scan.
+  const name = body.name || "New site";
+  const scan = await probeSite(name, url);
   const site = await prisma.huntSite.create({
     data: {
-      name: body.name || "New site",
+      name,
       url,
       domain,
       category,
       note: body.note ?? null,
       position: (last?.position ?? -1) + 1,
+      ...scan,
+      scannedAt: new Date(),
     },
   });
   return NextResponse.json(site);

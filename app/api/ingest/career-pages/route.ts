@@ -690,30 +690,29 @@ Format:
     });
   }
 
-  // Record per site whether the scan could read it, for the home page's "Scanned
-  // daily" and "Check by hand" groups. A site that starts blocking moves itself.
+  // A backstop for the status set when the site was added (lib/site-probe.ts).
+  // Only a hard failure moves a site to "check yourself", and only roles found move
+  // it back: a day with nothing matching says nothing about whether it is readable.
   const now = new Date();
   for (const r of results.filter((x) => x.kind === "site")) {
-    // LinkedIn's page is unreadable, but the LinkedIn arm searches it directly and
-    // the alert emails cover it too, so it is scanned daily all the same.
-    const linkedin = r.source.toLowerCase() === "linkedin";
-    const manual = !linkedin && /CHECK MANUALLY|no relevant listings found|timed out/i.test(r.status);
+    if (r.source.toLowerCase() === "linkedin") continue; // covered by its own arm
+    const blocked = /blocked the fetch|no readable feed/i.test(r.status);
+    const unreadable = /JS-rendered|no per-posting links/i.test(r.status);
+    const read = r.added > 0 || /^no new/i.test(r.status);
+    if (!blocked && !unreadable && !read) continue;
+    // Best-effort: a failed status write must never fail the scan that found roles.
     await prisma.huntSite.updateMany({
       where: { name: r.source },
       data: {
-        scanStatus: manual ? "manual" : "daily",
-        scanNote: linkedin
-          ? "Searched directly every day, plus your LinkedIn alert emails"
-          : manual
-            ? /blocked/i.test(r.status)
-              ? "Blocks automated reads"
-              : /no relevant listings/i.test(r.status)
-                ? "Loads its listings with JavaScript, so the scan sees none"
-                : r.status.replace(/^CHECK MANUALLY — /, "")
-            : "Read every day",
+        scanStatus: read ? "daily" : "manual",
+        scanNote: read
+          ? "Read every day"
+          : blocked
+            ? "Blocks automated reads"
+            : "Loads its listings with JavaScript, so the scan sees none",
         scannedAt: now,
       },
-    });
+    }).catch(() => {});
   }
 
   await logJournal({
