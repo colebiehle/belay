@@ -159,6 +159,12 @@ model HuntSite {
   // recruiting — so a quality tier like the company list would imply a ranking that
   // does not exist between them.
   category  String?
+  // Whether the last ingest could read the site: "daily" when it could, "manual"
+  // when it was blocked or rendered nothing readable. Written by the scan, never by
+  // hand, so the home page's two groups always match what the scan actually does.
+  scanStatus String?
+  scanNote   String?
+  scannedAt  DateTime?
 }
 
 model TargetCompany {

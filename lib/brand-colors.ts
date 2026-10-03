@@ -36,6 +36,8 @@ const BRAND: Record<string, string> = {
   "linkedin.com": "#0A66C2",
   "discord.com": "#5865F2",
   "ramp.com": "#F5C518",
+  "snap.com": "#FFFC00",
+  "snapchat.com": "#FFFC00",
   "strava.com": "#FC4C02",
   "riotgames.com": "#D32936",
   "epicgames.com": "#2A2A2A",

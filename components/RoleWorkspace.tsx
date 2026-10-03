@@ -3,8 +3,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
-import { domainFromEnrichment, getLogoDomain } from "@/components/CompanyLogo";
-import { brandColor, readableOn, usableAccent } from "@/lib/brand-colors";
+import { domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
+import { useBrandColor } from "@/lib/use-brand-color";
+import { readableOn, usableAccent } from "@/lib/brand-colors";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, metaTokens } from "@/lib/role-meta";
 import { PersonPicker } from "@/components/PersonPicker";
@@ -190,7 +191,7 @@ export function RoleWorkspace({
     app.job.jobUrl,
     domainFromEnrichment(app.job.queueEnrichment),
   );
-  const brand = brandColor(logoDomain);
+  const brand = useBrandColor(logoDomain, logoFromEnrichment(app.job.queueEnrichment));
   const accentHex = brand ? usableAccent(brand) : null;
   const accent = accentHex ?? "rgb(255 141 227)";
   // Black on the lighter brands, white on the near-black ones. Notion, IDEO, Nike,

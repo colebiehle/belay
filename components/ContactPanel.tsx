@@ -5,7 +5,8 @@ import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
-import { brandColor, readableOn, usableAccent } from "@/lib/brand-colors";
+import { useBrandColor } from "@/lib/use-brand-color";
+import { readableOn, usableAccent } from "@/lib/brand-colors";
 import { logoUrl } from "@/lib/logo";
 import { CONTACT_STAGES, CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
 
@@ -176,7 +177,7 @@ export function ContactPanel({
   const scopes = SCOPES;
   const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
   const logoDomain = getLogoDomain(contact.company, contact.linkedinUrl ?? "");
-  const brand = brandColor(logoDomain);
+  const brand = useBrandColor(logoDomain);
   const accentHex = brand ? usableAccent(brand) : null;
   const accent = accentHex ?? "rgb(143 205 253)";
   // Black on the lighter brands, white on the near-black ones, so the stage chip's

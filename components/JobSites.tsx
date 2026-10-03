@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
-import { SITE_CATEGORY_KEYS } from "@/lib/site-categories";
 
 type Site = {
   id: string;
@@ -13,14 +12,19 @@ type Site = {
   category: string | null;
   position: number;
   note: string | null;
+  scanStatus: string | null;
+  scanNote: string | null;
 };
 
-// Declared in lib/site-categories.ts, beside the hints the classifier is given, so
-// the group a site is dropped into and the group a new site is sorted into can never
-// drift apart. "Unsorted" is not one of them: it is where a site goes when the
-// classifier would not commit, and dragging it out is the fix.
-const CATEGORIES = SITE_CATEGORY_KEYS;
-const UNSORTED = "Unsorted";
+// Grouped by what the daily scan can do with each site, which the scan itself
+// records: the ones it reads, and the ones you have to open yourself. The old
+// groups said what a site was for, which did not tell you which ones needed you.
+const GROUPS = [
+  { key: "daily", label: "Scanned daily" },
+  { key: "manual", label: "Check by hand" },
+  { key: "unscanned", label: "Not scanned yet" },
+];
+const groupOf = (s: Site) => (s.scanStatus === "daily" || s.scanStatus === "manual" ? s.scanStatus : "unscanned");
 
 export function JobSites({ compact = false }: { compact?: boolean } = {}) {
   const [sites, setSites] = useState<Site[]>([]);
@@ -102,13 +106,17 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
 
   // Same shape as the company tiles: dropping rewrites position across the whole
   // group it landed in, so the stored order always matches what is on screen rather
-  // than drifting as rows are added and deleted.
-  const dropOn = async (targetCategory: string, beforeId: string | null) => {
+  // than drifting as rows are added and deleted. Dragging only reorders: the scan
+  // decides the group.
+  const dropOn = async (targetGroup: string, beforeId: string | null) => {
     if (!dragId) return;
     const moving = sites.find((s) => s.id === dragId);
-    if (!moving) return;
+    if (!moving || groupOf(moving) !== targetGroup) {
+      setDragId(null);
+      return;
+    }
     const rest = sites
-      .filter((s) => s.id !== dragId && (s.category ?? UNSORTED) === targetCategory)
+      .filter((s) => s.id !== dragId && groupOf(s) === targetGroup)
       .sort((a, b) => a.position - b.position);
     const at = beforeId ? rest.findIndex((s) => s.id === beforeId) : rest.length;
     const idx = at < 0 ? rest.length : at;
@@ -117,7 +125,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
     setSites((prev) =>
       prev.map((s) => {
         const i = ordered.findIndex((o) => o.id === s.id);
-        return i < 0 ? s : { ...s, category: targetCategory, position: i };
+        return i < 0 ? s : { ...s, position: i };
       }),
     );
     setDragId(null);
@@ -127,22 +135,17 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
         fetch(`/api/sites/${s.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ category: targetCategory === UNSORTED ? null : targetCategory, position: i }),
+          body: JSON.stringify({ position: i }),
         }),
       ),
     );
   };
 
-  const unsorted = sites
-    .filter((s) => !s.category || !CATEGORIES.includes(s.category))
-    .sort((a, b) => a.position - b.position);
-  const groups = [
-    ...(unsorted.length > 0 ? [{ cat: UNSORTED, items: unsorted }] : []),
-    ...CATEGORIES.map((cat) => ({
-      cat,
-      items: sites.filter((s) => s.category === cat).sort((a, b) => a.position - b.position),
-    })),
-  ].filter((g) => g.items.length > 0 || dragId);
+  const groups = GROUPS.map((g) => ({
+    cat: g.key,
+    label: g.label,
+    items: sites.filter((s) => groupOf(s) === g.key).sort((a, b) => a.position - b.position),
+  })).filter((g) => g.items.length > 0);
 
   const tileGrid = compact ? "flex flex-col gap-2" : "grid grid-cols-1 sm:grid-cols-2 gap-2";
 
@@ -181,7 +184,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             </button>
           </div>
           <p className="text-xs text-zinc-600">
-            {addError ?? "The name and the group come from the page itself. Drag to move it after."}
+            {addError ?? "The name comes from the page itself. The next daily scan sorts it into a group."}
           </p>
         </div>
       )}
@@ -196,7 +199,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             onDrop={() => dropOn(g.cat, null)}
           >
             <div className="flex items-baseline gap-2 mb-2">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{g.cat}</h3>
+              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{g.label}</h3>
               <span className="text-xs text-zinc-600">{g.items.length}</span>
             </div>
             <div className={tileGrid}>
@@ -248,7 +251,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                     }}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      dropOn(s.category ?? UNSORTED, s.id);
+                      dropOn(groupOf(s), s.id);
                     }}
                     className={`relative group ${dragId === s.id ? "opacity-40" : ""}`}
                   >
@@ -256,6 +259,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                       href={s.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title={s.scanNote ?? undefined}
                       className="flex items-center gap-3 p-3 pr-7 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-accent-pink/50 hover:bg-zinc-800 transition-all duration-150"
                     >
                       <img
@@ -281,11 +285,6 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                     </button>
                   </div>
                 ),
-              )}
-              {g.items.length === 0 && (
-                <p className="text-xs text-zinc-700 border border-dashed border-zinc-800 rounded-lg px-3 py-4 text-center">
-                  Drop a site here
-                </p>
               )}
             </div>
           </div>
