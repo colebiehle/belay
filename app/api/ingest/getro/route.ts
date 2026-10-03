@@ -4,6 +4,7 @@ import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
 import {
   canonicalCompany,
   isDesignRole,
+  isFoundingRole,
   passesStatedRules,
   isExcludedCompany,
   isReachableLevel,
@@ -150,8 +151,12 @@ export async function POST() {
 
   for (const { job, network } of candidates) {
     const company = canonicalCompany(job.organization!.name!);
-    // Either on the target list, or paying above the floor. See COMP_FLOOR_USD.
-    if (!isTrackedEmployer(company, tierMap) && !paysWell(job)) { untracked += 1; continue; }
+    // On the target list, paying above the floor (see COMP_FLOOR_USD), or a
+    // founding role.
+    if (!isTrackedEmployer(company, tierMap) && !paysWell(job) && !isFoundingRole(job.title ?? "")) {
+      untracked += 1;
+      continue;
+    }
     const roleTitle = job.title!;
     const existing = await prisma.job.findFirst({
       where: { OR: [{ jobUrl: job.url! }, { AND: [{ company }, { roleTitle }] }] },

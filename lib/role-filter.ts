@@ -88,6 +88,17 @@ export const RESEARCH_TERMS = ["researcher", "research"];
  * one company and a step down at another, and guessing on someone's behalf is how a
  * queue quietly stops showing them the job they wanted.
  */
+/**
+ * A first-design-hire role. These skip the target-list gate on the company-blind
+ * arms: nearly every founding role is at a startup nobody has tracked yet, and
+ * the title is specific enough not to bring back the agency and staffing noise
+ * the gate exists to stop.
+ */
+export function isFoundingRole(title: string): boolean {
+  const t = title.toLowerCase();
+  return (t.includes("founding") && t.includes("design")) || t.includes("first designer");
+}
+
 export function isReachableLevel(title: string): boolean {
   const t = title.toLowerCase();
   // A founding role is titled by what it will become ("Founding Design Lead"),

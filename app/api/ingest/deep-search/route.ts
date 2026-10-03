@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
-import { canonicalCompany } from "@/lib/role-filter";
+import { canonicalCompany, isFoundingRole } from "@/lib/role-filter";
 import { callClaudeWithTools, extractJson } from "@/lib/claude";
 import { understandingBlock } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
@@ -59,9 +59,13 @@ Jobs they already have in their queue — DO NOT return duplicates:
 ${existingBlock}
 
 TASK:
-Use the WebSearch tool to find 5-10 currently-open product design / UX / interaction design / design research roles posted in the LAST 14 DAYS that fit their profile. Look across:
+Use the WebSearch tool to find 5-10 currently-open product design / UX / interaction design / design research roles posted in the LAST 7 DAYS that fit their profile. Look across:
 - AI-native company career pages (Anthropic, OpenAI, Cursor, Granola, etc.)
-- Job boards (LinkedIn, Wellfound, Built In, Greenhouse-hosted, AshbyHQ-hosted)
+- Founding and first-designer roles at early-stage startups (YC, seed and Series A),
+  titled "Founding Designer", "Founding Product Designer" or "first design hire".
+  Spend at least a third of the search here: these sit at companies the user has not
+  heard of yet, which is exactly what the other sources miss.
+- Job boards (LinkedIn, Wellfound, YC's ycombinator.com/jobs, Greenhouse-hosted, AshbyHQ-hosted)
 - Specific role aggregators if useful
 
 Use WebFetch to verify the role is real and current if you're uncertain.
@@ -110,7 +114,10 @@ If you find fewer than 5 strong matches, return what you found — don't pad wit
   const inserted: { company: string; roleTitle: string }[] = [];
   for (const r of results) {
     if (!r.company || !r.roleTitle || !r.jobUrl) continue;
-    if (!isTrackedEmployer(canonicalCompany(r.company), tierMap)) { untracked += 1; continue; }
+    if (!isTrackedEmployer(canonicalCompany(r.company), tierMap) && !isFoundingRole(r.roleTitle)) {
+      untracked += 1;
+      continue;
+    }
     // Normalised like every other arm. An un-normalised variant skips the
     // auto-ingest guard, fails to dedupe against the board's own copy of the same
     // role, and misses that company's reapplication cooldown.

@@ -4,6 +4,7 @@ import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
 import {
   canonicalCompany,
   isDesignRole,
+  isFoundingRole,
   passesStatedRules,
   isExcludedCompany,
   isReachableLevel,
@@ -33,7 +34,9 @@ const UA =
 
 // The two buckets you asked for. Everything narrower is already covered by the
 // title filter, and a wider query just spends pages on roles that get dropped.
-const QUERIES = ["product designer", "ux designer"];
+// "founding designer" and "design engineer" are titles the first two searches
+// never return, and both are roles worth seeing.
+const QUERIES = ["product designer", "ux designer", "founding designer", "design engineer"];
 const PAGES_PER_QUERY = 4; // 10 cards per page
 const MAX_DETAIL_FETCHES = 25;
 
@@ -148,7 +151,9 @@ export async function POST() {
     .filter((c) => passesStatedRules(c.title, c.company))
     .filter((c) => isFreshPosting(c.posted));
 
-  const candidates = beforeTrackedGate.filter((c) => isTrackedEmployer(c.company, tierMap));
+  const candidates = beforeTrackedGate.filter(
+    (c) => isTrackedEmployer(c.company, tierMap) || isFoundingRole(c.title),
+  );
   const untracked = beforeTrackedGate.length - candidates.length;
 
   let added = 0;
