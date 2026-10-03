@@ -71,12 +71,22 @@ const KNOWN_DOMAINS: Record<string, string> = {
 // from the model when it knows the company). Small startups rarely own
 // "<name>.com", so without it a Wellfound or YC role guessed someone else's logo.
 export function domainFromEnrichment(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+  const d = readEnrichment(raw).companyDomain;
+  return typeof d === "string" && d.includes(".") ? d : null;
+}
+
+// The logo image the source showed beside the posting (LinkedIn, Wellfound, YC).
+export function logoFromEnrichment(raw: string | null | undefined): string | null {
+  const l = readEnrichment(raw).companyLogo;
+  return typeof l === "string" && l.startsWith("https://") ? l : null;
+}
+
+function readEnrichment(raw: string | null | undefined): { companyDomain?: unknown; companyLogo?: unknown } {
+  if (!raw) return {};
   try {
-    const d = (JSON.parse(raw) as { companyDomain?: unknown }).companyDomain;
-    return typeof d === "string" && d.includes(".") ? d : null;
+    return JSON.parse(raw) ?? {};
   } catch {
-    return null;
+    return {};
   }
 }
 
@@ -98,17 +108,22 @@ export function CompanyLogo({
   jobUrl = "",
   size = 36,
   domain: known = null,
+  logo = null,
 }: {
   company: string;
   jobUrl?: string;
   size?: number;
   domain?: string | null;
+  logo?: string | null;
 }) {
+  // The source's own logo first, then the domain's favicon at two sizes, then a
+  // letter tile.
+  const sources = [logo, logoUrl(getLogoDomain(company, jobUrl, known)), logoUrl(getLogoDomain(company, jobUrl, known), 64)]
+    .filter((s): s is string => !!s);
   const [attempt, setAttempt] = useState(0);
-  const domain = getLogoDomain(company, jobUrl, known);
   const px = `${size}px`;
 
-  if (attempt >= 2) {
+  if (attempt >= sources.length) {
     return (
       <div
         className="rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-500 shrink-0"
@@ -119,18 +134,22 @@ export function CompanyLogo({
     );
   }
 
-  const src =
-    attempt === 0
-      ? logoUrl(domain)
-      : logoUrl(domain, 64);
+  const src = sources[attempt];
+  const isSourceLogo = !!logo && attempt === 0;
 
   return (
     <img
       src={src}
       alt={company}
-      className="rounded-lg object-contain bg-white p-1 shrink-0"
+      className={`rounded-lg object-contain bg-white shrink-0 ${isSourceLogo ? "" : "p-1"}`}
       style={{ width: px, height: px }}
       onError={() => setAttempt((a) => a + 1)}
+      // Google's favicon service answers an unknown domain with its generic 16px
+      // globe instead of an error, which showed a globe, or a stranger's icon,
+      // where a letter tile belonged. A real logo at sz=64 or more is never that small.
+      onLoad={(e) => {
+        if (!isSourceLogo && e.currentTarget.naturalWidth <= 16) setAttempt(sources.length);
+      }}
     />
   );
 }

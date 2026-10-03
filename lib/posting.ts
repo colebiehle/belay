@@ -139,6 +139,31 @@ export async function fetchCompanyDomain(jobUrl: string): Promise<string | null>
   return null;
 }
 
+/**
+ * The company logo the source itself shows beside the posting: LinkedIn's square
+ * company logo, Wellfound's and YC's. These are the employer's real marks, where a
+ * favicon looked up from a guessed domain was often someone else's.
+ */
+export async function fetchCompanyLogo(jobUrl: string): Promise<string | null> {
+  let host: string;
+  try {
+    host = new URL(jobUrl).hostname;
+  } catch {
+    return null;
+  }
+  const pattern = /(^|\.)linkedin\.com$/.test(host)
+    ? /https:\/\/media\.licdn\.com\/dms\/image\/[^"\s]*company-logo_200_200[^"\s]*/
+    : /(^|\.)wellfound\.com$/.test(host)
+      ? /https:\/\/photos\.wellfound\.com\/startups\/[^"\s]*medium[^"\s]*/
+      : /(^|\.)ycombinator\.com$/.test(host)
+        ? /https:\/\/bookface-images\.s3\.amazonaws\.com\/logos\/[^"\s]+/
+        : null;
+  if (!pattern) return null;
+  const res = await get(jobUrl);
+  if (!res) return null;
+  return (await res.text()).match(pattern)?.[0].replace(/&amp;/g, "&") ?? null;
+}
+
 export async function fetchPostingText(jobUrl: string, roleTitle?: string): Promise<string | null> {
   let url: URL;
   try {

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, ExternalLink, Plus, X, Search, Mail, Users } from "lucide-react";
-import { CompanyLogo, domainFromEnrichment } from "@/components/CompanyLogo";
+import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
@@ -952,6 +952,7 @@ function JobCard({
         company={job.company}
         jobUrl={job.jobUrl}
         domain={domainFromEnrichment(job.queueEnrichment)}
+        logo={logoFromEnrichment(job.queueEnrichment)}
         size={40}
       />
       <div className="min-w-0 flex-1">
@@ -1124,6 +1125,7 @@ function PassedRow({ job }: { job: Job }) {
           company={job.company}
           jobUrl={job.jobUrl}
           domain={domainFromEnrichment(job.queueEnrichment)}
+          logo={logoFromEnrichment(job.queueEnrichment)}
           size={40}
         />
         <div className="flex-1 min-w-0">
@@ -1201,6 +1203,7 @@ function PipelineRow({
           company={app.job.company}
           jobUrl={app.job.jobUrl}
           domain={domainFromEnrichment(app.job.queueEnrichment)}
+          logo={logoFromEnrichment(app.job.queueEnrichment)}
           size={40}
         />
         <button

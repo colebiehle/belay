@@ -7,7 +7,7 @@ import { FIT_RUBRIC } from "@/lib/fit-rubric";
 import { verdictSignalBlock } from "@/lib/verdict-signal";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
-import { fetchCompanyDomain, fetchPostingText } from "@/lib/posting";
+import { fetchCompanyDomain, fetchCompanyLogo, fetchPostingText } from "@/lib/posting";
 
 // Below this a stored description is a snippet or a blank, not a posting.
 const MIN_DESCRIPTION_CHARS = 500;
@@ -137,9 +137,12 @@ Rules:
       .replace(/\/.*$/, "") ??
     "";
 
+  const companyLogo = await fetchCompanyLogo(job.jobUrl).catch(() => null);
+
   const enrichment = {
     ...parsed,
     ...(companyDomain.includes(".") ? { companyDomain } : {}),
+    ...(companyLogo ? { companyLogo } : {}),
     enrichedAt: new Date().toISOString(),
   };
 
