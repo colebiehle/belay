@@ -120,9 +120,20 @@ export default async function Dashboard() {
 
       {/* Overview — pipeline metrics + activity */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-          Overview
-        </h2>
+        {/* The tiles say how much there is; /insights says whether it is working
+            (response rate, what is producing replies, who you know where). The link
+            sits on this heading because this is the block it expands. */}
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+            Overview
+          </h2>
+          <Link
+            href="/insights"
+            className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors duration-150"
+          >
+            What is working →
+          </Link>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {stats.map((s) => (
             <Link

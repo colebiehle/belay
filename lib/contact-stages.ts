@@ -76,3 +76,44 @@ export const NUDGE_AFTER_DAYS = 7;
  * does not fit, so the prompt is given the number and the UI counts against it.
  */
 export const CONNECT_NOTE_LIMIT = 300;
+
+/**
+ * What a person is to you, as tags rather than one rating.
+ *
+ * A single "strength" score answers none of the questions that come up later. Those
+ * questions are always about a use: "who could refer me at Figma", "who do I ask
+ * about craft", "who will tell me the portfolio is not working". One person can be
+ * several of these at once, and a mentor who is no use for a referral is still a
+ * mentor, so the tags are a set and the Network page filters on them.
+ */
+export const RELATIONSHIP_TAGS = [
+  "mentor",
+  "could refer",
+  "technical advice",
+  "design feedback",
+  "peer",
+  "recruiter",
+] as const;
+
+export type RelationshipTag = (typeof RELATIONSHIP_TAGS)[number];
+
+/**
+ * Any set of tags in one stable order: the starter tags first, in their own order,
+ * then your own tags alphabetically. The starters are a beginning, not a schema,
+ * so a tag you add ("figma alum", "portfolio review") is as real as "mentor".
+ */
+export function orderTags(tags: Iterable<string>): string[] {
+  const all = [...new Set([...tags].map((t) => t.trim().toLowerCase()).filter(Boolean))];
+  const starters = (RELATIONSHIP_TAGS as readonly string[]).filter((t) => all.includes(t));
+  const own = all.filter((t) => !starters.includes(t)).sort();
+  return [...starters, ...own];
+}
+
+/**
+ * How close you are, which decides what you can ask. Three steps, not a scale:
+ * cold means a stranger (no referral asks), warm means you have talked, close means
+ * they would pick up the phone.
+ */
+export const WARMTH_LEVELS = ["cold", "warm", "close"] as const;
+
+export type Warmth = (typeof WARMTH_LEVELS)[number];

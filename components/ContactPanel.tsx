@@ -8,7 +8,8 @@ import { getLogoDomain } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { readableOn, usableAccent } from "@/lib/brand-colors";
 import { logoUrl } from "@/lib/logo";
-import { CONTACT_STAGES, CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
+import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
+import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, RELATIONSHIP_TAGS, WARMTH_LEVELS, orderTags } from "@/lib/contact-stages";
 
 /**
  * One person's panel, built the same way as the role panel because outreach turned
@@ -51,6 +52,11 @@ export type PanelContact = {
   // A free-text line of your own about this person. Distinct from noteList, which
   // is titled notes about events; this is the standing line a draft should carry.
   notes: string | null;
+  // The relationship, structured so the Network page can filter on it: where you
+  // met, a JSON string[] of RELATIONSHIP_TAGS, and cold / warm / close.
+  howMet: string | null;
+  relationship: string | null;
+  warmth: string | null;
   dateAdded: string;
 };
 
@@ -111,6 +117,26 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+/**
+ * "Met at Config 2026", but not "Met at cold outreach" or "Met at CMU alum": a howMet
+ * that already reads as a phrase is shown as written.
+ */
+function metLine(howMet: string): string {
+  const v = howMet.trim();
+  if (
+    /^(met|via|through|cold|from|at|in|on|introduced)\b/i.test(v) ||
+    /\b(alum|alumni|colleague|coworker|classmate|friend)s?$/i.test(v)
+  )
+    return v.charAt(0).toUpperCase() + v.slice(1);
+  return `Met at ${v}`;
+}
+
+// A pasted note as the note list stores it. Out here so the clock is read when the
+// paste is applied, not by anything the compiler could mistake for render.
+function stampNote(note: { title: string; body: string }) {
+  return { id: `n${Date.now()}`, ...note, createdAt: new Date().toISOString() };
+}
+
 export function ContactPanel({
   contact,
   allContacts,
@@ -120,8 +146,11 @@ export function ContactPanel({
   onOpenContact,
   onDelete,
   arrivedFromSwitch = false,
+  knownTags = [],
 }: {
   contact: PanelContact;
+  // Tags already used on anyone, so one you made up is offered everywhere.
+  knownTags?: string[];
   // Everyone else on file, so a mutual can be picked by name and opened by click.
   allContacts: { id: string; name: string; company: string }[];
   // How many roles at this person's company are in the queue or the pipeline.
@@ -164,7 +193,16 @@ export function ContactPanel({
   const [editingTldr, setEditingTldr] = useState(false);
   const [tldrDraft, setTldrDraft] = useState(contact.notes ?? "");
   const [addingEvent, setAddingEvent] = useState(false);
-  const [profileDraft, setProfileDraft] = useState(contact.profileText ?? "");
+  const [howMetDraft, setHowMetDraft] = useState(contact.howMet ?? "");
+  const [tagsDraft, setTagsDraft] = useState<string[]>(() => parseJson<string[]>(contact.relationship, []));
+  // The inline "+ tag" field, null while closed.
+  const [newTag, setNewTag] = useState<string | null>(null);
+  const addNewTag = () => {
+    const t = (newTag ?? "").trim().toLowerCase().slice(0, 28);
+    if (t) setTagsDraft(orderTags([...tagsDraft, t]));
+    setNewTag(null);
+  };
+  const [warmthDraft, setWarmthDraft] = useState<string | null>(contact.warmth);
   const [shown, setShown] = useState(false);
   const [backdropShown, setBackdropShown] = useState(arrivedFromSwitch);
   const [pick, setPick] = useState<{ text: string; top: number } | null>(null);
@@ -184,6 +222,7 @@ export function ContactPanel({
   // label survives a company whose colour is #000000.
   const accentInk = accentHex ? readableOn(accentHex) : "#000000";
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
+  const tags = parseJson<string[]>(contact.relationship, []);
   const history = parseJson<{ stage: string; at: string; nudge?: boolean }[]>(contact.stageHistory, []);
   // Newest first, because the note you want is almost always the one you just made or
   // the call you just had. Search covers title and body.
@@ -326,6 +365,59 @@ export function ContactPanel({
     setPick(null);
     window.getSelection()?.removeAllRanges();
     setTab("details");
+  };
+
+  // The route proposes; these turn the proposal into preview rows against what is on
+  // file now, and then write what was kept in one PATCH, note included.
+  const addedTags = (v: unknown): string[] =>
+    Array.isArray(v) ? orderTags((v as unknown[]).filter((t): t is string => typeof t === "string")).filter((t) => !tags.includes(t)) : [];
+
+  const describePaste = (u: Record<string, unknown>): PasteRow[] => {
+    const rows: PasteRow[] = [];
+    // A value equal to what is on file is not a change, whatever the route thought.
+    const str = (k: string, label: string, from: string | null) => {
+      const to = u[k];
+      if (typeof to === "string" && to.trim() && to.trim() !== (from ?? "").trim())
+        rows.push({ key: k, label, from, to });
+    };
+    str("title", "Title", contact.title);
+    str("role", "Function", contact.role);
+    str("howMet", "How we met", contact.howMet);
+    // Tags only ever add, so the row says what is added rather than restating the
+    // whole set twice, which made the one new tag hard to spot.
+    const added = addedTags(u.relationship);
+    if (added.length) rows.push({ key: "relationship", label: "Tags", from: null, to: `+ ${added.join(", ")}` });
+    str("warmth", "Warmth", contact.warmth);
+    str("profileText", "Background", contact.profileText);
+    return rows;
+  };
+
+  const applyPaste = (p: { updates: Record<string, unknown>; note: { title: string; body: string } | null }, kept: Set<string>) => {
+    const patch: Record<string, unknown> = {};
+    for (const k of kept) {
+      // Tags are merged into what is on file now, not taken as the set the route
+      // saw, so a tag set in the meantime is not dropped.
+      if (k === "relationship") {
+        const added = addedTags(p.updates.relationship);
+        patch.relationship = JSON.stringify(orderTags([...tags, ...added]));
+      } else patch[k] = p.updates[k];
+    }
+    if (p.note) {
+      const next = [...notes, stampNote(p.note)];
+      setNotes(next);
+      patch.noteList = JSON.stringify(next);
+    }
+    if (Object.keys(patch).length > 0) onUpdate(contact.id, patch);
+  };
+
+  const saveSummary = () => {
+    onUpdate(contact.id, {
+      notes: tldrDraft.trim() || null,
+      howMet: howMetDraft.trim() || null,
+      relationship: tagsDraft.length > 0 ? JSON.stringify(tagsDraft) : null,
+      warmth: warmthDraft,
+    });
+    setEditingTldr(false);
   };
 
   const setStage = (next: string) => {
@@ -506,11 +598,13 @@ export function ContactPanel({
                   <button
                     onClick={() => {
                       setTldrDraft(contact.notes ?? "");
-                      setProfileDraft(contact.profileText ?? "");
+                      setHowMetDraft(contact.howMet ?? "");
+                      setTagsDraft(tags);
+                      setWarmthDraft(contact.warmth);
                       setEditingTldr(true);
                     }}
                     className="ml-auto text-zinc-700 hover:text-zinc-300 transition-colors duration-150"
-                    title="Your note on this person, and their background"
+                    title="How you know them, and your note on this person"
                   >
                     <Pencil size={12} />
                   </button>
@@ -518,45 +612,132 @@ export function ContactPanel({
               </div>
 
               {editingTldr ? (
-                <div className="space-y-1.5">
+                // Escape cancels and Cmd+Enter saves from anywhere in the form, chips
+                // included. Escape stops here so the panel's own Escape (close) does
+                // not also fire and throw the panel away with the edit.
+                <div
+                  className="space-y-1.5"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setEditingTldr(false);
+                    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      saveSummary();
+                    }
+                  }}
+                >
+                  {/* The structured part of the relationship, above the free text
+                      because it is quicker to set and it is what the Network page
+                      filters on. Tags and warmth are separate on purpose: what
+                      someone is to you and how well you know them change apart. */}
+                  <div className="flex items-center gap-2">
+                    {/* The label stays inside the field so "Config" still reads as
+                        where you met once the placeholder is gone. */}
+                    <label className="flex-1 min-w-0 flex items-baseline gap-2 text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 focus-within:border-zinc-700 transition-colors duration-150">
+                      <span className="shrink-0 text-zinc-600">How we met</span>
+                      <input
+                        value={howMetDraft}
+                        onChange={(e) => setHowMetDraft(e.target.value)}
+                        placeholder="Config 2026, CMU alum, cold outreach"
+                        className="flex-1 min-w-0 bg-transparent text-zinc-200 placeholder-zinc-700 focus:outline-none"
+                      />
+                    </label>
+                    {/* Click the lit one again to clear it: not knowing is a state. */}
+                    <div className="flex shrink-0 rounded border border-zinc-800 overflow-hidden">
+                      {WARMTH_LEVELS.map((w) => (
+                        <button
+                          key={w}
+                          onClick={() => setWarmthDraft(warmthDraft === w ? null : w)}
+                          aria-pressed={warmthDraft === w}
+                          className={`text-[11px] px-2 py-1 transition-colors duration-150 ${
+                            warmthDraft === w ? "font-medium" : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                          // Lit the way the warmth chip reads at rest (accent on an
+                          // accent tint), so the choice and the result look the same.
+                          // A plain tint on its own was too faint to tell apart.
+                          style={
+                            warmthDraft === w
+                              ? { color: accent, backgroundColor: `color-mix(in srgb, ${accent} 22%, transparent)` }
+                              : undefined
+                          }
+                        >
+                          {w}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {orderTags([...RELATIONSHIP_TAGS, ...knownTags, ...tagsDraft]).map((t) => {
+                      const on = tagsDraft.includes(t);
+                      return (
+                        <button
+                          key={t}
+                          onClick={() =>
+                            setTagsDraft(on ? tagsDraft.filter((x) => x !== t) : orderTags([...tagsDraft, t]))
+                          }
+                          aria-pressed={on}
+                          className={`text-[11px] px-1.5 py-0.5 rounded border transition-all duration-150 ${
+                            on ? "text-zinc-100" : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                          }`}
+                          style={
+                            on
+                              ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }
+                              : undefined
+                          }
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                    {newTag === null ? (
+                      <button
+                        onClick={() => setNewTag("")}
+                        className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300 transition-all duration-150"
+                      >
+                        + tag
+                      </button>
+                    ) : (
+                      <input
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        onKeyDown={(e) => {
+                          // Enter adds the tag rather than saving the form, and Escape
+                          // closes only this field, not the editor or the panel.
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            addNewTag();
+                          }
+                          if (e.key === "Escape") {
+                            e.stopPropagation();
+                            setNewTag(null);
+                          }
+                        }}
+                        onBlur={addNewTag}
+                        autoFocus
+                        maxLength={28}
+                        placeholder="new tag"
+                        className="text-[11px] w-28 px-1.5 py-0.5 rounded border bg-transparent text-zinc-200 placeholder-zinc-700 focus:outline-none"
+                        style={{ borderColor: accent }}
+                      />
+                    )}
+                  </div>
                   <AutoResizeTextarea
                     value={tldrDraft}
                     onChange={(e) => setTldrDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditingTldr(false);
-                    }}
                     autoFocus
                     placeholder="How you know them, what the ask is, anything a draft should carry."
                     className="w-full text-xs bg-zinc-900 border rounded px-2 py-1.5 text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
                     style={{ borderColor: accent }}
-                  />
-                  {/* Their background used to be a section of its own, which read as
-                      something to look at when it is only ever something to fill in.
-                      Nothing in the app can fetch a LinkedIn profile, so this paste is
-                      what lets a draft name their actual work, and it belongs behind
-                      the same pencil as the note: both are you typing in what the top
-                      of this panel knows. */}
-                  <AutoResizeTextarea
-                    value={profileDraft}
-                    onChange={(e) => setProfileDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditingTldr(false);
-                    }}
-                    placeholder="Their background: paste their LinkedIn About, so drafts can be specific."
-                    className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1.5 text-zinc-300 placeholder-zinc-700 resize-none focus:outline-none focus:border-zinc-700 leading-relaxed max-h-48"
                   />
                   <div className="flex items-center justify-end gap-3">
                     <button onClick={() => setEditingTldr(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
                       Cancel
                     </button>
                     <button
-                      onClick={() => {
-                        onUpdate(contact.id, {
-                          notes: tldrDraft.trim() || null,
-                          profileText: profileDraft.trim() || null,
-                        });
-                        setEditingTldr(false);
-                      }}
+                      onClick={saveSummary}
+                      title="Save (⌘↵)"
                       className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
                       style={{ color: accent }}
                     >
@@ -566,6 +747,26 @@ export function ContactPanel({
                 </div>
               ) : (
                 <>
+                  {/* Quiet on purpose: chips for what they are to you, one dim line
+                      for where you met, and nothing at all until either is set. */}
+                  {(contact.warmth || tags.length > 0) && (
+                    <div className="flex flex-wrap gap-1">
+                      {contact.warmth && (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded"
+                          style={{ color: accent, backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}
+                        >
+                          {contact.warmth}
+                        </span>
+                      )}
+                      {tags.map((t) => (
+                        <span key={t} className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {contact.howMet && <p className="text-xs text-zinc-600">{metLine(contact.howMet)}</p>}
                   {contact.notes && (
                     <p
                       className="text-xs text-zinc-200 leading-relaxed whitespace-pre-wrap border-l-2 pl-2.5"
@@ -580,6 +781,18 @@ export function ContactPanel({
                   {contact.profileText && (
                     <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">{contact.profileText}</p>
                   )}
+                  {/* Where their background comes from now, and everything else a
+                      paste can carry. It replaced a textarea bound to profileText:
+                      the paste was always a whole profile or a whole thread, and
+                      only one field of it was being kept. */}
+                  <PasteAnything
+                    endpoint={`/api/contacts/${contact.id}/paste`}
+                    accent={accent}
+                    label="Add summary"
+                    placeholder="Paste their LinkedIn About section and current role. Notes from a call or a message thread work too. Belay pulls out the facts and writes a short summary."
+                    describe={describePaste}
+                    onApplied={applyPaste}
+                  />
                   {/* The one place the networking side points back at the applications
                       side, which is usually the reason you opened a person at all: you
                       are looking at someone and you want the roles at their company.

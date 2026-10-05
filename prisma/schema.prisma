@@ -272,4 +272,13 @@ model Contact {
   // Pasted from LinkedIn. Nothing here can fetch a profile — LinkedIn blocks
   // server-side requests — so the paste is the input the draft works from.
   profileText           String?
+
+  // --- The relationship, which outlasts any one role ------------------------
+  // Where you met ("Config 2026", "CMU alum", "cold outreach").
+  howMet                String?
+  // JSON string[] from RELATIONSHIP_TAGS: what this person is to you, so the
+  // Network page can answer "who could refer me" or "who do I ask about craft".
+  relationship          String?
+  // "cold" | "warm" | "close". How close you are decides what you can ask.
+  warmth                String?
 }

@@ -10,6 +10,8 @@ import {
   DEFAULT_STAGE,
   FOLLOW_UP_STAGES,
   NUDGE_AFTER_DAYS,
+  orderTags,
+  WARMTH_LEVELS,
 } from "@/lib/contact-stages";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { PersonPicker } from "@/components/PersonPicker";
@@ -53,6 +55,24 @@ function peopleTabUrl(slug: string, keywords: string): string {
   return keywords.trim() ? `${base}?keywords=${encodeURIComponent(keywords.trim())}` : base;
 }
 
+// Pink like the company chips in ChipFilterRow directly above: pink is what a filter
+// chip is across the app, and two adjacent rows in two hues read as two systems.
+function FilterChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={`text-[11px] px-2 py-0.5 rounded-full border transition-all duration-150 ${
+        on
+          ? "bg-accent-pink border-accent-pink text-black"
+          : "border-zinc-800 text-zinc-500 hover:border-accent-pink hover:text-accent-pink"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 /** A LinkedIn profile URL yields a usable name when nothing better is to hand. */
 function nameFromLinkedIn(url: string): string {
   const m = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
@@ -72,6 +92,10 @@ export default function NetworkingPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  // "Who could refer me", "who do I ask about craft": the relationship tags and
+  // warmth, filtered the same way as companies (any of the lit chips matches).
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [selectedWarmth, setSelectedWarmth] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   // Read once per visit for the follow-up counters, rather than during every render.
   const [now] = useState(() => Date.now());
@@ -199,6 +223,28 @@ export default function NetworkingPage() {
     });
   };
 
+  const tagsOf = (c: Contact): string[] => {
+    try {
+      const v = JSON.parse(c.relationship ?? "[]");
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  };
+  // Only the tags and warmths somebody actually has, so the row is empty (and
+  // absent) until you start recording them, and never offers a filter that
+  // returns nobody.
+  const usedTags = orderTags(contacts.flatMap((c) => tagsOf(c)));
+  const usedWarmth = WARMTH_LEVELS.filter((w) => contacts.some((c) => c.warmth === w));
+
+  const toggleIn = (set: (fn: (prev: Set<string>) => Set<string>) => void, v: string) =>
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
+
   const visible = contacts.filter((c) => {
     const q = filter.trim().toLowerCase();
     const matchText =
@@ -207,7 +253,9 @@ export default function NetworkingPage() {
         .toLowerCase()
         .includes(q);
     const matchCompany = selectedCompanies.size === 0 || selectedCompanies.has(c.company);
-    return matchText && matchCompany;
+    const matchTag = selectedTags.size === 0 || tagsOf(c).some((t) => selectedTags.has(t));
+    const matchWarmth = selectedWarmth.size === 0 || (c.warmth !== null && selectedWarmth.has(c.warmth));
+    return matchText && matchCompany && matchTag && matchWarmth;
   });
 
   const open = contacts.find((c) => c.id === openId) ?? null;
@@ -434,6 +482,31 @@ export default function NetworkingPage() {
             onToggle={toggleCompany}
             onClear={() => setSelectedCompanies(new Set())}
           />
+          {/* One row for the relationship, smaller than the company chips because it
+              is the second question you ask of the list, not the first. Warmth leads,
+              then a hairline, then the tags. */}
+          {usedTags.length + usedWarmth.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              {usedWarmth.map((w) => (
+                <FilterChip key={w} label={w} on={selectedWarmth.has(w)} onClick={() => toggleIn(setSelectedWarmth, w)} />
+              ))}
+              {usedWarmth.length > 0 && usedTags.length > 0 && <span className="w-px h-3 bg-zinc-800 mx-1" />}
+              {usedTags.map((t) => (
+                <FilterChip key={t} label={t} on={selectedTags.has(t)} onClick={() => toggleIn(setSelectedTags, t)} />
+              ))}
+              {selectedTags.size + selectedWarmth.size > 0 && (
+                <button
+                  onClick={() => {
+                    setSelectedTags(new Set());
+                    setSelectedWarmth(new Set());
+                  }}
+                  className="text-[11px] px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 transition-colors duration-150"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -451,6 +524,24 @@ export default function NetworkingPage() {
         </div>
       ) : (
         <div className="space-y-5">
+          {/* Warmth, tags, companies and the search all narrow together, so they can
+              meet at nobody. Say so, rather than leave a blank page under the chips. */}
+          {visible.length === 0 && (
+            <p className="px-1 text-sm text-zinc-500">
+              Nobody matches these filters.{" "}
+              <button
+                onClick={() => {
+                  setFilter("");
+                  setSelectedCompanies(new Set());
+                  setSelectedTags(new Set());
+                  setSelectedWarmth(new Set());
+                }}
+                className="text-zinc-300 hover:text-white transition-colors duration-150"
+              >
+                Clear all
+              </button>
+            </p>
+          )}
           {CONTACT_STAGES.map((stage) => {
             const group = visible.filter((c) => (c.stage ?? DEFAULT_STAGE) === stage);
             if (group.length === 0) return null;
@@ -581,6 +672,8 @@ export default function NetworkingPage() {
           key={open.id}
           contact={open}
           allContacts={contacts.map((c) => ({ id: c.id, name: c.name, company: c.company }))}
+          // Tags you made up for one person are offered on everyone else's.
+          knownTags={usedTags}
           rolesAtCompany={roleCounts[open.company.trim().toLowerCase()] ?? 0}
           onOpenContact={(id) => {
             setSwitched(true);

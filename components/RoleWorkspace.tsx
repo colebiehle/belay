@@ -9,6 +9,7 @@ import { readableOn, usableAccent } from "@/lib/brand-colors";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, metaTokens } from "@/lib/role-meta";
 import { PersonPicker } from "@/components/PersonPicker";
+import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { logoUrl } from "@/lib/logo";
 import { restrictionLine } from "@/lib/portal-limits";
 import { STATUSES } from "@/lib/statuses";
@@ -261,6 +262,63 @@ export function RoleWorkspace({
   const persistNotes = (next: Note[]) => {
     setNotes(next);
     onUpdate(app.id, { noteList: JSON.stringify(next) });
+  };
+
+  // "Paste anything": the route proposes, these show the proposal against what is on
+  // file and then write what was kept. One PATCH for all of it, because the page
+  // replaces this row with each response and two in flight can land out of order.
+  // Comp lives on the Job, so it goes as a nested update through the same PATCH.
+  const describePaste = (u: Record<string, unknown>): PasteRow[] => {
+    const rows: PasteRow[] = [];
+    if (typeof u.status === "string" && u.status !== app.status)
+      rows.push({ key: "status", label: "Stage", from: app.status, to: u.status });
+    if (Array.isArray(u.interviews))
+      (u.interviews as { label: string; at: string }[]).forEach((iv, i) =>
+        rows.push({
+          key: `interview:${i}`,
+          label: "New interview",
+          from: null,
+          to: `${new Date(iv.at).toLocaleString(undefined, {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}${iv.label ? ` · ${iv.label}` : ""}`,
+        }),
+      );
+    if (typeof u.compRange === "string" && u.compRange !== app.job.compRange)
+      rows.push({ key: "compRange", label: "Comp", from: app.job.compRange || null, to: u.compRange });
+    if (typeof u.portalUrl === "string" && u.portalUrl !== app.portalUrl)
+      rows.push({ key: "portalUrl", label: "Form link", from: app.portalUrl, to: u.portalUrl });
+    return rows;
+  };
+
+  const applyPaste = (
+    p: { updates: Record<string, unknown>; note: { title: string; body: string } | null },
+    kept: Set<string>,
+  ) => {
+    const u = p.updates;
+    const patch: Record<string, unknown> = {};
+    if (kept.has("status")) patch.status = u.status;
+    if (kept.has("portalUrl")) patch.portalUrl = u.portalUrl;
+    if (kept.has("compRange")) patch.job = { update: { compRange: u.compRange } };
+    const newInterviews = (Array.isArray(u.interviews) ? (u.interviews as { label: string; at: string }[]) : [])
+      .filter((_, i) => kept.has(`interview:${i}`))
+      .map((iv, i) => ({ id: `i${Date.now()}${i}`, label: iv.label, at: new Date(iv.at).toISOString() }));
+    if (newInterviews.length) {
+      const sorted = [...interviews, ...newInterviews].sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+      );
+      setInterviews(sorted);
+      patch.interviewList = JSON.stringify(sorted);
+    }
+    if (p.note) {
+      const next = [...notes, { id: `n${Date.now()}`, ...p.note, createdAt: new Date().toISOString() }];
+      setNotes(next);
+      patch.noteList = JSON.stringify(next);
+    }
+    if (Object.keys(patch).length > 0) onUpdate(app.id, patch);
   };
 
   const send = async () => {
@@ -933,6 +991,17 @@ export function RoleWorkspace({
                   <Plus size={11} /> New note
                 </button>
               </div>
+              {/* Under the Notes heading because the note is the one thing every
+                  paste produces; the stage, interview and comp it may also carry
+                  are shown in its preview before anything is written. */}
+              <PasteAnything
+                endpoint={`/api/applications/${app.id}/paste`}
+                accent={accent}
+                label="Add from email or notes"
+                placeholder="Paste a recruiter email, interview notes or an offer. Belay picks out dates, stage and pay, and adds a summary note."
+                describe={describePaste}
+                onApplied={applyPaste}
+              />
               {/* Matching the body as well as the title is the point: "what did the
                   recruiter say about comp" is a search for a phrase inside a note,
                   not for a note called that. */}

@@ -491,6 +491,9 @@ export default function ApplicationsPage() {
     if (!co) return;
     setSelectedQueueCompanies(new Set([co]));
     setSelectedPipelineCompanies(new Set([co]));
+    // The Overview's company table also links here, and a company you have only
+    // passed on lands on the Passed tab, which should be filtered the same way.
+    setSelectedPassedCompanies(new Set([co]));
   }, []);
 
   const pipelineCompanies = [...new Set(apps.map((a) => a.job.company))].sort();

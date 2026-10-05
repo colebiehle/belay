@@ -102,6 +102,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   })();
 
+  // The relationship, when it has been recorded. Where you met is the most natural
+  // opener there is, and warmth decides what the draft may ask for: a referral ask
+  // to a stranger is the message that burns the contact.
+  const relTags = (() => {
+    if (!contact.relationship) return [] as string[];
+    try {
+      const v = JSON.parse(contact.relationship);
+      return Array.isArray(v) ? v.filter((t): t is string => typeof t === "string") : [];
+    } catch {
+      return [];
+    }
+  })();
+  const WARMTH_NOTE: Record<string, string> = {
+    cold: "cold: they do not know each other yet. Do not ask a cold contact for a referral; earn a conversation first.",
+    warm: "warm: they have talked. A specific, small ask is fine.",
+    close: "close: they know each other well. Be direct, skip the formalities.",
+  };
+  const relationshipLines = [
+    contact.howMet ? `- Where they met: ${contact.howMet} (use it as the shared context when it fits)` : "",
+    relTags.length ? `- What this person is to them: ${relTags.join(", ")}` : "",
+    contact.warmth ? `- Warmth: ${WARMTH_NOTE[contact.warmth] ?? contact.warmth}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   let task = "";
   switch (scope) {
     case "connect":
@@ -151,7 +176,7 @@ The person:
 - Function: ${contact.role || "(unknown)"}
 - LinkedIn: ${contact.linkedinUrl || "(none on file)"}
 - How they found them: ${contact.introVia ? `through ${contact.introVia}` : "cold, no mutual connection"}
-- Stage: ${contact.stage || "To reach out"}
+- Stage: ${contact.stage || "To reach out"}${relationshipLines ? `\n${relationshipLines}` : ""}
 
 ${contact.profileText ? `Their profile, as they pasted it:\n${contact.profileText.slice(0, 4000)}\n` : "they have not pasted their profile. You cannot read it yourself. Ask for it if the draft needs something specific about them.\n"}
 ${theirRoles.length > 0 ? `Roles they are tracking at ${contact.company}:\n${theirRoles
