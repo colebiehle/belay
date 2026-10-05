@@ -166,6 +166,9 @@ export default function NetworkingPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+    // A rename also rewrites other people's mutuals on the server; reload so their
+    // panels show the new name.
+    if ("name" in patch) load();
   };
 
   const remove = async (id: string) => {

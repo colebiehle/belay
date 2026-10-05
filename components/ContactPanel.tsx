@@ -191,6 +191,30 @@ export function ContactPanel({
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [noteQuery, setNoteQuery] = useState("");
   const [editingTldr, setEditingTldr] = useState(false);
+  // The header's facts. They were fixed at creation, so a typo in a name meant
+  // deleting the person and losing their notes, history and mutuals with them.
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [headerDraft, setHeaderDraft] = useState({ name: "", company: "", title: "", linkedinUrl: "" });
+  const startHeaderEdit = () => {
+    setHeaderDraft({
+      name: contact.name,
+      company: contact.company,
+      title: contact.title ?? contact.role ?? "",
+      linkedinUrl: contact.linkedinUrl ?? "",
+    });
+    setEditingHeader(true);
+  };
+  const saveHeader = () => {
+    const name = headerDraft.name.trim();
+    if (!name) return;
+    onUpdate(contact.id, {
+      name,
+      company: headerDraft.company.trim(),
+      title: headerDraft.title.trim() || null,
+      linkedinUrl: headerDraft.linkedinUrl.trim() || null,
+    });
+    setEditingHeader(false);
+  };
   const [tldrDraft, setTldrDraft] = useState(contact.notes ?? "");
   const [addingEvent, setAddingEvent] = useState(false);
   const [howMetDraft, setHowMetDraft] = useState(contact.howMet ?? "");
@@ -456,7 +480,66 @@ export function ContactPanel({
               alt={contact.company}
               className="w-10 h-10 rounded-md object-contain bg-white p-1 shrink-0"
             />
-            <div className="min-w-0 flex-1">
+            {editingHeader ? (
+              <div
+                className="min-w-0 flex-1 space-y-1.5"
+                onKeyDown={(e) => {
+                  // Enter saves; Escape backs out of the edit without closing the panel.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveHeader();
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setEditingHeader(false);
+                  }
+                }}
+              >
+                <input
+                  value={headerDraft.name}
+                  onChange={(e) => setHeaderDraft({ ...headerDraft, name: e.target.value })}
+                  placeholder="Name"
+                  autoFocus
+                  className="w-full text-sm font-semibold bg-zinc-900 border rounded px-2 py-1 text-zinc-100 placeholder-zinc-700 focus:outline-none"
+                  style={{ borderColor: accent }}
+                />
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input
+                    value={headerDraft.company}
+                    onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
+                    placeholder="Company"
+                    className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                  />
+                  <input
+                    value={headerDraft.title}
+                    onChange={(e) => setHeaderDraft({ ...headerDraft, title: e.target.value })}
+                    placeholder="Title"
+                    className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                  />
+                </div>
+                <input
+                  value={headerDraft.linkedinUrl}
+                  onChange={(e) => setHeaderDraft({ ...headerDraft, linkedinUrl: e.target.value })}
+                  placeholder="LinkedIn URL"
+                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                />
+                <div className="flex items-center justify-end gap-3 pt-0.5">
+                  <button onClick={() => setEditingHeader(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveHeader}
+                    disabled={!headerDraft.name.trim()}
+                    title="Save (↵)"
+                    className="text-xs font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity duration-150"
+                    style={{ color: accent }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <div className="min-w-0 flex-1 group/header">
               <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
                 <span className="truncate">{contact.name}</span>
                 {/* The link out follows the primary name, as it does on the rows and
@@ -473,6 +556,13 @@ export function ContactPanel({
                     <ExternalLink size={13} />
                   </a>
                 )}
+                <button
+                  onClick={startHeaderEdit}
+                  className="shrink-0 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/header:opacity-100 focus:opacity-100 transition-opacity duration-150"
+                  title="Edit name, company, title and LinkedIn"
+                >
+                  <Pencil size={12} />
+                </button>
               </p>
               <p className="text-xs text-zinc-300 leading-snug truncate">
                 {contact.company}
@@ -481,6 +571,7 @@ export function ContactPanel({
                 )}
               </p>
             </div>
+            )}
             <button onClick={close} className="text-zinc-600 hover:text-zinc-300 shrink-0" title="Close (Esc)">
               <X size={16} />
             </button>
