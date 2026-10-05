@@ -85,15 +85,12 @@ export const CONNECT_NOTE_LIMIT = 300;
  * about craft", "who will tell me the portfolio is not working". One person can be
  * several of these at once, and a mentor who is no use for a referral is still a
  * mentor, so the tags are a set and the Network page filters on them.
+ *
+ * Only two starters. A longer fixed list was a guess at your categories; the rest
+ * you add as they come up ("could refer", "figma alum"), and orderTags keeps the
+ * starters first.
  */
-export const RELATIONSHIP_TAGS = [
-  "mentor",
-  "could refer",
-  "technical advice",
-  "design feedback",
-  "peer",
-  "recruiter",
-] as const;
+export const RELATIONSHIP_TAGS = ["mentor", "peer"] as const;
 
 export type RelationshipTag = (typeof RELATIONSHIP_TAGS)[number];
 

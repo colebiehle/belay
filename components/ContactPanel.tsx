@@ -131,12 +131,6 @@ function metLine(howMet: string): string {
   return `Met at ${v}`;
 }
 
-// A pasted note as the note list stores it. Out here so the clock is read when the
-// paste is applied, not by anything the compiler could mistake for render.
-function stampNote(note: { title: string; body: string }) {
-  return { id: `n${Date.now()}`, ...note, createdAt: new Date().toISOString() };
-}
-
 export function ContactPanel({
   contact,
   allContacts,
@@ -391,47 +385,14 @@ export function ContactPanel({
     setTab("details");
   };
 
-  // The route proposes; these turn the proposal into preview rows against what is on
-  // file now, and then write what was kept in one PATCH, note included.
-  const addedTags = (v: unknown): string[] =>
-    Array.isArray(v) ? orderTags((v as unknown[]).filter((t): t is string => typeof t === "string")).filter((t) => !tags.includes(t)) : [];
+  // The summary is the one thing a paste writes, so the preview is one row.
+  const describePaste = (u: Record<string, unknown>): PasteRow[] =>
+    typeof u.profileText === "string" && u.profileText.trim()
+      ? [{ key: "profileText", label: "Summary", from: contact.profileText, to: u.profileText }]
+      : [];
 
-  const describePaste = (u: Record<string, unknown>): PasteRow[] => {
-    const rows: PasteRow[] = [];
-    // A value equal to what is on file is not a change, whatever the route thought.
-    const str = (k: string, label: string, from: string | null) => {
-      const to = u[k];
-      if (typeof to === "string" && to.trim() && to.trim() !== (from ?? "").trim())
-        rows.push({ key: k, label, from, to });
-    };
-    str("title", "Title", contact.title);
-    str("role", "Function", contact.role);
-    str("howMet", "How we met", contact.howMet);
-    // Tags only ever add, so the row says what is added rather than restating the
-    // whole set twice, which made the one new tag hard to spot.
-    const added = addedTags(u.relationship);
-    if (added.length) rows.push({ key: "relationship", label: "Tags", from: null, to: `+ ${added.join(", ")}` });
-    str("warmth", "Warmth", contact.warmth);
-    str("profileText", "Background", contact.profileText);
-    return rows;
-  };
-
-  const applyPaste = (p: { updates: Record<string, unknown>; note: { title: string; body: string } | null }, kept: Set<string>) => {
-    const patch: Record<string, unknown> = {};
-    for (const k of kept) {
-      // Tags are merged into what is on file now, not taken as the set the route
-      // saw, so a tag set in the meantime is not dropped.
-      if (k === "relationship") {
-        const added = addedTags(p.updates.relationship);
-        patch.relationship = JSON.stringify(orderTags([...tags, ...added]));
-      } else patch[k] = p.updates[k];
-    }
-    if (p.note) {
-      const next = [...notes, stampNote(p.note)];
-      setNotes(next);
-      patch.noteList = JSON.stringify(next);
-    }
-    if (Object.keys(patch).length > 0) onUpdate(contact.id, patch);
+  const applyPaste = (p: { updates: Record<string, unknown> }, kept: Set<string>) => {
+    if (kept.has("profileText")) onUpdate(contact.id, { profileText: p.updates.profileText });
   };
 
   const saveSummary = () => {
@@ -539,9 +500,17 @@ export function ContactPanel({
                 </div>
               </div>
             ) : (
-            <div className="min-w-0 flex-1 group/header">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
-                <span className="truncate">{contact.name}</span>
+                {/* The name is the edit control. A pencil beside it sat next to the
+                    LinkedIn link and read as a second link. */}
+                <button
+                  onClick={startHeaderEdit}
+                  className="truncate text-left cursor-text hover:text-white decoration-zinc-600 decoration-dotted underline-offset-4 hover:underline"
+                  title="Click to edit name, company, title and LinkedIn"
+                >
+                  {contact.name}
+                </button>
                 {/* The link out follows the primary name, as it does on the rows and
                     on the applications side. Here the person is the primary name. */}
                 {contact.linkedinUrl && (
@@ -556,13 +525,6 @@ export function ContactPanel({
                     <ExternalLink size={13} />
                   </a>
                 )}
-                <button
-                  onClick={startHeaderEdit}
-                  className="shrink-0 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover/header:opacity-100 focus:opacity-100 transition-opacity duration-150"
-                  title="Edit name, company, title and LinkedIn"
-                >
-                  <Pencil size={12} />
-                </button>
               </p>
               <p className="text-xs text-zinc-300 leading-snug truncate">
                 {contact.company}
@@ -866,39 +828,40 @@ export function ContactPanel({
                       {contact.notes}
                     </p>
                   )}
-                  {/* Clamped, and dim. It is context the drafts read rather than
-                      something to sit and study, so two lines is enough to tell you it
-                      is there and whether it is the right person. */}
-                  {contact.profileText && (
-                    <p className="text-xs text-zinc-600 leading-relaxed line-clamp-2">{contact.profileText}</p>
-                  )}
-                  {/* Where their background comes from now, and everything else a
-                      paste can carry. It replaced a textarea bound to profileText:
-                      the paste was always a whole profile or a whole thread, and
-                      only one field of it was being kept. */}
-                  <PasteAnything
-                    endpoint={`/api/contacts/${contact.id}/paste`}
-                    accent={accent}
-                    label="Add summary"
-                    placeholder="Paste their LinkedIn About section and current role. Notes from a call or a message thread work too. Belay pulls out the facts and writes a short summary."
-                    describe={describePaste}
-                    onApplied={applyPaste}
-                  />
-                  {/* The one place the networking side points back at the applications
-                      side, which is usually the reason you opened a person at all: you
-                      are looking at someone and you want the roles at their company.
-                      "Find mutuals" pointed outward at LinkedIn and did not survive the
-                      question of what it was for. */}
-                  {rolesAtCompany > 0 && (
-                    <a
-                      href={`/applications?company=${encodeURIComponent(contact.company)}`}
-                      className="block text-xs hover:opacity-80 transition-opacity duration-150"
-                      style={{ color: accent }}
-                    >
-                      {rolesAtCompany} role{rolesAtCompany === 1 ? "" : "s"} at {contact.company} →
-                    </a>
-                  )}
                 </>
+              )}
+
+              {/* Who they are, the person-side twin of a role's headline: it stays in
+                  view while you edit your note above it, the way the role panel's
+                  headline does. */}
+              {contact.profileText && (
+                <p className="text-xs text-zinc-300 leading-relaxed">{contact.profileText}</p>
+              )}
+              {/* Shown until there is a summary; after that it only appears while
+                  editing, as a way to redo it. */}
+              {(!contact.profileText || editingTldr) && (
+                <PasteAnything
+                  endpoint={`/api/contacts/${contact.id}/paste`}
+                  accent={accent}
+                  label={contact.profileText ? "Replace summary" : "Add summary"}
+                  placeholder="Paste their LinkedIn About section and current role. Call notes or a message thread work too. Belay writes a two or three sentence summary of who they are."
+                  describe={describePaste}
+                  onApplied={applyPaste}
+                />
+              )}
+              {/* The one place the networking side points back at the applications
+                  side, which is usually the reason you opened a person at all: you
+                  are looking at someone and you want the roles at their company.
+                  "Find mutuals" pointed outward at LinkedIn and did not survive the
+                  question of what it was for. */}
+              {rolesAtCompany > 0 && (
+                <a
+                  href={`/applications?company=${encodeURIComponent(contact.company)}`}
+                  className="block text-xs hover:opacity-80 transition-opacity duration-150"
+                  style={{ color: accent }}
+                >
+                  {rolesAtCompany} role{rolesAtCompany === 1 ? "" : "s"} at {contact.company} →
+                </a>
               )}
 
             </div>
