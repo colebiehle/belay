@@ -154,7 +154,7 @@ function MonthLabels({ columns, band }: { columns: (DayBucket | null)[][]; band:
   );
 }
 
-type RecapRow = { label: string; day: number; year: number };
+type RecapRow = { label: string; n: number };
 
 function RecapPanel({
   day,
@@ -162,37 +162,40 @@ function RecapPanel({
   year,
   yearTotals,
 }: {
+  // The hovered day, or null for the year at rest.
   day: DayBucket | null;
   isToday: boolean;
   year: number;
   yearTotals: Totals;
 }) {
-  // Two groups, one per half of the search, side by side. The side is where the row
-  // sits and the word above it, not a hue.
+  // One number per row, and the heading says what span it covers: the year at rest,
+  // the hovered day while the cursor is on the grid. Showing both at once (the day's
+  // count with "· 34 in 2026" after it) put six numbers in each group and left you
+  // working out which was which; the grid above already shows the days.
+  const pick = (d: number, y: number) => (day ? d : y);
   const groups: { title: string; rows: RecapRow[] }[] = [
     {
       title: "Roles",
       rows: [
-        { label: "Roles triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
-        { label: "Applications submitted", day: day?.applied ?? 0, year: yearTotals.applied },
-        { label: "Interviews", day: day?.interviewScheduled ?? 0, year: yearTotals.interviewScheduled },
+        { label: "Roles triaged", n: pick(day?.jobsReviewed ?? 0, yearTotals.jobsReviewed) },
+        { label: "Applications submitted", n: pick(day?.applied ?? 0, yearTotals.applied) },
+        { label: "Interviews", n: pick(day?.interviewScheduled ?? 0, yearTotals.interviewScheduled) },
       ],
     },
     {
       title: "People",
       rows: [
-        { label: "People identified", day: day?.contactsAdded ?? 0, year: yearTotals.contactsAdded },
-        { label: "People messaged", day: day?.outreachSent ?? 0, year: yearTotals.outreachSent },
-        { label: "Coffee chats", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
+        { label: "People identified", n: pick(day?.contactsAdded ?? 0, yearTotals.contactsAdded) },
+        { label: "People messaged", n: pick(day?.outreachSent ?? 0, yearTotals.outreachSent) },
+        { label: "Coffee chats", n: pick(day?.coffeeChats ?? 0, yearTotals.coffeeChats) },
       ],
     },
   ];
 
   return (
     <div>
-      {/* Always rendered, at a fixed height. When this appeared only on hover the
-          block changed height as the cursor crossed the grid and the panel jumped.
-          A year with no activity has no day to show, and says so here. */}
+      {/* Fixed height, so switching between the year and a day never moves the
+          panel. The hint names the other mode, so the switch is discoverable. */}
       <p className="flex items-baseline gap-2 mb-2 h-5">
         {day ? (
           <>
@@ -200,41 +203,30 @@ function RecapPanel({
             {isToday && <span className="text-meta text-fg-3">Today</span>}
           </>
         ) : (
-          <span className="text-body text-fg-3">No activity in {year}</span>
+          <>
+            <span className="text-body text-fg-1 tabular-nums">{year}</span>
+            <span className="text-meta text-fg-3">Hover a day to see it</span>
+          </>
         )}
       </p>
-      {/* Each row reads as a sentence: the day's count, what it counts, then the
-          year's total in the dim step after it ("3 Roles triaged · 41 in 2026").
-          The numbers used to sit in two right-hand columns, a hundred pixels or more
-          from labels like "Interviews", so it was hard to see which number went
-          with which row. Now every number touches its label.
-          No jitter: the day count is a fixed 3ch box, right-aligned in tabular mono,
-          so the label after it never moves as the cursor sweeps the grid; the year
-          total does not change on hover at all; rows are a fixed 28px. */}
+      {/* Number first, label beside it: every count touches what it counts. The
+          number is a fixed 3ch box in tabular figures, so labels never shift as the
+          cursor sweeps the grid. */}
       <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
         {groups.map((g) => (
           <div key={g.title}>
             <h3 className="t-group h-7 leading-7">{g.title}</h3>
             <dl>
               {g.rows.map((r) => (
-                <div key={r.label} className="flex items-baseline gap-1.5 h-7 leading-7 min-w-0">
-                  {/* Day is the number they are here to read, so it is the bright
-                      step; a zero day drops to fg-3 so the counts that happened are
-                      the ones that show. */}
+                <div key={r.label} className="flex items-baseline gap-3 h-7 leading-7 min-w-0">
                   <dd
-                    className={`order-first w-[3ch] mr-1.5 shrink-0 font-mono text-data tabular-nums text-right ${
-                      day && r.day > 0 ? "text-fg-1" : "text-fg-3"
+                    className={`order-first w-[3ch] shrink-0 text-body tabular-nums text-right ${
+                      r.n > 0 ? "text-fg-1" : "text-fg-3"
                     }`}
                   >
-                    {day ? r.day : "–"}
+                    {r.n}
                   </dd>
                   <dt className="text-body text-fg-2 truncate min-w-0">{r.label}</dt>
-                  <dd className="shrink-0 text-meta text-fg-3 tabular-nums">
-                    <span className="text-fg-4 mr-1.5" aria-hidden>
-                      ·
-                    </span>
-                    {r.year} in {year}
-                  </dd>
                 </div>
               ))}
             </dl>
@@ -246,18 +238,6 @@ function RecapPanel({
 }
 
 const THIS_YEAR = new Date().getFullYear();
-
-/**
- * The day the detail shows when the cursor is not on the grid. The current year:
- * today. Another year: its last active day, since that year's "today" is not on the
- * grid (it used to show today's date, with today's counts, under a 2025 grid). A
- * year with no activity: nothing, and the detail says so.
- */
-function restingDay(data: ActivityResponse): DayBucket | null {
-  if (data.days.some((d) => d.date === data.today.date)) return data.today;
-  for (let i = data.days.length - 1; i >= 0; i--) if (data.days[i].total > 0) return data.days[i];
-  return null;
-}
 
 /** How many stacked bands the year needs so a cell stays at MIN_CELL or more. */
 function bandsFor(width: number, weeks: number): number {
@@ -329,7 +309,7 @@ export function ActivityHeatmap() {
   const bands = Array.from({ length: bandCount }, (_, i) => columns.slice(i * perBand, (i + 1) * perBand));
   const dayRowLabels = ["Mon", "", "Wed", "", "Fri", "", ""];
 
-  const displayDay = hoveredDay ?? restingDay(data);
+  const displayDay = hoveredDay;
   const todayDate = data.today.date;
 
   // The select, shared by the panel header. Same frame as every other select (canvas
@@ -414,10 +394,9 @@ export function ActivityHeatmap() {
                     // push into the gap. Today is rope, because rope is "where you are";
                     // the day you are pointing at is fg-1 and takes over for as long as
                     // the cursor is there, since the detail below is then about that day.
-                    // With the cursor off the grid, the resting day of a past year
-                    // carries the fg-1 ring, so you can see which day the detail is.
-                    const isResting = !hoveredDay && !isToday && displayDay?.date === b.date;
-                    const ring = isHovered || isResting
+                    // With the cursor off the grid the detail shows the year, so no
+                    // cell is singled out but today.
+                    const ring = isHovered
                       ? "ring-[1.5px] ring-inset ring-fg-1"
                       : isToday
                         ? "ring-[1.5px] ring-inset ring-rope"
