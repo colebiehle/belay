@@ -83,18 +83,6 @@ function intensityClass(weight: number): string {
   return HEAT[4];
 }
 
-function formatDateLong(dateStr: string): string {
-  const d = parseLocalDate(dateStr);
-  // Use short weekday + short month — keeps the header width stable across days
-  // ("Mon, May 17, 2026" is always ~16 chars vs "Wednesday, September 17, 2026" being ~30)
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function buildGrid(days: DayBucket[]): (DayBucket | null)[][] {
   const rowOrder = [1, 2, 3, 4, 5, 6, 0];
   if (days.length === 0) return [];
@@ -154,87 +142,88 @@ function MonthLabels({ columns, band }: { columns: (DayBucket | null)[][]; band:
   );
 }
 
-type RecapRow = { label: string; n: number };
+type RecapRow = { label: string; day: number; year: number };
 
 function RecapPanel({
   day,
-  isToday,
+  dayLabel,
   year,
   yearTotals,
 }: {
-  // The hovered day, or null for the year at rest.
+  // The hovered day, else today when today is in the shown year, else null.
   day: DayBucket | null;
-  isToday: boolean;
+  // The day column's heading: "Today" or the hovered date.
+  dayLabel: string;
   year: number;
   yearTotals: Totals;
 }) {
-  // One number per row, and the heading says what span it covers: the year at rest,
-  // the hovered day while the cursor is on the grid. Showing both at once (the day's
-  // count with "· 34 in 2026" after it) put six numbers in each group and left you
-  // working out which was which; the grid above already shows the days.
-  const pick = (d: number, y: number) => (day ? d : y);
+  // A small table: one-word labels (the group heading already says roles or
+  // people), then the day and the year in two narrow columns right beside them.
+  // Short labels are what keep the numbers close enough to read across; the long
+  // ones ("Applications submitted") pushed the columns a hundred pixels away.
   const groups: { title: string; rows: RecapRow[] }[] = [
     {
       title: "Roles",
       rows: [
-        { label: "Roles triaged", n: pick(day?.jobsReviewed ?? 0, yearTotals.jobsReviewed) },
-        { label: "Applications submitted", n: pick(day?.applied ?? 0, yearTotals.applied) },
-        { label: "Interviews", n: pick(day?.interviewScheduled ?? 0, yearTotals.interviewScheduled) },
+        { label: "Triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
+        { label: "Applied", day: day?.applied ?? 0, year: yearTotals.applied },
+        { label: "Interviewed", day: day?.interviewScheduled ?? 0, year: yearTotals.interviewScheduled },
       ],
     },
     {
       title: "People",
       rows: [
-        { label: "People identified", n: pick(day?.contactsAdded ?? 0, yearTotals.contactsAdded) },
-        { label: "People messaged", n: pick(day?.outreachSent ?? 0, yearTotals.outreachSent) },
-        { label: "Coffee chats", n: pick(day?.coffeeChats ?? 0, yearTotals.coffeeChats) },
+        { label: "Identified", day: day?.contactsAdded ?? 0, year: yearTotals.contactsAdded },
+        { label: "Messaged", day: day?.outreachSent ?? 0, year: yearTotals.outreachSent },
+        { label: "Chatted", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
       ],
     },
   ];
+  // Fixed column widths in tabular figures: hovering changes the day column's
+  // numbers and heading, and nothing beside them moves.
+  const cols = "grid grid-cols-[7.5rem_4.5rem_3.5rem] items-baseline";
 
   return (
-    <div>
-      {/* Fixed height, so switching between the year and a day never moves the
-          panel. The hint names the other mode, so the switch is discoverable. */}
-      <p className="flex items-baseline gap-2 mb-2 h-5">
-        {day ? (
-          <>
-            <span className="text-body text-fg-1 tabular-nums">{formatDateLong(day.date)}</span>
-            {isToday && <span className="text-meta text-fg-3">Today</span>}
-          </>
-        ) : (
-          <>
-            <span className="text-body text-fg-1 tabular-nums">{year}</span>
-            <span className="text-meta text-fg-3">Hover a day to see it</span>
-          </>
-        )}
-      </p>
-      {/* Number first, label beside it: every count touches what it counts. The
-          number is a fixed 3ch box in tabular figures, so labels never shift as the
-          cursor sweeps the grid. */}
-      <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-        {groups.map((g) => (
-          <div key={g.title}>
-            <h3 className="t-group h-7 leading-7">{g.title}</h3>
-            <dl>
-              {g.rows.map((r) => (
-                <div key={r.label} className="flex items-baseline gap-3 h-7 leading-7 min-w-0">
-                  <dd
-                    className={`order-first w-[3ch] shrink-0 text-body tabular-nums text-right ${
-                      r.n > 0 ? "text-fg-1" : "text-fg-3"
-                    }`}
-                  >
-                    {r.n}
-                  </dd>
-                  <dt className="text-body text-fg-2 truncate min-w-0">{r.label}</dt>
-                </div>
-              ))}
-            </dl>
+    <div className="grid gap-x-12 gap-y-4 sm:grid-cols-[auto_auto] sm:justify-start">
+      {groups.map((g) => (
+        <div key={g.title} role="table" aria-label={g.title}>
+          <div role="row" className={`${cols} h-7`}>
+            <span role="columnheader" className="t-group">
+              {g.title}
+            </span>
+            <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums truncate">
+              {dayLabel}
+            </span>
+            <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums">
+              {year}
+            </span>
           </div>
-        ))}
-      </div>
+          {g.rows.map((r) => (
+            <div key={r.label} role="row" className={`${cols} h-7`}>
+              <span role="rowheader" className="text-body text-fg-2">
+                {r.label}
+              </span>
+              <span
+                role="cell"
+                className={`text-body tabular-nums text-right ${day && r.day > 0 ? "text-fg-1" : "text-fg-3"}`}
+              >
+                {day ? r.day : "–"}
+              </span>
+              <span role="cell" className={`text-body tabular-nums text-right ${r.year > 0 ? "text-fg-1" : "text-fg-3"}`}>
+                {r.year}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
+}
+
+/** "Sep 29": the hovered day, short, so it fits the column heading. */
+function shortDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 const THIS_YEAR = new Date().getFullYear();
@@ -309,7 +298,9 @@ export function ActivityHeatmap() {
   const bands = Array.from({ length: bandCount }, (_, i) => columns.slice(i * perBand, (i + 1) * perBand));
   const dayRowLabels = ["Mon", "", "Wed", "", "Fri", "", ""];
 
-  const displayDay = hoveredDay;
+  // The day column: the hovered day, else today when the shown year has it.
+  const todayInYear = data.days.some((d) => d.date === data.today.date);
+  const displayDay = hoveredDay ?? (todayInYear ? data.today : null);
   const todayDate = data.today.date;
 
   // The select, shared by the panel header. Same frame as every other select (canvas
@@ -435,7 +426,15 @@ export function ActivityHeatmap() {
         <div className="border-t border-line-1 pt-4">
           <RecapPanel
             day={displayDay}
-            isToday={displayDay?.date === todayDate}
+            dayLabel={
+              hoveredDay
+                ? hoveredDay.date === todayDate
+                  ? "Today"
+                  : shortDate(hoveredDay.date)
+                : todayInYear
+                  ? "Today"
+                  : "Day"
+            }
             year={shownYear}
             yearTotals={data.yearTotals}
           />
