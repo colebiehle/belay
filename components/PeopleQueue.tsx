@@ -524,15 +524,23 @@ export function PeopleQueue({
             )
           }
           footerEnd={
-            !manual &&
-            pasted && (
+            // Always present, disabled until there is a paste: the footer is the same
+            // row as Find people and Add role, and the box says what it will do
+            // before you have given it anything.
+            !manual && (
               <button
                 onClick={runImport}
-                disabled={importing}
+                disabled={importing || !pasted}
                 // Secondary: the header's Add people is this page's one rope fill.
                 className={button("secondary")}
               >
-                {importing ? (pasted.profile ? "Adding…" : "Reading…") : pasted.profile ? "Add to queue" : "Import"}
+                {importing
+                  ? pasted?.profile
+                    ? "Adding…"
+                    : "Reading…"
+                  : pasted && !pasted.profile
+                    ? "Import"
+                    : "Add to queue"}
               </button>
             )
           }
