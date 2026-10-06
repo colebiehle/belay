@@ -105,8 +105,19 @@ export const kbd =
  */
 export const WASH_PCT = 22;
 
+// v1.3: the gradient is back, under a solid brand line. Flat, the tint covered the
+// whole header and read as "the panel is that colour"; the owner preferred the fade,
+// and what it lacked was an anchor, now the 3px line (brandLine). The gradient starts
+// at the measured 22% and only fades from there, so contrast never drops below the
+// flat-band figures above.
 export function washOf(brandHex: string): string {
-  return `color-mix(in oklab, ${brandHex} ${WASH_PCT}%, var(--color-raised))`;
+  return `linear-gradient(180deg, color-mix(in oklab, ${brandHex} ${WASH_PCT}%, var(--color-raised)) 0%, var(--color-raised) 100%)`;
+}
+
+// The solid brand line along the panel's top edge: the company's true colour, once,
+// at full strength. An inset shadow, so it adds no height to the header.
+export function brandLine(brandHex: string): string {
+  return `inset 0 3px 0 ${brandHex}`;
 }
 
 /**

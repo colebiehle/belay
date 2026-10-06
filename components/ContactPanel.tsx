@@ -7,7 +7,7 @@ import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
@@ -463,14 +463,13 @@ export function ContactPanel({
         }`}
       >
         {/* Header. The company's colour lives here and nowhere else in the panel: a
-            flat 22% tint across the whole header block, down to its bottom border
-            (STYLE_GUIDE 2.6). It was a gradient fading to the panel colour, which
-            read as too faint below its top row. Only fg-1 and fg-2 sit on it (7.64:1
-            and 4.67:1 at worst, a white brand); fg-3 drops under 3:1, so nothing on
-            the band uses it. */}
+            solid 3px line of the brand along the top edge, and under it the brand at
+            22% fading to the panel colour (STYLE_GUIDE 2.6). Only fg-1 and fg-2 sit
+            on it (7.64:1 and 4.67:1 at worst, a white brand, at the strongest point);
+            fg-3 drops under 3:1 there, so nothing on the header uses it. */}
         <div
           className="relative shrink-0 border-b border-line-2"
-          style={brandHex ? { background: washOf(brandHex) } : undefined}
+          style={brandHex ? { background: washOf(brandHex), boxShadow: brandLine(brandHex) } : undefined}
         >
           <div className="relative flex items-start gap-3 px-6 py-4">
             <img
