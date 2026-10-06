@@ -1143,7 +1143,7 @@ function CandidateCard({
   };
 
   return (
-    <div onClick={onFocus} className={`${queueCard(focused)} ${decided ? "min-h-40" : ""}`}>
+    <div onClick={onFocus} className={queueCard(focused)}>
       {decided || !c.linkedinUrl ? (
         <div className="flex-1 min-h-0 flex flex-col">
           {head}

@@ -123,8 +123,11 @@ export const sectionHead = "flex items-center gap-3 h-7";
  * shifts nothing); the keyboard cursor is a 1px rope border, shown only once J or K
  * has been pressed. Hover steps the fill to raised, not lift, which is the tags' fill.
  */
+// One fixed height for every queue card, roles and people, in every state. Sized to
+// content, a card grew when a decision swapped its reading line and tags for the
+// reason box, so the grid jumped under the cursor; 200px holds the tallest state.
 export function queueCard(focused: boolean): string {
-  return `group/row h-full flex flex-col bg-surface border rounded-card p-4 transition-colors duration-90 ease-enter ${
+  return `group/row h-[200px] overflow-hidden flex flex-col bg-surface border rounded-card p-4 transition-colors duration-90 ease-enter ${
     focused ? "border-rope" : "border-transparent hover:bg-raised"
   }`;
 }

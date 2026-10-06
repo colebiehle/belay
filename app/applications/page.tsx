@@ -1075,7 +1075,7 @@ function JobCard({
       onClick={onFocus}
       // The frame both queues share (lib/ui queueCard): the rope border only under
       // the keyboard cursor, a transparent one holding its place otherwise.
-      className={`${queueCard(focused)} min-h-40`}
+      className={queueCard(focused)}
     >
       {decided ? (
         <div className="flex-1 min-h-0 flex flex-col">
