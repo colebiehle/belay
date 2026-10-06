@@ -3,16 +3,16 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
-import { domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
+import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { readableOn, usableAccent } from "@/lib/brand-colors";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, metaTokens } from "@/lib/role-meta";
 import { PersonPicker } from "@/components/PersonPicker";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
-import { logoUrl } from "@/lib/logo";
 import { restrictionLine } from "@/lib/portal-limits";
 import { STATUSES } from "@/lib/statuses";
+import { canonicalCompany } from "@/lib/role-filter";
 
 /**
  * The per-role panel. Two tabs, holding genuinely different kinds of thing.
@@ -136,7 +136,10 @@ export function RoleWorkspace({
   app: App;
   contacts: { id: string; name: string; company: string; title: string | null }[];
   onClose: () => void;
-  onUpdate: (id: string, patch: Record<string, unknown>) => void;
+  // Resolves to an error message (or null) where the caller reports one. Most
+  // edits here fire and forget; the header edit waits on it, because a posting URL
+  // another role already has is refused and the editor should stay open to say so.
+  onUpdate: (id: string, patch: Record<string, unknown>) => void | Promise<string | null | void>;
 }) {
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [scope, setScope] = useState<string | null>(null);
@@ -154,11 +157,58 @@ export function RoleWorkspace({
   const [addingInterview, setAddingInterview] = useState(false);
   const [editingTldr, setEditingTldr] = useState(false);
   const [tldrDraft, setTldrDraft] = useState(app.notes ?? "");
+  // The header's facts: the job's own role title, company and posting URL. They
+  // came from whatever the ingest scraped, so a mangled title or an alert-mail
+  // company name stayed wrong for the life of the role. Same pattern as the person
+  // panel: click the primary name to edit in place.
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [headerDraft, setHeaderDraft] = useState({ company: "", roleTitle: "", jobUrl: "" });
+  const [headerError, setHeaderError] = useState<string | null>(null);
+  const [headerSaving, setHeaderSaving] = useState(false);
+  const startHeaderEdit = () => {
+    setHeaderDraft({ company: app.job.company, roleTitle: app.job.roleTitle, jobUrl: app.job.jobUrl });
+    setHeaderError(null);
+    setEditingHeader(true);
+  };
+  const saveHeader = async () => {
+    // Canonicalised the way ingest does it, so "Google LLC" typed here still
+    // dedupes and filters with the Google roles that came in from scans.
+    const company = canonicalCompany(headerDraft.company.trim());
+    const roleTitle = headerDraft.roleTitle.trim();
+    const jobUrl = headerDraft.jobUrl.trim();
+    // All three are required on Job, and jobUrl is its unique key, so none can be blank.
+    if (!company || !roleTitle || !jobUrl || headerSaving) return;
+    // Only what changed, so an untouched jobUrl never trips its own unique check.
+    const update: Record<string, string> = {};
+    if (company !== app.job.company) update.company = company;
+    if (roleTitle !== app.job.roleTitle) update.roleTitle = roleTitle;
+    if (jobUrl !== app.job.jobUrl) update.jobUrl = jobUrl;
+    if (Object.keys(update).length === 0) {
+      setEditingHeader(false);
+      return;
+    }
+    setHeaderSaving(true);
+    setHeaderError(null);
+    const err = await onUpdate(app.id, { job: { update } });
+    setHeaderSaving(false);
+    if (err) {
+      setHeaderError(err);
+      return;
+    }
+    setEditingHeader(false);
+  };
   // The one fact about an application that is not on the posting: where the form
   // actually lives, when it is not the posting itself. It was only settable from a
   // detail page nothing linked to, so it was null on every row while the header link
   // quietly fell back to the job URL.
   const [portalDraft, setPortalDraft] = useState(app.portalUrl ?? "");
+  const saveTldr = () => {
+    onUpdate(app.id, {
+      notes: tldrDraft.trim() || null,
+      portalUrl: portalDraft.trim() || null,
+    });
+    setEditingTldr(false);
+  };
   const [shown, setShown] = useState(false);
   // The pending selection from the transcript, and where its Save chip should sit.
   const [pick, setPick] = useState<{ text: string; top: number } | null>(null);
@@ -464,16 +514,86 @@ export function RoleWorkspace({
             style={{ backgroundColor: accent }}
           />
           <div className="relative flex items-start gap-3 px-5 py-4">
-            <img
-              src={logoUrl(logoDomain)}
-              alt={app.job.company}
-              className="w-10 h-10 rounded-md object-contain bg-white p-1 shrink-0"
+            {/* The same mark the queue card shows: the logo saved from the posting's
+                source first, then the domain's favicon. A favicon of a domain guessed
+                from the name put someone else's icon on startups like Effective AI. */}
+            <CompanyLogo
+              company={app.job.company}
+              jobUrl={app.job.jobUrl}
+              domain={domainFromEnrichment(app.job.queueEnrichment)}
+              logo={logoFromEnrichment(app.job.queueEnrichment)}
+              size={40}
             />
-            {/* Company, then role. Same order as the queue card, the pipeline row and
-                the passed row, so the thing you clicked is the thing that opens. */}
+            {editingHeader ? (
+              <div
+                className="min-w-0 flex-1 space-y-1.5"
+                onKeyDown={(e) => {
+                  // Enter saves; Escape backs out of the edit without closing the panel.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveHeader();
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setEditingHeader(false);
+                  }
+                }}
+              >
+                {/* Company first, as at rest: the field you clicked is the one focused. */}
+                <input
+                  value={headerDraft.company}
+                  onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
+                  placeholder="Company"
+                  autoFocus
+                  className="w-full text-sm font-semibold bg-zinc-900 border rounded px-2 py-1 text-zinc-100 placeholder-zinc-700 focus:outline-none"
+                  style={{ borderColor: accent }}
+                />
+                <input
+                  value={headerDraft.roleTitle}
+                  onChange={(e) => setHeaderDraft({ ...headerDraft, roleTitle: e.target.value })}
+                  placeholder="Role title"
+                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                />
+                <input
+                  value={headerDraft.jobUrl}
+                  onChange={(e) => {
+                    setHeaderDraft({ ...headerDraft, jobUrl: e.target.value });
+                    setHeaderError(null);
+                  }}
+                  placeholder="Posting URL"
+                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                />
+                <div className="flex items-center justify-end gap-3 pt-0.5">
+                  {headerError && <p className="mr-auto text-xs text-accent-pink">{headerError}</p>}
+                  <button onClick={() => setEditingHeader(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveHeader}
+                    disabled={
+                      !headerDraft.company.trim() || !headerDraft.roleTitle.trim() || !headerDraft.jobUrl.trim() || headerSaving
+                    }
+                    title="Save (↵)"
+                    className="text-xs font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity duration-150"
+                    style={{ color: accent }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+            /* Company, then role. Same order as the queue card, the pipeline row and
+                the passed row, so the thing you clicked is the thing that opens. */
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
-                <span className="truncate">{displayCompany(app.job.company)}</span>
+                {/* The company is the edit control, as the name is on a person. */}
+                <button
+                  onClick={startHeaderEdit}
+                  className="truncate text-left cursor-text hover:text-white decoration-zinc-600 decoration-dotted underline-offset-4 hover:underline"
+                  title="Click to edit company, role title and posting URL"
+                >
+                  {displayCompany(app.job.company)}
+                </button>
                 {/* One rule across the app: the link out follows the primary name.
                     Company here, person on a contact, in rows and in panels alike. */}
                 <a
@@ -494,6 +614,7 @@ export function RoleWorkspace({
               </p>
               <p className="text-xs text-zinc-300 leading-snug">{app.job.roleTitle}</p>
             </div>
+            )}
             <button onClick={close} className="text-zinc-600 hover:text-zinc-300 shrink-0" title="Close (Esc)">
               <X size={16} />
             </button>
@@ -642,13 +763,26 @@ export function RoleWorkspace({
               </div>
 
               {editingTldr ? (
-                <div className="space-y-1.5">
+                // Escape cancels and Cmd+Enter saves from anywhere in the form, as in
+                // the person panel. Escape stops here so the panel's own Escape
+                // (close) does not also fire and throw the panel away with the edit;
+                // it used to, from the textarea, and from the link field it did
+                // nothing but close.
+                <div
+                  className="space-y-1.5"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setEditingTldr(false);
+                    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      saveTldr();
+                    }
+                  }}
+                >
                   <AutoResizeTextarea
                     value={tldrDraft}
                     onChange={(e) => setTldrDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditingTldr(false);
-                    }}
                     autoFocus
                     placeholder="Anything about this role worth keeping at the top."
                     className="w-full text-xs bg-zinc-900 border rounded px-2 py-1.5 text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
@@ -666,13 +800,8 @@ export function RoleWorkspace({
                       Cancel
                     </button>
                     <button
-                      onClick={() => {
-                        onUpdate(app.id, {
-                          notes: tldrDraft.trim() || null,
-                          portalUrl: portalDraft.trim() || null,
-                        });
-                        setEditingTldr(false);
-                      }}
+                      onClick={saveTldr}
+                      title="Save (⌘↵)"
                       className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
                       style={{ color: accent }}
                     >

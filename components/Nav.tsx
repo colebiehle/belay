@@ -11,10 +11,9 @@ import { usePathname } from "next/navigation";
 // one page that is entirely blue announced itself in the other side's colour.
 const links = [
   { href: "/", label: "Home", tone: "accent-pink" },
-  // Insights reads across both halves, so it takes neither accent. It sits first,
-  // beside Home, because both are the top-down view: Home is what there is,
-  // Insights is whether it is working.
-  { href: "/insights", label: "Insights", tone: "neutral" },
+  // No Insights tab. It is the deeper, occasional read, and Home carries the few
+  // numbers from it that change a week's plan, with a link through for the rest.
+  // A tab put it level with the pages used every day.
   { href: "/applications", label: "Applications", tone: "accent-pink" },
   // Network sits next to Applications because referrals are worked alongside
   // applying, not after it. Profile is reference, so it goes last.

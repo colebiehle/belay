@@ -17,12 +17,14 @@ type DayBucket = {
 // streak. Submitting and interviewing move the search, so they count for more than
 // triaging a queue.
 //
-// contactsAdded is deliberately absent. Adding a name to a list is not progress, it
-// has no row in the recap, and while it counted here a day of nothing but that broke
-// the streak's agreement with the grid: four days in May counted as active and
-// rendered as empty cells with nothing to report on hover.
+// contactsAdded counts at the same weight as triaging a role: finding the right people
+// is the networking side's first step, as triage is the applications side's. It was
+// left out once because it had no row in the recap and its days drew as empty cells;
+// it now has a row ("People identified") and feeds the cell colour, so the grid, the
+// streak and the recap agree again.
 const WEIGHTS: Record<string, number> = {
   jobsReviewed: 1,
+  contactsAdded: 1,
   applied: 3,
   interviewScheduled: 3,
   outreachSent: 2,
@@ -202,14 +204,11 @@ export async function GET(req: NextRequest) {
   // Totals for the selected year. The counts that come from a Prisma count()
   // rather than the day buckets are all-time, which is the same thing here: nothing
   // in the database predates this year's search.
-  const [allReviewed, allContacts, allRecruiterSent, allConnectionSent, allApps] = await Promise.all([
+  const [allReviewed, allApps] = await Promise.all([
     // Matches the day buckets, which count only real verdicts. This used to be
     // `verdictAt: { not: null }`, which includes every bulk-archived row — 127
     // against 20 actual decisions, two definitions of one metric side by side.
     prisma.job.count({ where: { verdict: { in: ["Apply", "Pass"] } } }),
-    prisma.contact.count(),
-    prisma.application.count({ where: { recruiterMessageSentAt: { not: null } } }),
-    prisma.application.count({ where: { connectionMessageSentAt: { not: null } } }),
     prisma.application.findMany({ select: { statusHistory: true, interviewList: true } }),
   ]);
   let allApplied = 0;
@@ -235,13 +234,21 @@ export async function GET(req: NextRequest) {
   // yearTotals, not allTime: the column sits beside a year-scoped grid and a year
   // picker, so "all time" was the one number on screen that meant something else.
   let allCoffee = 0;
-  for (const b of dayList) allCoffee += b.coffeeChats;
+  let yearAdded = 0;
+  let yearSent = 0;
+  for (const b of dayList) {
+    allCoffee += b.coffeeChats;
+    yearAdded += b.contactsAdded;
+    yearSent += b.outreachSent;
+  }
   const yearTotals = {
     jobsReviewed: allReviewed,
     applied: allApplied,
     interviewScheduled: allInterview,
-    contactsAdded: allContacts,
-    outreachSent: allRecruiterSent + allConnectionSent,
+    // From the day buckets, like coffee chats. The old counts left out everyone
+    // moved to Sent on the Network page, so the year read lower than its own days.
+    contactsAdded: yearAdded,
+    outreachSent: yearSent,
     coffeeChats: allCoffee,
   };
 

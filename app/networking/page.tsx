@@ -38,7 +38,24 @@ import { PersonPicker } from "@/components/PersonPicker";
 type Contact = PanelContact & {
   type: string;
   lastChat: string | null;
+  dateAdded?: string | null;
 };
+
+// When someone last moved: the latest stage-history entry, a nudge included, which
+// is also what the row's day counter reads. Falls back to when they were added.
+function lastTouch(c: Contact): number {
+  try {
+    const h = JSON.parse(c.stageHistory ?? "[]") as { at?: string }[];
+    const at = Array.isArray(h) && h.length ? new Date(h[h.length - 1].at ?? "").getTime() : NaN;
+    if (!Number.isNaN(at)) return at;
+  } catch {}
+  const added = c.dateAdded ? new Date(c.dateAdded).getTime() : NaN;
+  return Number.isNaN(added) ? 0 : added;
+}
+
+// Stages where the ball is with them: the longest wait goes to the top, because that
+// is the next nudge. Everywhere else the most recent move is the most relevant.
+const OLDEST_FIRST = new Set(["Sent", "Connected", "Replied"]);
 
 const INPUT =
   "w-full text-sm bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-accent-blue/60 transition-all duration-150";
@@ -73,7 +90,16 @@ function FilterChip({ label, on, onClick }: { label: string; on: boolean; onClic
   );
 }
 
-/** A LinkedIn profile URL yields a usable name when nothing better is to hand. */
+/** The profile URL inside whatever was pasted, or null when there is none. */
+function profileUrlIn(text: string): string | null {
+  return text.trim().match(/https?:\/\/\S*linkedin\.com\/in\/[^\s,/?#]+/i)?.[0] ?? null;
+}
+
+/**
+ * A LinkedIn profile URL yields a usable name when nothing better is to hand. It is
+ * the instant guess; /api/linkedin-lookup replaces it with the real name when
+ * LinkedIn answers.
+ */
 function nameFromLinkedIn(url: string): string {
   const m = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
   if (!m) return "";
@@ -114,6 +140,15 @@ export default function NetworkingPage() {
   const [pickingVia, setPickingVia] = useState(false);
   const [companies, setCompanies] = useState<{ name: string; linkedinSlug: string | null; tier: number }[]>([]);
   const urlRef = useRef<HTMLInputElement>(null);
+  // The LinkedIn lookup. `autoName` is the last name the form filled in by itself
+  // (slug guess or lookup), so a later fill can tell "still our guess, replace it"
+  // from "the user typed this, leave it". `lookupSeq` drops stale answers: every
+  // keystroke in the URL field and every reset bumps it, and a response only lands
+  // if its number is still current.
+  const [lookingUp, setLookingUp] = useState(false);
+  const autoName = useRef("");
+  const lookupSeq = useRef(0);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = () =>
     Promise.all([
@@ -178,6 +213,10 @@ export default function NetworkingPage() {
   };
 
   const clearAddForm = () => {
+    lookupSeq.current += 1;
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    setLookingUp(false);
+    autoName.current = "";
     setAddUrl("");
     setAddName("");
     setAddRole("");
@@ -190,10 +229,62 @@ export default function NetworkingPage() {
   // from the URL's slug when there is one, so the common case is still paste, Enter.
   // The company carries over to the next person, because they arrive in batches from
   // one search. The mutual does not: it belongs to the person just saved.
+  // Fill name and company from the profile's public page. Debounced so a URL being
+  // typed by hand does not fire on every character; best-effort, so a null answer
+  // (LinkedIn's 999 or auth wall) just leaves the slug guess where it is, and Save is
+  // never disabled while this runs. Company only fills an empty field, because it
+  // carries over between adds and the user's batch company is the better answer.
+  // Replace the name only while it is empty or still the form's own last fill. The
+  // updater stays pure (it reads a captured value, never writes the ref): dev mode
+  // runs updaters twice, and one that moved the ref made its second run see the new
+  // name as "typed by the user" and keep the old one.
+  const fillName = (next: string) => {
+    const prevAuto = autoName.current;
+    autoName.current = next;
+    setAddName((prev) => (!prev.trim() || prev === prevAuto ? next : prev));
+  };
+
+  const onUrlChange = (value: string) => {
+    setAddUrl(value);
+    const seq = ++lookupSeq.current;
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+
+    const guess = nameFromLinkedIn(value);
+    if (guess) fillName(guess);
+
+    const url = profileUrlIn(value);
+    if (!url) {
+      setLookingUp(false);
+      return;
+    }
+    lookupTimer.current = setTimeout(async () => {
+      setLookingUp(true);
+      let found: { name: string | null; company: string | null } = { name: null, company: null };
+      try {
+        const res = await fetch("/api/linkedin-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        if (res.ok) found = await res.json();
+      } catch {
+        // Offline or the dev server restarting: same as no answer.
+      }
+      if (seq !== lookupSeq.current) return;
+      setLookingUp(false);
+      const name = found.name?.trim();
+      const company = found.company?.trim();
+      if (name) fillName(name);
+      if (company) setAddCompany((prev) => (prev.trim() ? prev : company));
+    }, 400);
+  };
+
   const addOne = async () => {
     const name = addName.trim();
     if (!name) return;
     const url = addUrl.trim().match(/https?:\/\/\S*linkedin\.com\/in\/[^\s,]+/i)?.[0] ?? null;
+    // A lookup still in flight must not land on the next, cleared form.
+    lookupSeq.current += 1;
     const res = await fetch("/api/contacts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -212,7 +303,11 @@ export default function NetworkingPage() {
       const made = await res.json();
       setContacts((prev) => [...prev, made]);
       clearAddForm();
-      urlRef.current?.focus();
+      // Open them straight away: the next thing after adding someone is their
+      // summary, tags and a message, all of which live in the panel. The add form
+      // stays open behind it, cleared, so closing the panel lands on the next one.
+      setSwitched(false);
+      setOpenId(made.id);
     }
   };
 
@@ -364,24 +459,26 @@ export default function NetworkingPage() {
         </div>
       )}
 
-      {/* Add: the record. Nothing here can read a LinkedIn page, so the name, company
-          and role are typed — except that pasting the profile URL fills the name from
-          its slug, which is right about nine times in ten. Saving keeps the panel open
-          and clears it, because people arrive in batches of five. */}
+      {/* Add: the record. Pasting the profile URL fills the name from its slug at
+          once, then from the profile's public page (name and current company) when
+          LinkedIn answers a logged-out request, which it does not always. The role
+          stays typed: LinkedIn masks it for logged-out visitors. Saving keeps the
+          panel open and clears it, because people arrive in batches of five. */}
       {adding && (
         <div className="bg-zinc-900 border border-accent-blue/30 rounded-lg p-4 space-y-2">
           <input
             ref={urlRef}
             value={addUrl}
-            onChange={(e) => {
-              setAddUrl(e.target.value);
-              const guess = nameFromLinkedIn(e.target.value);
-              if (guess && !addName.trim()) setAddName(guess);
-            }}
+            onChange={(e) => onUrlChange(e.target.value)}
             placeholder="LinkedIn profile URL (optional)"
             autoFocus
             className={INPUT}
           />
+          {/* Quiet and in flow, under the field it is about. Reserved height so the
+              form does not jump when it appears and goes. */}
+          <p className="text-[11px] text-zinc-500 h-3 -mt-1" aria-live="polite">
+            {lookingUp ? "Looking up…" : ""}
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <input
               value={addName}
@@ -546,7 +643,11 @@ export default function NetworkingPage() {
             </p>
           )}
           {CONTACT_STAGES.map((stage) => {
-            const group = visible.filter((c) => (c.stage ?? DEFAULT_STAGE) === stage);
+            const group = visible
+              .filter((c) => (c.stage ?? DEFAULT_STAGE) === stage)
+              .sort((a, b) =>
+                OLDEST_FIRST.has(stage) ? lastTouch(a) - lastTouch(b) : lastTouch(b) - lastTouch(a),
+              );
             if (group.length === 0) return null;
             return (
               <div key={stage}>

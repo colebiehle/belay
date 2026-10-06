@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
 import { canonicalCompany, isFoundingRole } from "@/lib/role-filter";
-import { callClaudeWithTools, extractJson } from "@/lib/claude";
+import { callClaudeWithToolsDetailed, extractJson } from "@/lib/claude";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import { understandingBlock } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
@@ -68,7 +70,7 @@ Use the WebSearch tool to find 5-10 currently-open product design / UX / interac
 - Job boards (LinkedIn, Wellfound, YC's ycombinator.com/jobs, Greenhouse-hosted, AshbyHQ-hosted)
 - Specific role aggregators if useful
 
-Use WebFetch to verify the role is real and current if you're uncertain.
+Search results are usually enough: you do not need to open every posting, because Belay fetches and reads each one itself afterwards. Use WebFetch only when a result does not show the company, the title or a link. Stop searching once you have your matches; the answer matters more than exhaustiveness.
 
 Hard filters (skip these):
 - PhD requirements
@@ -93,17 +95,30 @@ Return ONLY a JSON array. No preamble, no markdown, no code fences. Each entry:
 
 If you find fewer than 5 strong matches, return what you found — don't pad with weak fits.`;
 
-  // 4 minutes for the search + extraction. WebSearch + multiple WebFetches take time.
-  const raw = await callClaudeWithTools(prompt, ["WebSearch", "WebFetch"], 480_000, 12);
-  const results = extractJson<DeepResult[]>(raw, "array") ?? [];
+  // Up to 9 minutes and 30 turns. At 12 turns the run hit its cap before it
+  // answered, every day, and an unanswered run read as "No fresh matches found".
+  const { text: raw, timedOut } = await callClaudeWithToolsDetailed(prompt, ["WebSearch", "WebFetch"], 540_000, 30);
+  const parsed = extractJson<DeepResult[]>(raw, "array");
+  const results = parsed ?? [];
+
+  // The last raw answer, kept for diagnosis: the summary line says what went wrong,
+  // this says why.
+  await mkdir(path.join(process.cwd(), "private", "logs"), { recursive: true })
+    .then(() => writeFile(path.join(process.cwd(), "private", "logs", "deep-search-last.txt"), raw.slice(0, 50_000)))
+    .catch(() => {});
 
   if (results.length === 0) {
-    await logJournal({
-      type: "ai_run",
-      surface: "ingest/deep-search",
-      summary: "Deep search returned no results.",
-    });
-    return NextResponse.json({ ok: true, added: 0, summary: "No fresh matches found.", results: [] });
+    // Say which kind of empty this was. "No fresh matches" is only true when the
+    // search finished and answered with an empty list.
+    const summary = timedOut
+      ? "Deep search timed out before answering."
+      : !parsed && /max turns/i.test(raw)
+        ? "Deep search ran out of turns before answering."
+        : !parsed
+          ? "Deep search answered without a list of roles."
+          : "No fresh matches found.";
+    await logJournal({ type: "ai_run", surface: "ingest/deep-search", summary });
+    return NextResponse.json({ ok: true, added: 0, summary, results: [] });
   }
 
   let added = 0;

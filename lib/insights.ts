@@ -2,18 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { OPEN_STATUSES } from "@/lib/statuses";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
 import { canonicalCompany } from "@/lib/role-filter";
-import {
-  CONTACT_STAGES,
-  DEFAULT_STAGE,
-  FOLLOW_UP_STAGES,
-  NUDGE_AFTER_DAYS,
-} from "@/lib/contact-stages";
+import { DEFAULT_STAGE, FOLLOW_UP_STAGES, NUDGE_AFTER_DAYS, WARMTH_LEVELS, orderTags } from "@/lib/contact-stages";
 
 /**
  * Insights: what is working, and how things look, across the whole search.
  *
- * Computed in one place so the /api/insights route and the /insights page read the
- * same numbers. The page calls this directly rather than fetching its own API,
+ * Computed in one place so the /api/insights route, the /insights page and the
+ * home page's signals read the same numbers. The page calls this directly rather than fetching its own API,
  * because a server component fetching its own origin is a round trip through the
  * network stack to reach a function in the same process.
  *
@@ -43,9 +38,6 @@ export const MIN_SAMPLE = 5;
  * applying reads as "too soon" rather than "not working".
  */
 export const FRESH_DAYS = 14;
-
-/** How many weeks the pace chart covers. */
-export const PACE_WEEKS = 8;
 
 // ---------------------------------------------------------------------------
 // Stage reach
@@ -210,9 +202,13 @@ export type CompanyRow = {
   contacts: number;
 };
 
-export type PaceWeek = { start: string; count: number };
-
 export type DueContact = { id: string; name: string; company: string; stage: string; days: number };
+
+// The next dated thing on a list, with enough to say what and where under a number.
+export type NextInterview = { appId: string; company: string; label: string; at: string };
+export type NextCall = { contactId: string; name: string; company: string; label: string; at: string };
+
+export type CountRow = { key: string; label: string; count: number };
 
 export type Insights = {
   generatedAt: string;
@@ -228,24 +224,41 @@ export type Insights = {
     freshSent: number;
     freshDays: number;
     notYetSent: number;
+    sentThisWeek: number;
+    sentLastWeek: number;
+    queued: number;
+    // Open and not archived: accepted-not-sent plus sent-and-undecided. The same
+    // OPEN_STATUSES rule as the Pipeline tab's badge, so Home and the tab agree.
+    activePipeline: number;
+    upcomingInterviews: number;
+    nextInterview: NextInterview | null;
     funnel: FunnelStep[];
     byTier: BreakdownRow[];
     bySource: BreakdownRow[];
     companies: CompanyRow[];
-    pace: PaceWeek[];
   };
   network: {
     total: number;
     inConversation: number;
-    byStage: { stage: string; count: number }[];
-    byWarmth: { warmth: string; count: number }[];
-    byRelationship: { tag: string; count: number }[];
-    withMutuals: number;
     due: DueContact[];
     nudgeAfterDays: number;
     pipelineCompanies: string[];
     knownPipelineCompanies: { company: string; contacts: number }[];
     otherKnownCompanies: { company: string; contacts: number }[];
+    upcomingCalls: number;
+    nextCall: NextCall | null;
+    // Home's networking funnel, the twin of queue → pipeline → interviews: people
+    // found but not yet messaged, and people connected but with no call booked.
+    toMessage: number;
+    toSchedule: number;
+    // The user's own categories. Tags are whatever is in use, in orderTags order;
+    // untagged counts the people with none, so the empty state can be honest.
+    byTag: CountRow[];
+    untagged: number;
+    byWarmth: CountRow[];
+    // Every company someone in the network works at, most people first. inPipeline
+    // marks the ones with an open application, the overlap that makes a referral.
+    byCompany: { company: string; contacts: number; inPipeline: boolean }[];
   };
 };
 
@@ -265,6 +278,29 @@ function parseStringArray(raw: string | null): string[] {
   } catch {
     return [];
   }
+}
+
+type Dated = { id?: string; label?: string; at?: string };
+
+/**
+ * The dated entries on a JSON list (interviewList, eventList) that fall today or
+ * later. "Today" is from local midnight, not now: an interview at 9am is still
+ * today's interview at 11am, and dropping it off Home the moment it starts would
+ * hide the one thing on the calendar.
+ */
+function upcomingOf(raw: string | null, from: Date): (Dated & { at: string; time: number })[] {
+  if (!raw) return [];
+  let list: unknown;
+  try {
+    list = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  return (list as Dated[])
+    .filter((e): e is Dated & { at: string } => !!e && typeof e.at === "string")
+    .map((e) => ({ ...e, time: new Date(e.at).getTime() }))
+    .filter((e) => !isNaN(e.time) && e.time >= from.getTime());
 }
 
 function readEnrichment(raw: string | null): { companyDomain?: unknown; companyLogo?: unknown } {
@@ -288,10 +324,6 @@ function weekStart(d: Date): Date {
   return s;
 }
 
-function localKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 // ---------------------------------------------------------------------------
 // The computation
 // ---------------------------------------------------------------------------
@@ -309,7 +341,14 @@ export async function computeInsights(): Promise<Insights> {
         verdict: true,
         queueEnrichment: true,
         application: {
-          select: { id: true, status: true, dateApplied: true, statusHistory: true, archivedAt: true },
+          select: {
+            id: true,
+            status: true,
+            dateApplied: true,
+            statusHistory: true,
+            archivedAt: true,
+            interviewList: true,
+          },
         },
       },
     }),
@@ -320,8 +359,7 @@ export async function computeInsights(): Promise<Insights> {
         company: true,
         stage: true,
         stageHistory: true,
-        introVia: true,
-        introVias: true,
+        eventList: true,
         relationship: true,
         warmth: true,
       },
@@ -486,48 +524,110 @@ export async function computeInsights(): Promise<Insights> {
         a.company.localeCompare(b.company),
     );
 
-  // ---- Pace --------------------------------------------------------------
+  // ---- This week --------------------------------------------------------
 
+  // Calendar weeks from Monday, not a rolling seven days: "this week" on the home
+  // page is a plan the user makes on Monday, and a rolling window would quietly
+  // count last Tuesday's applications toward it. Last week is returned beside it so
+  // a Monday-morning zero reads as a fresh week rather than a stall.
   const thisWeek = weekStart(now);
-  const pace: PaceWeek[] = [];
-  for (let i = PACE_WEEKS - 1; i >= 0; i--) {
-    const s = new Date(thisWeek);
-    s.setDate(s.getDate() - i * 7);
-    pace.push({ start: localKey(s), count: 0 });
-  }
-  const firstWeek = new Date(thisWeek);
-  firstWeek.setDate(firstWeek.getDate() - (PACE_WEEKS - 1) * 7);
-  for (const s of sent) {
-    if (!s.at || s.at < firstWeek) continue;
-    const key = localKey(weekStart(s.at));
-    const w = pace.find((p) => p.start === key);
-    if (w) w.count += 1;
-  }
+  const lastWeek = new Date(thisWeek);
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  const sentThisWeek = sent.filter((s) => s.at && s.at >= thisWeek).length;
+  const sentLastWeek = sent.filter((s) => s.at && s.at >= lastWeek && s.at < thisWeek).length;
+
+  // Every role without a verdict, the same count the home tile and the queue tab
+  // badge have always used, so the three agree.
+  const queued = jobs.filter((j) => j.verdict === null).length;
+
+  // ---- What is on the plate ----------------------------------------------
+
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  const live = jobs.filter((j) => j.application && !j.application.archivedAt && OPEN_STATUSES.includes(j.application.status));
+  const activePipeline = live.length;
+
+  // Interviews only count on live applications: one still listed on a rejected or
+  // archived row is not going to happen, whatever its date says.
+  const interviews = live
+    .flatMap((j) =>
+      upcomingOf(j.application!.interviewList, today).map((iv) => ({
+        appId: j.application!.id,
+        company: j.company,
+        label: iv.label ?? "",
+        at: iv.at,
+        time: iv.time,
+      })),
+    )
+    .sort((a, b) => a.time - b.time);
+  const nextInterview: NextInterview | null = interviews[0]
+    ? { appId: interviews[0].appId, company: interviews[0].company, label: interviews[0].label, at: interviews[0].at }
+    : null;
 
   // ---- Network -----------------------------------------------------------
 
-  const stageCounts = new Map<string, number>(CONTACT_STAGES.map((s) => [s, 0]));
-  const warmthCounts = new Map<string, number>([
-    ["close", 0],
-    ["warm", 0],
-    ["cold", 0],
-    ["unset", 0],
-  ]);
+  const calls = contacts
+    .flatMap((c) =>
+      upcomingOf(c.eventList, today).map((e) => ({
+        contactId: c.id,
+        name: c.name,
+        company: c.company,
+        label: e.label ?? "",
+        at: e.at,
+        time: e.time,
+      })),
+    )
+    .sort((a, b) => a.time - b.time);
+  const nextCall: NextCall | null = calls[0]
+    ? { contactId: calls[0].contactId, name: calls[0].name, company: calls[0].company, label: calls[0].label, at: calls[0].at }
+    : null;
+
+  // Tags are counted per person, so someone tagged "mentor" twice by a stray edit
+  // is still one mentor. orderTags lowercases, so "Mentor" and "mentor" are one row.
   const tagCounts = new Map<string, number>();
-  let withMutuals = 0;
+  let untagged = 0;
+  for (const c of contacts) {
+    const tags = orderTags(parseStringArray(c.relationship));
+    if (tags.length === 0) untagged += 1;
+    for (const t of tags) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  }
+  const byTag: CountRow[] = orderTags(tagCounts.keys()).map((t) => ({ key: t, label: t, count: tagCounts.get(t) ?? 0 }));
+
+  // All four rows always, including the zeros: warmth is a fixed three-step scale,
+  // and a missing "close" row would hide that nobody is close yet.
+  const byWarmth: CountRow[] = [
+    ...WARMTH_LEVELS.map((w) => ({
+      key: w,
+      label: w,
+      count: contacts.filter((c) => (c.warmth ?? "").toLowerCase() === w).length,
+    })),
+    {
+      key: "unset",
+      label: "not set",
+      count: contacts.filter((c) => !(WARMTH_LEVELS as readonly string[]).includes((c.warmth ?? "").toLowerCase())).length,
+    },
+  ];
+
+  // The steps that move someone down the funnel. "To message" is found but not yet
+  // contacted; "to schedule" has accepted or replied and has no call booked.
+  const stageOf = (c: { stage: string | null }) => c.stage ?? DEFAULT_STAGE;
+  const toMessage = contacts.filter((c) => ["Identified", "Drafted"].includes(stageOf(c))).length;
+  const toSchedule = contacts.filter((c) => ["Connected", "Replied"].includes(stageOf(c))).length;
+  // A call counts as upcoming if it is on the calendar, or if the person is at
+  // Scheduled without the call logged yet: moving the stage is the usual record.
+  const withCall = new Set(calls.map((c) => c.contactId));
+  const scheduledUnlogged = contacts.filter((c) => stageOf(c) === "Scheduled" && !withCall.has(c.id)).length;
+
+  // "In conversation" is someone who has written back: a reply, a booked call, or a
+  // call that happened. Connected is not it; accepting a request is not talking.
+  const CONVERSATION_STAGES = ["Replied", "Scheduled", "Chatted"];
+  let inConversation = 0;
   const due: DueContact[] = [];
 
   for (const c of contacts) {
     const stage = c.stage ?? DEFAULT_STAGE;
-    stageCounts.set(stage, (stageCounts.get(stage) ?? 0) + 1);
-
-    const w = c.warmth && warmthCounts.has(c.warmth) ? c.warmth : "unset";
-    warmthCounts.set(w, (warmthCounts.get(w) ?? 0) + 1);
-
-    for (const t of parseStringArray(c.relationship)) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
-
-    // introVias is the list; introVia is the older single field some rows still use.
-    if (parseStringArray(c.introVias).length > 0 || (c.introVia ?? "").trim() !== "") withMutuals += 1;
+    if (CONVERSATION_STAGES.includes(stage)) inConversation += 1;
 
     if (FOLLOW_UP_STAGES.includes(stage)) {
       const history = parseHistory(c.stageHistory) as { at?: string }[];
@@ -540,10 +640,6 @@ export async function computeInsights(): Promise<Insights> {
     }
   }
   due.sort((a, b) => b.days - a.days);
-
-  // "In conversation" is someone who has written back: a reply, a booked call, or a
-  // call that happened. Connected is not it; accepting a request is not talking.
-  const inConversation = ["Replied", "Scheduled", "Chatted"].reduce((n, s) => n + (stageCounts.get(s) ?? 0), 0);
 
   // Pipeline companies are the open applications, sent or not, because "who do I
   // know at the place I am about to apply to" is the question a referral answers.
@@ -573,6 +669,11 @@ export async function computeInsights(): Promise<Insights> {
     .map(([k, n]) => ({ company: contactCompanyName.get(k) ?? k, contacts: n }))
     .sort((a, b) => b.contacts - a.contacts || a.company.localeCompare(b.company));
 
+  const peopleByCompany = [
+    ...knownPipelineCompanies.map((c) => ({ ...c, inPipeline: true })),
+    ...otherKnownCompanies.map((c) => ({ ...c, inPipeline: false })),
+  ].sort((a, b) => b.contacts - a.contacts || a.company.localeCompare(b.company));
+
   return {
     generatedAt: now.toISOString(),
     minSample: MIN_SAMPLE,
@@ -587,26 +688,33 @@ export async function computeInsights(): Promise<Insights> {
       freshSent: freshSent.length,
       freshDays: FRESH_DAYS,
       notYetSent,
+      sentThisWeek,
+      sentLastWeek,
+      queued,
+      activePipeline,
+      upcomingInterviews: interviews.length,
+      nextInterview,
       funnel,
       byTier,
       bySource,
       companies,
-      pace,
     },
     network: {
       total: contacts.length,
       inConversation,
-      byStage: [...stageCounts.entries()].map(([stage, count]) => ({ stage, count })),
-      byWarmth: [...warmthCounts.entries()].map(([warmth, count]) => ({ warmth, count })),
-      byRelationship: [...tagCounts.entries()]
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)),
-      withMutuals,
       due,
       nudgeAfterDays: NUDGE_AFTER_DAYS,
       pipelineCompanies: [...pipelineNames.values()],
       knownPipelineCompanies,
       otherKnownCompanies,
+      upcomingCalls: calls.length + scheduledUnlogged,
+      nextCall,
+      toMessage,
+      toSchedule,
+      byTag,
+      untagged,
+      byWarmth,
+      byCompany: peopleByCompany,
     },
   };
 }

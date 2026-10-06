@@ -88,11 +88,23 @@ export function callClaudeWithTools(
   timeoutMs = 240_000,
   maxTurns = 5,
 ): Promise<string> {
+  return callClaudeWithToolsDetailed(prompt, tools, timeoutMs, maxTurns).then((r) => r.text);
+}
+
+// Same call, reporting whether it timed out. A run that hits its turn cap or the
+// clock returns no answer, which a caller parsing for results cannot tell apart
+// from "found nothing" unless it is told.
+export function callClaudeWithToolsDetailed(
+  prompt: string,
+  tools: string[],
+  timeoutMs = 240_000,
+  maxTurns = 5,
+): Promise<ClaudeResult> {
   return runClaude(
     ["-p", "--allowed-tools", tools.join(","), "--max-turns", String(maxTurns)],
     NO_SUBAGENTS_CONSTRAINT + prompt,
     timeoutMs,
-  ).then((r) => r.text);
+  );
 }
 
 export function extractJson<T>(raw: string, kind: "object" | "array" = "object"): T | null {

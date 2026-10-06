@@ -349,14 +349,22 @@ export default function ApplicationsPage() {
     setAdding(false);
   };
 
-  const updateApp = async (id: string, patch: Partial<Application>) => {
+  // Resolves to an error message, or null on success. A failed PATCH used to be
+  // written into the list as if it were the row, which replaced the application
+  // with `{ error }` and closed the panel. Now the row is only replaced on success
+  // and the caller (the role panel's header edit) can show what went wrong.
+  const updateApp = async (id: string, patch: Partial<Application>): Promise<string | null> => {
     const res = await fetch(`/api/applications/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    const updated = await res.json();
+    const updated = await res.json().catch(() => null);
+    if (!res.ok || !updated || updated.error) {
+      return updated?.error ?? "Could not save.";
+    }
     setApps((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    return null;
   };
 
   const sortedApps = [...apps].sort((a, b) => {

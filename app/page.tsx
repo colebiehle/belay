@@ -1,36 +1,22 @@
 import { prisma } from "@/lib/prisma";
-import { OPEN_STATUSES } from "@/lib/statuses";
+import { computeInsights } from "@/lib/insights";
 import Link from "next/link";
 import { ActivityHeatmap } from "@/components/ActivityHeatmap";
 import { JobSites } from "@/components/JobSites";
 import { TargetCompanies } from "@/components/TargetCompanies";
 import { ChatPanel } from "@/components/ChatPanel";
+import { Signals } from "@/components/HomeSignals";
 
 export default async function Dashboard() {
-
-  const [
-    pendingReview,
-    toApply,
-    activeApps,
-    networkCount,
-    withInterviews,
-  ] = await Promise.all([
-    prisma.job.count({ where: { verdict: null } }),
-    // Archived applications (closed postings, withdrawals) stay out of every count.
-    prisma.application.count({ where: { status: "Applying", archivedAt: null } }),
-    // OPEN_STATUSES, so this agrees with the Pipeline tab badge. The tile counted
-    // only what had been sent while the badge counted every row in the list, so the
-    // same list reported two different numbers on two pages.
-    prisma.application.count({
-      where: { status: { in: OPEN_STATUSES }, archivedAt: null },
-    }),
-    prisma.contact.count(),
+  // The signals come from computeInsights, the same function behind /insights and
+  // /api/insights, so a number here can never disagree with the page it links to.
+  const [insights, withInterviews] = await Promise.all([
+    computeInsights(),
     prisma.application.findMany({
       where: { interviewList: { not: null }, archivedAt: null },
       select: { interviewList: true, job: { select: { company: true } } },
     }),
   ]);
-
 
   // Every scheduled interview still in the future, soonest first. Flattened out of
   // each application's interviewList, which is where they are actually recorded.
@@ -49,36 +35,6 @@ export default async function Dashboard() {
     .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
     .slice(0, 5);
 
-  // `tone` is the semantic colour, not decoration: pink is the application side of
-  // the app and blue is the networking side, everywhere. All four tiles were pink,
-  // which made the network count read as another application number.
-  const stats = [
-    {
-      label: "Review queue",
-      value: pendingReview,
-      href: "/applications",
-      tone: "text-accent-pink",
-    },
-    {
-      label: "Ready to apply",
-      value: toApply,
-      href: "/applications?tab=pipeline",
-      tone: "text-accent-pink",
-    },
-    {
-      label: "In pipeline",
-      value: activeApps,
-      href: "/applications?tab=pipeline",
-      tone: "text-accent-pink",
-    },
-    {
-      label: "My network",
-      value: networkCount,
-      href: "/networking",
-      tone: "text-accent-blue",
-    },
-  ];
-
   return (
     <div className="space-y-8">
       <div>
@@ -88,7 +44,7 @@ export default async function Dashboard() {
 
       {/* The "Today" section is gone. It held the follow-ups panel and a
           generated action list ("Review 33 roles waiting", "Submit 1 application
-          you've already greenlit") — both of which restated numbers the stat tiles
+          you've already greenlit") — both of which restated numbers the signals
           below already carry, and neither of which told they anything they did not
           know on opening the app. You go to the queue when you want to triage. */}
       {/* Upcoming interviews. The only thing on this page that has a date attached,
@@ -118,38 +74,14 @@ export default async function Dashboard() {
         </section>
       )}
 
-      {/* Overview — pipeline metrics + activity */}
-      <section className="space-y-4">
-        {/* The tiles say how much there is; /insights says whether it is working
-            (response rate, what is producing replies, who you know where). The link
-            sits on this heading because this is the block it expands. */}
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-            Overview
-          </h2>
-          <Link
-            href="/insights"
-            className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors duration-150"
-          >
-            What is working →
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {stats.map((s) => (
-            <Link
-              key={s.label}
-              href={s.href}
-              className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 hover:bg-zinc-800 transition-all duration-150 group"
-            >
-              <p className="text-sm text-zinc-400">{s.label}</p>
-              <p className={`text-3xl font-bold mt-1 ${s.value > 0 ? s.tone : "text-zinc-500"}`}>
-                {s.value}
-              </p>
-            </Link>
-          ))}
-        </div>
-        <ActivityHeatmap />
-      </section>
+      {/* The overview: what is on the plate, three numbers a side (queue, active
+          pipeline, upcoming interviews; people, upcoming calls, follow-ups due).
+          Rates and warm paths are on /insights, behind the button in its header. */}
+      <Signals insights={insights} />
+
+      {/* Its own section now the tiles above it are gone: the heatmap is a record
+          of effort, not a signal, so it sits under the signals rather than in them. */}
+      <ActivityHeatmap />
 
       {/* Where to look. The tier list is the primary discovery surface now that the
           scan only covers S and A, so it gets the wide column; the four browse

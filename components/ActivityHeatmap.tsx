@@ -179,6 +179,7 @@ function RecapPanel({
     { label: "Roles triaged", day: day.jobsReviewed, all: yearTotals.jobsReviewed, tone: "app" },
     { label: "Applications submitted", day: day.applied, all: yearTotals.applied, tone: "app" },
     { label: "Interviews", day: day.interviewScheduled, all: yearTotals.interviewScheduled, tone: "app" },
+    { label: "People identified", day: day.contactsAdded, all: yearTotals.contactsAdded, tone: "net" },
     { label: "People messaged", day: day.outreachSent, all: yearTotals.outreachSent, tone: "net" },
     { label: "Coffee chats", day: day.coffeeChats, all: yearTotals.coffeeChats, tone: "net" },
   ];
@@ -190,7 +191,7 @@ function RecapPanel({
       <p className="text-xs text-zinc-500 mb-3">
         {isToday ? "Today" : formatDateLong(day.date)}
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {rows.map((r) => {
           const tone = r.tone === "app" ? "text-accent-pink" : "text-accent-blue";
           return (
@@ -328,11 +329,10 @@ export function ActivityHeatmap() {
                   // against any fill, and the colour moved out to the cell edge where it
                   // has room to read.
                   //
-                  // contactsAdded is deliberately absent: adding a name to a list is
-                  // not progress, it has no row in the recap, and when it drove the old
-                  // blue underline those cells looked active and then reported nothing.
+                  // contactsAdded counts on the networking side at triage weight; it has
+                  // its own recap row now, so a day of finding people reports it.
                   const appWeight = b.jobsReviewed * 1 + b.applied * 3 + b.interviewScheduled * 3;
-                  const netWeight = b.outreachSent * 2 + b.coffeeChats * 3;
+                  const netWeight = b.contactsAdded * 1 + b.outreachSent * 2 + b.coffeeChats * 3;
                   // Two marks doing two jobs: a dark dot that says something was on the
                   // calendar, and a coloured outline on the whole cell that says which.
                   //

@@ -50,11 +50,24 @@ export async function PATCH(
     }
   }
 
-  const application = await prisma.application.update({
-    where: { id },
-    data: body,
-    include: { job: true },
-  });
+  let application;
+  try {
+    application = await prisma.application.update({
+      where: { id },
+      data: body,
+      include: { job: true },
+    });
+  } catch (e) {
+    // The role panel can now rewrite the job's posting URL, and Job.jobUrl is
+    // unique, so pointing it at a posting another role already has is an ordinary
+    // mistake rather than a crash. Say so in words the panel can show inline.
+    // Matched on code and message both: the libsql adapter has not always set code.
+    const err = e as { code?: string; message?: string };
+    if (err.code === "P2002" || /unique constraint/i.test(err.message ?? "")) {
+      return NextResponse.json({ error: "Another role already has that posting URL." }, { status: 409 });
+    }
+    throw e;
+  }
 
   if (statusTransition) {
     await logJournal({

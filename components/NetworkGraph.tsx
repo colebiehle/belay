@@ -1,0 +1,775 @@
+"use client";
+
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { LocateFixed } from "lucide-react";
+import {
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type Simulation,
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+} from "d3-force";
+import { brandColor, usableAccent } from "@/lib/brand-colors";
+import { DEFAULT_STAGE } from "@/lib/contact-stages";
+
+/**
+ * The network as a graph, the way Obsidian draws a vault: every person is a dot, and
+ * a line means one of them is listed as the other's mutual.
+ *
+ * The Network page answers "who do I write to next"; this answers a different
+ * question, "where are the clusters", which a list cannot show. Three Figma designers
+ * all reached through Julian is one introduction to ask for, not three cold messages,
+ * and that is only visible when the shared mutual sits in the middle of them.
+ */
+
+// Only the fields the graph reads. Callers that already hold the full Contact rows can
+// pass them straight in; extra fields are ignored.
+export type GraphContact = {
+  id: string;
+  name: string;
+  company: string;
+  stage?: string | null;
+  warmth?: string | null;
+  introVia?: string | null;
+  introVias?: string | null;
+};
+
+type Props = {
+  /** Skip the fetch when the parent already has the rows. */
+  contacts?: GraphContact[];
+  /** Overrides the default click, which opens the person's panel on /networking. */
+  onSelect?: (contact: GraphContact) => void;
+  className?: string;
+};
+
+type GNode = SimulationNodeDatum & {
+  id: string;
+  contact: GraphContact;
+  degree: number;
+  r: number;
+  color: string;
+};
+type GLink = SimulationLinkDatum<GNode> & { key: string };
+
+type View = { x: number; y: number; k: number };
+type Focus = { kind: "node"; id: string } | { kind: "company"; name: string } | null;
+
+const MIN_HEIGHT = 420;
+const MIN_K = 0.25;
+const MAX_K = 4;
+
+/** The networking side's accent, for anything highlighted. */
+const ACCENT = "#8fcdfd";
+
+/**
+ * Muted, mid-lightness hues. They have to read as distinct dots on zinc-950 at 4px,
+ * and none of them can be accent-blue, because blue is what "highlighted" means here.
+ */
+const PALETTE = [
+  "#e3a587", // clay
+  "#9cc9a4", // sage
+  "#e6c27a", // sand
+  "#d99a9a", // rose
+  "#7fbfb8", // teal
+  "#b3abe0", // periwinkle
+  "#c9b28f", // tan
+  "#a9c47f", // olive
+  "#d9a3c6", // orchid
+  "#94b3cf", // slate
+];
+const NO_COMPANY = "#71717a"; // zinc-500
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Blend two #rrggbb colours; `t` is how much of `b`. */
+function mix(a: string, b: string, t: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) =>
+    Math.round(((pa >> shift) & 255) * (1 - t) + ((pb >> shift) & 255) * t);
+  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0")}`;
+}
+
+/**
+ * One colour per company, the same one every time the page loads.
+ *
+ * Contacts carry a company name but no domain, so the brand table is tried with the
+ * name squashed onto the three TLDs it actually uses. That is a guess, which is why it
+ * only ever upgrades the colour: a miss falls through to the palette, never to wrong.
+ * Brand colours come in at full saturation, so they are pulled 40% of the way
+ * toward zinc to sit with the palette instead of shouting over it; near-black brands
+ * (Notion, Nike) are lifted first or they vanish on the background.
+ *
+ * The palette is indexed by a hash of the name rather than by order of appearance, so
+ * adding a person at a new company does not repaint everyone else.
+ */
+function companyColor(company: string): string {
+  const key = company.trim().toLowerCase();
+  if (!key) return NO_COMPANY;
+  const slug = key.replace(/[^a-z0-9]/g, "");
+  for (const tld of [".com", ".so", ".app"]) {
+    const brand = brandColor(slug + tld);
+    if (brand) return mix(usableAccent(brand), "#a1a1aa", 0.4);
+  }
+  return PALETTE[hash(key) % PALETTE.length];
+}
+
+const norm = (s: string) => s.trim().toLowerCase();
+
+function mutualNames(c: GraphContact): string[] {
+  const out: string[] = [];
+  if (c.introVias) {
+    try {
+      const parsed: unknown = JSON.parse(c.introVias);
+      if (Array.isArray(parsed)) for (const v of parsed) if (typeof v === "string") out.push(v);
+    } catch {
+      // A malformed array is treated like an empty one; introVia below still counts.
+    }
+  }
+  // Older rows only have the single field, and newer ones duplicate its first entry.
+  if (c.introVia) out.push(c.introVia);
+  return out;
+}
+
+/**
+ * Mutuals are stored by name, not id, so an edge exists only where the name resolves
+ * to someone else in the list. A mutual you have not added as a contact yet is real,
+ * but it has no dot to connect to, so it is skipped rather than invented.
+ */
+function buildGraph(contacts: GraphContact[]) {
+  const byName = new Map<string, string[]>();
+  for (const c of contacts) {
+    const k = norm(c.name);
+    if (!k) continue;
+    byName.set(k, [...(byName.get(k) ?? []), c.id]);
+  }
+  const links: GLink[] = [];
+  const seen = new Set<string>();
+  const neighbours = new Map<string, Set<string>>();
+  for (const c of contacts) neighbours.set(c.id, new Set());
+  for (const c of contacts) {
+    for (const name of mutualNames(c)) {
+      for (const other of byName.get(norm(name)) ?? []) {
+        if (other === c.id) continue;
+        // A knows B through each other is one relationship, so the key ignores direction.
+        const key = c.id < other ? `${c.id}|${other}` : `${other}|${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        links.push({ key, source: c.id, target: other });
+        neighbours.get(c.id)!.add(other);
+        neighbours.get(other)!.add(c.id);
+      }
+    }
+  }
+  const nodes: GNode[] = contacts.map((c) => {
+    const degree = neighbours.get(c.id)!.size;
+    return {
+      id: c.id,
+      contact: c,
+      degree,
+      // Square root so a hub reads as bigger without dwarfing everyone; Obsidian's
+      // sizing is about this gentle.
+      r: 4 + Math.sqrt(degree) * 2.2,
+      color: companyColor(c.company),
+    };
+  });
+  return { nodes, links, neighbours };
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduced(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return reduced;
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+export default function NetworkGraph({ contacts: given, onSelect, className = "" }: Props) {
+  const router = useRouter();
+  const reduced = usePrefersReducedMotion();
+
+  const [fetched, setFetched] = useState<GraphContact[] | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    if (given) return;
+    let live = true;
+    fetch("/api/contacts")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((rows: GraphContact[]) => live && setFetched(rows))
+      .catch(() => live && setError(true));
+    return () => {
+      live = false;
+    };
+  }, [given]);
+  const contacts = given ?? fetched;
+  const isEmpty = !!contacts && contacts.length === 0;
+
+  const graph = useMemo(() => buildGraph(contacts ?? []), [contacts]);
+
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ w: Math.round(width), h: Math.round(Math.max(height, MIN_HEIGHT)) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // The empty state renders a different element, so re-observe when it swaps.
+  }, [error, isEmpty]);
+
+  // d3 moves the node objects in place; this counter is how React hears about it.
+  const [, setFrame] = useState(0);
+  const rafRef = useRef(0);
+  const scheduleFrame = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      setFrame((f) => f + 1);
+    });
+  }, []);
+
+  const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  // Handlers need the current view without re-binding on every pan frame.
+  const viewRef = useRef(view);
+  useLayoutEffect(() => {
+    viewRef.current = view;
+  }, [view]);
+  // Once you have panned or zoomed, the graph stops reframing itself under you. The
+  // reset control hands control back.
+  const userMovedRef = useRef(false);
+  const tweenRef = useRef(0);
+
+  const fitView = useCallback(
+    (animate: boolean) => {
+      const { w, h } = size;
+      if (!w || !graph.nodes.length) return;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const n of graph.nodes) {
+        const x = n.x ?? 0, y = n.y ?? 0;
+        x0 = Math.min(x0, x - n.r); y0 = Math.min(y0, y - n.r);
+        x1 = Math.max(x1, x + n.r); y1 = Math.max(y1, y + n.r);
+      }
+      // Room for labels at the edges, which are drawn outside the node bounds.
+      const pad = 56;
+      const k = clamp(Math.min((w - pad * 2) / (x1 - x0 || 1), (h - pad * 2) / (y1 - y0 || 1)), MIN_K, 2);
+      const target: View = { k, x: w / 2 - ((x0 + x1) / 2) * k, y: h / 2 - ((y0 + y1) / 2) * k };
+      cancelAnimationFrame(tweenRef.current);
+      if (!animate) {
+        setView(target);
+        return;
+      }
+      const from = viewRef.current;
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = clamp((now - start) / 450, 0, 1);
+        const e = 1 - Math.pow(1 - t, 3);
+        setView({
+          k: from.k + (target.k - from.k) * e,
+          x: from.x + (target.x - from.x) * e,
+          y: from.y + (target.y - from.y) * e,
+        });
+        if (t < 1) tweenRef.current = requestAnimationFrame(step);
+      };
+      tweenRef.current = requestAnimationFrame(step);
+    },
+    [size, graph],
+  );
+  // The simulation effect calls the latest fitView without restarting when size changes.
+  const fitRef = useRef(fitView);
+  useLayoutEffect(() => {
+    fitRef.current = fitView;
+  }, [fitView]);
+
+  const simRef = useRef<Simulation<GNode, GLink> | null>(null);
+  useEffect(() => {
+    if (!graph.nodes.length) return;
+    userMovedRef.current = false;
+    const sim = forceSimulation<GNode, GLink>(graph.nodes)
+      .force(
+        "link",
+        forceLink<GNode, GLink>(graph.links).id((d) => d.id).distance(46).strength(0.6),
+      )
+      // Repulsion with a cap on range, so far-apart clusters stop pushing each other
+      // once they are clearly separate, and the whole thing does not drift outward.
+      .force("charge", forceManyBody<GNode>().strength(-110).distanceMax(320))
+      // Weak gravity toward the middle. Without it, people with no mutuals have only
+      // repulsion acting on them and fly off screen; with it they settle in a loose
+      // ring around the connected core, the way unlinked notes do in Obsidian.
+      .force("x", forceX<GNode>(0).strength(0.07))
+      .force("y", forceY<GNode>(0).strength(0.07))
+      .force("collide", forceCollide<GNode>((d) => d.r + 6))
+      .stop();
+
+    if (reduced) {
+      // Settle it all before the first paint: same layout, no motion.
+      for (let i = 0; i < 300; i++) sim.tick();
+      scheduleFrame();
+      fitRef.current(false);
+    } else {
+      // A head start, so the first frame is already a recognisable shape and the
+      // animation is the last stretch of settling rather than an explosion from a dot.
+      for (let i = 0; i < 70; i++) sim.tick();
+      fitRef.current(false);
+      sim.on("tick", scheduleFrame);
+      sim.on("end", () => {
+        if (!userMovedRef.current) fitRef.current(true);
+      });
+      sim.restart();
+    }
+    simRef.current = sim;
+    return () => {
+      sim.stop();
+      simRef.current = null;
+    };
+  }, [graph, reduced, scheduleFrame]);
+
+  // A resize reframes the graph unless you have taken over the view.
+  useEffect(() => {
+    if (!userMovedRef.current) fitRef.current(false);
+  }, [size.w, size.h]);
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(tweenRef.current);
+    },
+    [],
+  );
+
+  // --- Interaction ---------------------------------------------------------------
+
+  const [focus, setFocus] = useState<Focus>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  const select = useCallback(
+    (c: GraphContact) => {
+      if (onSelect) onSelect(c);
+      else router.push(`/networking?contact=${encodeURIComponent(c.id)}`);
+    },
+    [onSelect, router],
+  );
+
+  const toLocal = (clientX: number, clientY: number) => {
+    const rect = svgRef.current!.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const zoomAt = useCallback((px: number, py: number, factor: number) => {
+    userMovedRef.current = true;
+    cancelAnimationFrame(tweenRef.current);
+    setView((v) => {
+      const k = clamp(v.k * factor, MIN_K, MAX_K);
+      const f = k / v.k;
+      // Keep the point under the cursor fixed while the scale changes around it.
+      return { k, x: px - (px - v.x) * f, y: py - (py - v.y) * f };
+    });
+  }, []);
+
+  // React attaches wheel listeners as passive, which cannot preventDefault, so the
+  // page would scroll while you zoom. A native listener can.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const { x, y } = toLocal(e.clientX, e.clientY);
+      // Trackpad pinch arrives as a wheel with ctrlKey and much smaller deltas.
+      const speed = e.ctrlKey ? 0.012 : 0.0015;
+      zoomAt(x, y, Math.exp(-e.deltaY * speed));
+    };
+    svg.addEventListener("wheel", onWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", onWheel);
+  }, [zoomAt, contacts]);
+
+  type Gesture =
+    | { kind: "pan"; startX: number; startY: number; view: View }
+    | { kind: "drag"; node: GNode; startX: number; startY: number; moved: boolean }
+    | { kind: "pinch"; dist: number; cx: number; cy: number }
+    | null;
+  const gestureRef = useRef<Gesture>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+
+  const pinchState = () => {
+    const pts = [...pointersRef.current.values()];
+    const [a, b] = pts;
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  };
+
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    const p = toLocal(e.clientX, e.clientY);
+    pointersRef.current.set(e.pointerId, p);
+    svgRef.current!.setPointerCapture(e.pointerId);
+    if (pointersRef.current.size === 2) {
+      // A second finger turns whatever the first was doing into a pinch.
+      const g = gestureRef.current;
+      if (g?.kind === "drag") releaseNode(g.node);
+      gestureRef.current = { kind: "pinch", ...pinchState() };
+      setDragId(null);
+      return;
+    }
+    const id = (e.target as Element).closest("[data-node]")?.getAttribute("data-node");
+    const node = id ? graph.nodes.find((n) => n.id === id) : undefined;
+    if (node) {
+      gestureRef.current = { kind: "drag", node, startX: p.x, startY: p.y, moved: false };
+      setDragId(node.id);
+    } else {
+      gestureRef.current = { kind: "pan", startX: p.x, startY: p.y, view: viewRef.current };
+    }
+  };
+
+  const releaseNode = (node: GNode) => {
+    // Let go the way Obsidian does: the node rejoins the simulation instead of staying
+    // pinned where you dropped it. With motion reduced there is no simulation running,
+    // so it simply stays put.
+    if (reduced) return;
+    node.fx = null;
+    node.fy = null;
+    simRef.current?.alphaTarget(0);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    const p = toLocal(e.clientX, e.clientY);
+    pointersRef.current.set(e.pointerId, p);
+    const g = gestureRef.current;
+    if (!g) return;
+    if (g.kind === "pinch" && pointersRef.current.size === 2) {
+      const next = pinchState();
+      zoomAt(next.cx, next.cy, next.dist / (g.dist || 1));
+      setView((v) => ({ ...v, x: v.x + next.cx - g.cx, y: v.y + next.cy - g.cy }));
+      gestureRef.current = { kind: "pinch", ...next };
+    } else if (g.kind === "pan") {
+      const dx = p.x - g.startX, dy = p.y - g.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 2) {
+        userMovedRef.current = true;
+        cancelAnimationFrame(tweenRef.current);
+      }
+      setView({ ...g.view, x: g.view.x + dx, y: g.view.y + dy });
+    } else if (g.kind === "drag") {
+      // A few pixels of slop, so a click with a slightly shaky hand still opens the
+      // person instead of nudging their dot.
+      if (!g.moved && Math.hypot(p.x - g.startX, p.y - g.startY) < 4) return;
+      g.moved = true;
+      const v = viewRef.current;
+      const x = (p.x - v.x) / v.k, y = (p.y - v.y) / v.k;
+      g.node.fx = x;
+      g.node.fy = y;
+      if (reduced) {
+        g.node.x = x;
+        g.node.y = y;
+        scheduleFrame();
+      } else {
+        simRef.current?.alphaTarget(0.25).restart();
+      }
+    }
+  };
+
+  const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    const g = gestureRef.current;
+    if (g?.kind === "drag") {
+      releaseNode(g.node);
+      setDragId(null);
+      if (!g.moved && e.type === "pointerup") select(g.node.contact);
+    }
+    // Lifting one finger of a pinch should not leave a half-gesture behind.
+    gestureRef.current = null;
+    if (pointersRef.current.size === 1 && g?.kind === "pinch") {
+      const [p] = [...pointersRef.current.values()];
+      gestureRef.current = { kind: "pan", startX: p.x, startY: p.y, view: viewRef.current };
+    }
+  };
+
+  const resetView = () => {
+    userMovedRef.current = false;
+    fitView(!reduced);
+  };
+
+  // --- What is lit -----------------------------------------------------------------
+
+  // While dragging, the dragged node owns the highlight even if the pointer slips off.
+  const active = useMemo<Focus>(() => (dragId ? { kind: "node", id: dragId } : focus), [dragId, focus]);
+  const lit = useMemo(() => {
+    if (!active) return null;
+    if (active.kind === "node") return new Set([active.id, ...(graph.neighbours.get(active.id) ?? [])]);
+    return new Set(
+      graph.nodes.filter((n) => norm(n.contact.company) === active.name).map((n) => n.id),
+    );
+  }, [active, graph]);
+  const centerId = active?.kind === "node" ? active.id : null;
+
+  const legend = useMemo(() => {
+    const counts = new Map<string, { label: string; color: string; n: number }>();
+    for (const n of graph.nodes) {
+      const key = norm(n.contact.company);
+      if (!key) continue;
+      const cur = counts.get(key);
+      if (cur) cur.n++;
+      else counts.set(key, { label: n.contact.company.trim(), color: n.color, n: 1 });
+    }
+    return [...counts.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => b.n - a.n || a.label.localeCompare(b.label));
+  }, [graph]);
+
+  // --- Render ----------------------------------------------------------------------
+
+  const { k } = view;
+  // Labels fade in with zoom, as in Obsidian: at overview scale a big graph is just its
+  // shape, and names arrive as you lean in. A small graph fits at a scale where they
+  // are already fully visible, so it reads as named from the start.
+  const labelBase = clamp((k - 0.75) / 0.45, 0, 1);
+  // Dots grow with the square root of zoom, not linearly. Zooming in is for reading
+  // names and following lines; at 3x a linearly scaled dot is a coin that covers both.
+  const dot = 1 / Math.sqrt(k);
+  const hovered = centerId ? graph.nodes.find((n) => n.id === centerId) : undefined;
+  let tooltipSide = 1;
+  if (hovered) {
+    let dx = 0;
+    for (const id of graph.neighbours.get(hovered.id) ?? []) {
+      const m = graph.nodes.find((n) => n.id === id);
+      if (m) dx += (m.x ?? 0) - (hovered.x ?? 0);
+    }
+    tooltipSide = dx > 0 ? -1 : 1;
+  }
+
+  const shell = `relative w-full h-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 select-none ${className}`;
+
+  if (error || isEmpty) {
+    return (
+      <div ref={wrapRef} className={shell} style={{ minHeight: MIN_HEIGHT }}>
+        <p className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">
+          {error ? "Could not load your network." : "No people yet. Add someone on the Network page and they appear here."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} className={shell} style={{ minHeight: MIN_HEIGHT }}>
+      {/* A faint radial lift in the middle, so the canvas reads as a space rather
+          than a flat panel, and the dots near the edge feel further away. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse at center, rgb(39 39 42 / 0.35), transparent 70%)" }}
+      />
+      <svg
+        ref={svgRef}
+        width={size.w}
+        height={size.h}
+        className={`absolute inset-0 touch-none ${dragId ? "cursor-grabbing" : "cursor-grab"}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        role="img"
+        aria-label={`Network graph: ${graph.nodes.length} people, ${graph.links.length} mutual links`}
+      >
+        {contacts && (
+          <g transform={`translate(${view.x},${view.y}) scale(${k})`}>
+            <g>
+              {graph.links.map((l) => {
+                const s = l.source as GNode, t = l.target as GNode;
+                if (typeof s !== "object" || typeof t !== "object") return null;
+                const on = !!centerId && (s.id === centerId || t.id === centerId);
+                const inCompany = lit && !centerId && lit.has(s.id) && lit.has(t.id);
+                return (
+                  <line
+                    key={l.key}
+                    x1={s.x} y1={s.y} x2={t.x} y2={t.y}
+                    stroke={on ? ACCENT : "#a1a1aa"}
+                    strokeOpacity={on ? 0.75 : lit && !inCompany ? 0.05 : 0.22}
+                    strokeWidth={on ? 1.4 : 1}
+                    vectorEffect="non-scaling-stroke"
+                    style={{ transition: "stroke-opacity 150ms" }}
+                  />
+                );
+              })}
+            </g>
+            <g>
+              {graph.nodes.map((n) => {
+                const isLit = !lit || lit.has(n.id);
+                const isCenter = n.id === centerId;
+                const labelOpacity = lit ? (isLit ? 1 : 0.06) : labelBase;
+                return (
+                  <g
+                    key={n.id}
+                    data-node={n.id}
+                    transform={`translate(${n.x ?? 0},${n.y ?? 0})`}
+                    opacity={isLit ? 1 : 0.18}
+                    style={{ transition: "opacity 150ms", cursor: "pointer" }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${n.contact.name}${n.contact.company ? `, ${n.contact.company}` : ""}`}
+                    onPointerEnter={() => !gestureRef.current && setFocus({ kind: "node", id: n.id })}
+                    onPointerLeave={() => !gestureRef.current && setFocus(null)}
+                    onFocus={() => setFocus({ kind: "node", id: n.id })}
+                    onBlur={() => setFocus(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        select(n.contact);
+                      }
+                    }}
+                    className="outline-none"
+                  >
+                    {/* A larger invisible target: a 4px dot is hard to hit. */}
+                    <circle r={Math.max(n.r * dot, 9 / k)} fill="transparent" />
+                    {isCenter && (
+                      <circle r={n.r * dot + 3.5 / k} fill="none" stroke={ACCENT} strokeOpacity={0.9} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+                    )}
+                    <circle r={n.r * dot} fill={n.color} fillOpacity={n.degree ? 0.95 : 0.7} />
+                    {labelOpacity > 0.01 && (
+                      <text
+                        y={n.r * dot + 11 / k}
+                        textAnchor="middle"
+                        fontSize={11 / k}
+                        fill={isCenter ? "#f4f4f5" : "#a1a1aa"}
+                        opacity={labelOpacity}
+                        style={{ pointerEvents: "none", paintOrder: "stroke" }}
+                        stroke="#09090b"
+                        strokeWidth={3 / k}
+                        strokeOpacity={0.8}
+                      >
+                        {n.contact.name}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+          </g>
+        )}
+      </svg>
+
+      {!contacts && (
+        <p className="absolute inset-0 flex items-center justify-center text-xs text-zinc-600">Loading network…</p>
+      )}
+
+      {contacts && (
+        <div className="pointer-events-none absolute left-3 top-3 text-[11px] text-zinc-500">
+          {graph.nodes.length} {graph.nodes.length === 1 ? "person" : "people"} · {graph.links.length}{" "}
+          {graph.links.length === 1 ? "link" : "links"}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={resetView}
+        title="Reset view"
+        aria-label="Reset view"
+        className="absolute right-3 top-3 flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-950/80 px-2 py-1 text-[11px] text-zinc-500 hover:border-accent-blue/40 hover:text-accent-blue transition-colors duration-150"
+      >
+        <LocateFixed size={12} />
+        Reset
+      </button>
+
+      {contacts && graph.links.length === 0 && (
+        <p className="pointer-events-none absolute bottom-3 left-1/2 w-max max-w-[90%] -translate-x-1/2 text-center text-xs text-zinc-600">
+          No mutual links yet. Add mutuals in a person&apos;s panel and they connect here.
+        </p>
+      )}
+
+      {/* The legend doubles as a filter: hovering a company lights its people. */}
+      {contacts && legend.length > 0 && graph.links.length > 0 && (
+        <ul className="absolute bottom-3 left-3 flex max-w-[70%] flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+          {legend.slice(0, 7).map((c) => (
+            <li
+              key={c.key}
+              className="flex cursor-default items-center gap-1.5 hover:text-zinc-300"
+              onPointerEnter={() => setFocus({ kind: "company", name: c.key })}
+              onPointerLeave={() => setFocus(null)}
+            >
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
+              {c.label}
+              <span className="text-zinc-700">{c.n}</span>
+            </li>
+          ))}
+          {legend.length > 7 && <li className="text-zinc-700">+{legend.length - 7} more</li>}
+        </ul>
+      )}
+
+      {hovered && !dragId && (
+        <Tooltip node={hovered} side={tooltipSide} view={view} size={size} />
+      )}
+    </div>
+  );
+}
+
+function Tooltip({
+  node,
+  side,
+  view,
+  size,
+}: {
+  node: GNode;
+  /** Negative when the node's connections lie mostly to its right. */
+  side: number;
+  view: View;
+  size: { w: number; h: number };
+}) {
+  const sx = (node.x ?? 0) * view.k + view.x;
+  const sy = (node.y ?? 0) * view.k + view.y;
+  const W = 200;
+  const H = 62;
+  const r = node.r * Math.sqrt(view.k);
+  // Beside the dot, on the side away from its connections, so the lines and names
+  // the hover just lit are the ones left uncovered. Above was tried first: on a hub
+  // it sat squarely on the neighbours fanned out over it.
+  // Clear of the name label too, which is centred under the dot and wider than it
+  // (about 6px per character at 11px).
+  const gap = Math.max(r + 12, node.contact.name.length * 3.1 + 10);
+  const preferLeft = side < 0;
+  const fitsRight = sx + gap + W <= size.w - 8;
+  const fitsLeft = sx - gap - W >= 8;
+  const left = (preferLeft ? fitsLeft || !fitsRight : !fitsRight && fitsLeft) ? sx - gap - W : sx + gap;
+  const top = clamp(sy - H / 2, 8, size.h - H - 8);
+  const c = node.contact;
+  const warmth = c.warmth ? c.warmth[0].toUpperCase() + c.warmth.slice(1) : null;
+  const meta = [c.stage || DEFAULT_STAGE, warmth].filter(Boolean).join(" · ");
+  return (
+    <div
+      className="pointer-events-none absolute rounded-md border border-zinc-800 bg-zinc-900/95 px-2.5 py-1.5 shadow-lg shadow-black/40"
+      style={{ left, top, width: W, minHeight: H }}
+    >
+      <div className="truncate text-xs font-medium text-zinc-100">{c.name}</div>
+      {c.company && (
+        <div className="flex items-center gap-1.5 truncate text-[11px] text-zinc-400">
+          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: node.color }} />
+          {c.company}
+        </div>
+      )}
+      <div className="mt-0.5 text-[11px] text-zinc-500">
+        {meta}
+        {node.degree > 0 && (
+          <span className="text-accent-blue/80">
+            {" "}· {node.degree} {node.degree === 1 ? "mutual link" : "mutual links"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
