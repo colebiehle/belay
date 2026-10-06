@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Plus, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Clock, ExternalLink, Plus, Search, Users } from "lucide-react";
+import { button, card, emptyBox, input, revealLink, tag, toggle } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
 import {
   CONTACT_STAGES,
-  CONTACT_STAGE_COLORS,
   DEFAULT_STAGE,
   FOLLOW_UP_STAGES,
   NUDGE_AFTER_DAYS,
@@ -16,9 +16,9 @@ import {
   WARMTH_LEVELS,
 } from "@/lib/contact-stages";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
-import { PersonPicker } from "@/components/PersonPicker";
+import { RowStage, StageSelect } from "@/components/StageChip";
 import { PeopleQueue, type Candidate } from "@/components/PeopleQueue";
-import { PageHeader, TabBar, headerButton } from "@/components/PageChrome";
+import { FormFrame, PageHeader, TabBar, formLink, headerButton } from "@/components/PageChrome";
 
 /**
  * Networking as a queue, not a directory.
@@ -33,10 +33,11 @@ import { PageHeader, TabBar, headerButton } from "@/components/PageChrome";
  * rows sinking. "Identified" is first because it is the only group that asks
  * something of you today, and emptying it is the point of the page.
  *
- * Two ways in, both matching how you actually finds people. By company: open LinkedIn
- * people-search pre-filtered, paste the URLs back, and they inherit that company. By
- * mutual: the same, but it records who the connection is — because a warm path is a
- * different conversation from a cold one and the draft needs to know which it is.
+ * One way in, the Queue tab's Add people box, laid out like Applications: the
+ * header's primary button opens it, and it takes a LinkedIn page of people or one
+ * profile link, both of which become cards to add or pass on. Someone not on
+ * LinkedIn goes in through the same box's "Add someone manually". Find people opens
+ * a company's LinkedIn People tab pre-filtered, to have something to paste.
  */
 
 type Contact = PanelContact & {
@@ -61,8 +62,7 @@ function lastTouch(c: Contact): number {
 // is the next nudge. Everywhere else the most recent move is the most relevant.
 const OLDEST_FIRST = new Set(["Sent", "Connected", "Replied"]);
 
-const INPUT =
-  "w-full text-sm bg-zinc-900 border border-zinc-800 rounded-md px-3 py-1.5 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-accent-blue/60 transition-all duration-150";
+const INPUT = input();
 
 
 /**
@@ -76,43 +76,14 @@ function peopleTabUrl(slug: string, keywords: string): string {
   return keywords.trim() ? `${base}?keywords=${encodeURIComponent(keywords.trim())}` : base;
 }
 
-// Pink like the company chips in ChipFilterRow directly above: pink is what a filter
-// chip is across the app, and two adjacent rows in two hues read as two systems.
+// The same toggle as the company chips in ChipFilterRow directly above, so the two
+// rows read as one system: neutral, with "on" as a lift fill rather than a hue.
 function FilterChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className={`text-[11px] px-2 py-0.5 rounded-full border transition-all duration-150 ${
-        on
-          ? "bg-accent-pink border-accent-pink text-black"
-          : "border-zinc-800 text-zinc-500 hover:border-accent-pink hover:text-accent-pink"
-      }`}
-    >
+    <button onClick={onClick} aria-pressed={on} className={toggle(on)}>
       {label}
     </button>
   );
-}
-
-/** The profile URL inside whatever was pasted, or null when there is none. */
-function profileUrlIn(text: string): string | null {
-  return text.trim().match(/https?:\/\/\S*linkedin\.com\/in\/[^\s,/?#]+/i)?.[0] ?? null;
-}
-
-/**
- * A LinkedIn profile URL yields a usable name when nothing better is to hand. It is
- * the instant guess; /api/linkedin-lookup replaces it with the real name when
- * LinkedIn answers.
- */
-function nameFromLinkedIn(url: string): string {
-  const m = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
-  if (!m) return "";
-  return decodeURIComponent(m[1])
-    .replace(/-[a-z0-9]{6,}$/i, "")
-    .split("-")
-    .filter(Boolean)
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join(" ");
 }
 
 export default function NetworkingPage() {
@@ -132,27 +103,15 @@ export default function NetworkingPage() {
   // Whether the open panel was reached from another panel's mutual.
   const [switched, setSwitched] = useState(false);
 
-  // The add flow. One company (or one mutual) at a time, then paste URLs.
-  const [addCompany, setAddCompany] = useState("");
-  const [addKeywords, setAddKeywords] = useState("product designer");
-  const [addVia, setAddVia] = useState("");
-  const [addUrl, setAddUrl] = useState("");
-  const [addName, setAddName] = useState("");
-  const [addRole, setAddRole] = useState("");
-  const [adding, setAdding] = useState(false);
+  // Find: a company and a role filter, for the link to its LinkedIn People tab.
+  const [findCompany, setFindCompany] = useState("");
+  const [findKeywords, setFindKeywords] = useState("product designer");
   const [finding, setFinding] = useState(false);
-  const [pickingVia, setPickingVia] = useState(false);
+  // The Add people box on the Queue tab, opened by the header's primary button.
+  const [showAdd, setShowAdd] = useState(false);
   const [companies, setCompanies] = useState<{ name: string; linkedinSlug: string | null; tier: number }[]>([]);
-  const urlRef = useRef<HTMLInputElement>(null);
-  // The LinkedIn lookup. `autoName` is the last name the form filled in by itself
-  // (slug guess or lookup), so a later fill can tell "still our guess, replace it"
-  // from "the user typed this, leave it". `lookupSeq` drops stale answers: every
-  // keystroke in the URL field and every reset bumps it, and a response only lands
-  // if its number is still current.
-  const [lookingUp, setLookingUp] = useState(false);
-  const autoName = useRef("");
-  const lookupSeq = useRef(0);
-  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ?stage=<Stage> on the People tab: scroll to that group and light it briefly.
+  const [flashStage, setFlashStage] = useState<string | null>(null);
 
   // Two tabs, as on Applications: Queue (people pasted from LinkedIn, waiting for a
   // yes or no) and People (the network itself). Null until chosen, so the default
@@ -213,14 +172,44 @@ export default function NetworkingPage() {
     if (contact) setOpenId(contact);
     if (company) setFilter(company);
     if (discover) {
-      setAddCompany(discover);
+      setFindCompany(discover);
       setFinding(true);
     }
-    // Every link above is about the network, so it lands on People whatever is queued.
+    // ?stage= names a People group, as Home's "Upcoming calls" does with Scheduled.
+    const stage = qs.get("stage");
+    const stageName = stage ? CONTACT_STAGES.find((s) => s.toLowerCase() === stage.toLowerCase()) : undefined;
+    if (stageName) setFlashStage(stageName);
+    // A person or a company is about the network, so it lands on People whatever is
+    // queued; Find is how the queue fills, so it lands on the Queue.
     const t = qs.get("tab");
+    // The tab is labelled Network; ?tab=network and the older ?tab=people both land on it.
     if (t === "queue" || t === "people") setTab(t);
-    else if (contact || company || discover) setTab("people");
+    else if (t === "network") setTab("people");
+    else if (discover) setTab("queue");
+    else if (contact || company || stageName) setTab("people");
   }, []);
+
+  // ?stage=: once the list is drawn, scroll the group into view and light it for a
+  // moment. Waits for the People tab and the contacts, since before both the group
+  // does not exist. Runs once per arrival: the stage is cleared when the light goes.
+  const [flashOn, setFlashOn] = useState(false);
+  const showingPeople = tab === "people";
+  useEffect(() => {
+    if (!flashStage || loading || !showingPeople) return;
+    const el = document.getElementById(`stage-${flashStage}`);
+    if (!el) return;
+    const start = setTimeout(() => {
+      el.scrollIntoView({ block: "start", behavior: "smooth" });
+      setFlashOn(true);
+    }, 50);
+    const stop = setTimeout(() => setFlashOn(false), 1650);
+    const done = setTimeout(() => setFlashStage(null), 1850);
+    return () => {
+      clearTimeout(start);
+      clearTimeout(stop);
+      clearTimeout(done);
+    };
+  }, [flashStage, loading, showingPeople]);
 
   const update = async (id: string, patch: Record<string, unknown>) => {
     setContacts((prev) => prev.map((c) => (c.id === id ? ({ ...c, ...patch } as Contact) : c)));
@@ -238,105 +227,6 @@ export default function NetworkingPage() {
     setContacts((prev) => prev.filter((c) => c.id !== id));
     setOpenId(null);
     await fetch(`/api/contacts/${id}`, { method: "DELETE" });
-  };
-
-  const clearAddForm = () => {
-    lookupSeq.current += 1;
-    if (lookupTimer.current) clearTimeout(lookupTimer.current);
-    setLookingUp(false);
-    autoName.current = "";
-    setAddUrl("");
-    setAddName("");
-    setAddRole("");
-    setAddVia("");
-    setPickingVia(false);
-  };
-
-  // A name is the only hard requirement. The LinkedIn URL is optional because the
-  // people worth tracking are not all findable that way, and the name is pre-filled
-  // from the URL's slug when there is one, so the common case is still paste, Enter.
-  // The company carries over to the next person, because they arrive in batches from
-  // one search. The mutual does not: it belongs to the person just saved.
-  // Fill name and company from the profile's public page. Debounced so a URL being
-  // typed by hand does not fire on every character; best-effort, so a null answer
-  // (LinkedIn's 999 or auth wall) just leaves the slug guess where it is, and Save is
-  // never disabled while this runs. Company only fills an empty field, because it
-  // carries over between adds and the user's batch company is the better answer.
-  // Replace the name only while it is empty or still the form's own last fill. The
-  // updater stays pure (it reads a captured value, never writes the ref): dev mode
-  // runs updaters twice, and one that moved the ref made its second run see the new
-  // name as "typed by the user" and keep the old one.
-  const fillName = (next: string) => {
-    const prevAuto = autoName.current;
-    autoName.current = next;
-    setAddName((prev) => (!prev.trim() || prev === prevAuto ? next : prev));
-  };
-
-  const onUrlChange = (value: string) => {
-    setAddUrl(value);
-    const seq = ++lookupSeq.current;
-    if (lookupTimer.current) clearTimeout(lookupTimer.current);
-
-    const guess = nameFromLinkedIn(value);
-    if (guess) fillName(guess);
-
-    const url = profileUrlIn(value);
-    if (!url) {
-      setLookingUp(false);
-      return;
-    }
-    lookupTimer.current = setTimeout(async () => {
-      setLookingUp(true);
-      let found: { name: string | null; company: string | null } = { name: null, company: null };
-      try {
-        const res = await fetch("/api/linkedin-lookup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-        if (res.ok) found = await res.json();
-      } catch {
-        // Offline or the dev server restarting: same as no answer.
-      }
-      if (seq !== lookupSeq.current) return;
-      setLookingUp(false);
-      const name = found.name?.trim();
-      const company = found.company?.trim();
-      if (name) fillName(name);
-      if (company) setAddCompany((prev) => (prev.trim() ? prev : company));
-    }, 400);
-  };
-
-  const addOne = async () => {
-    const name = addName.trim();
-    if (!name) return;
-    const url = addUrl.trim().match(/https?:\/\/\S*linkedin\.com\/in\/[^\s,]+/i)?.[0] ?? null;
-    // A lookup still in flight must not land on the next, cleared form.
-    lookupSeq.current += 1;
-    const res = await fetch("/api/contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "Target",
-        name,
-        company: addCompany.trim(),
-        linkedinUrl: url,
-        role: addRole.trim() || null,
-        introVia: addVia.trim() || null,
-        stage: DEFAULT_STAGE,
-        stageHistory: JSON.stringify([{ stage: DEFAULT_STAGE, at: new Date().toISOString() }]),
-      }),
-    });
-    if (res.ok) {
-      const made = await res.json();
-      setContacts((prev) => [...prev, made]);
-      clearAddForm();
-      // Open them straight away: the next thing after adding someone is their
-      // summary, tags and a message, all of which live in the panel. The add form
-      // stays open behind it, cleared, so closing the panel lands on the next one.
-      setSwitched(false);
-      setOpenId(made.id);
-    }
   };
 
   const contactCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))].sort();
@@ -403,7 +293,7 @@ export default function NetworkingPage() {
   const toMessage = contacts.filter((c) => TO_MESSAGE_STAGES.includes(c.stage ?? DEFAULT_STAGE)).length;
   const toSchedule = contacts.filter((c) => TO_SCHEDULE_STAGES.includes(c.stage ?? DEFAULT_STAGE)).length;
   const activeTab = tab ?? (candidatesLoaded ? (candidates.length > 0 ? "queue" : "people") : null);
-  const selectedSlug = companies.find((co) => co.name === addCompany)?.linkedinSlug ?? null;
+  const selectedSlug = companies.find((co) => co.name === findCompany)?.linkedinSlug ?? null;
 
   return (
     <div className="space-y-6">
@@ -412,7 +302,7 @@ export default function NetworkingPage() {
           plus the people waiting in the queue. The head count that sat here counted
           the directory rather than the work. */}
       <PageHeader
-        title="Network"
+        title="People"
         parts={
           loading || !candidatesLoaded
             ? null
@@ -425,42 +315,105 @@ export default function NetworkingPage() {
         actions={
           <>
             {/* Two verbs, matching the applications header: one that goes and looks,
-                one that records. */}
+                one that records. Both work on the Queue, which is where people come in. */}
             <button
               onClick={() => {
-                setFinding((v) => !v);
-                setAdding(false);
-                setTab("people");
+                setFinding((v) => (activeTab === "queue" ? !v : true));
+                setShowAdd(false);
+                setTab("queue");
               }}
-              className={headerButton("secondary", "blue")}
+              className={headerButton("secondary")}
             >
-              <Search size={14} /> Find people
+              <Search size={16} strokeWidth={1.5} absoluteStrokeWidth /> Find people
             </button>
             <button
               onClick={() => {
-                setAdding((v) => !v);
+                setShowAdd((v) => (activeTab === "queue" ? !v : true));
                 setFinding(false);
-                setTab("people");
+                setTab("queue");
               }}
-              className={headerButton("primary", "blue")}
+              className={headerButton("primary")}
             >
-              <Plus size={14} /> Add person
+              <Plus size={16} strokeWidth={1.5} absoluteStrokeWidth /> Add people
             </button>
           </>
         }
       />
 
       <TabBar
-        tone="blue"
         active={activeTab}
         onChange={setTab}
         tabs={[
-          { key: "queue", label: "Queue", count: toReview },
-          { key: "people", label: "People", count: contacts.length },
+          { key: "queue", label: "Queue", count: toReview, urgent: true },
+          { key: "people", label: "Network", count: contacts.length },
         ]}
       />
 
-      {activeTab === null && <p className="text-sm text-zinc-500">Loading…</p>}
+      {activeTab === null && <p className="text-body text-fg-3">Loading…</p>}
+
+      {/* Find: pick a company, open its People tab pre-filtered. This form records
+          nothing; what you find comes back through Add people. The company is a
+          select rather than a text field so the slug is known and the link lands on
+          the real People tab. The same frame as Add people and Add role. */}
+      {activeTab === "queue" && finding && (
+        <FormFrame
+          title="Find people"
+          hint="Opens the company's People tab on LinkedIn, filtered by role. Select all there and paste it into Add people."
+          onClose={() => setFinding(false)}
+          footerStart={
+            <button
+              onClick={() => {
+                setFinding(false);
+                setShowAdd(true);
+              }}
+              className={formLink}
+            >
+              Paste what you found
+            </button>
+          }
+          footerEnd={
+            <a
+              href={selectedSlug ? peopleTabUrl(selectedSlug, findKeywords) : "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                if (!selectedSlug) e.preventDefault();
+              }}
+              aria-disabled={!selectedSlug}
+              className={`${button("secondary")} ${selectedSlug ? "hover:border-line-3 hover:bg-lift" : "text-fg-4 cursor-not-allowed"}`}
+            >
+              Search LinkedIn
+              <ExternalLink size={16} strokeWidth={1.5} absoluteStrokeWidth />
+            </a>
+          }
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <select
+              value={findCompany}
+              onChange={(e) => setFindCompany(e.target.value)}
+              autoFocus
+              aria-label="Company"
+              className={INPUT}
+            >
+              <option value="">Which company…</option>
+              {[...companies]
+                .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name))
+                .map((co) => (
+                  <option key={co.name} value={co.name}>
+                    {co.name}
+                  </option>
+                ))}
+            </select>
+            <input
+              value={findKeywords}
+              onChange={(e) => setFindKeywords(e.target.value)}
+              placeholder="Role filter (e.g. product designer)"
+              aria-label="Role filter"
+              className={INPUT}
+            />
+          </div>
+        </FormFrame>
+      )}
 
       {/* Mounted whenever the tab has been decided, hidden on People, so an import
           that takes a minute keeps going if you look at the list meanwhile. */}
@@ -473,14 +426,24 @@ export default function NetworkingPage() {
             setCandidates={setCandidates}
             reloadCandidates={loadCandidates}
             contacts={contacts.map((c) => ({ id: c.id, name: c.name, company: c.company }))}
+            companies={companies}
             onContactsChanged={load}
+            onContactCreated={(made) => {
+              setContacts((prev) => [...prev, made as unknown as Contact]);
+              // Open them straight away: the next thing after adding someone is their
+              // summary, tags and a message, all of which live in the panel. The form
+              // stays open behind it, cleared, so closing the panel lands on the next.
+              setSwitched(false);
+              setOpenId(made.id);
+            }}
             onOpenContact={(id) => {
               setSwitched(false);
               setOpenId(id);
             }}
+            showAdd={showAdd}
+            onShowAdd={setShowAdd}
             onFind={() => {
-              setTab("people");
-              setAdding(false);
+              setShowAdd(false);
               setFinding(true);
             }}
           />
@@ -489,190 +452,16 @@ export default function NetworkingPage() {
 
       {activeTab === "people" && (
         <>
-          {/* Find: pick a company, open its People tab pre-filtered. This panel does not
-              record anything. The company is a select rather than a text field so the
-              slug is known and the link lands on the real People tab. */}
-          {finding && (
-            <div className="bg-zinc-900 border border-accent-blue/30 rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-[2fr_2fr_auto] gap-2">
-                <select
-                  value={addCompany}
-                  onChange={(e) => setAddCompany(e.target.value)}
-                  autoFocus
-                  className={INPUT}
-                >
-                  <option value="">Which company…</option>
-                  {[...companies]
-                    .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name))
-                    .map((co) => (
-                      <option key={co.name} value={co.name}>
-                        {co.name}
-                      </option>
-                    ))}
-                </select>
-                <input
-                  value={addKeywords}
-                  onChange={(e) => setAddKeywords(e.target.value)}
-                  placeholder="Role filter (e.g. product designer)"
-                  className={INPUT}
-                />
-                <a
-                  href={selectedSlug ? peopleTabUrl(selectedSlug, addKeywords) : "#"}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => {
-                    if (!selectedSlug) e.preventDefault();
-                  }}
-                  className={`shrink-0 text-sm font-medium px-4 py-1.5 rounded-md inline-flex items-center gap-1.5 transition-all duration-150 ${
-                    selectedSlug
-                      ? "bg-zinc-800 text-zinc-200 hover:text-accent-blue"
-                      : "bg-zinc-800 text-zinc-600 cursor-not-allowed"
-                  }`}
-                >
-                  Search LinkedIn
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-              {/* Two ways back from LinkedIn: one person by hand, or the whole results
-                  page pasted into the queue, which is the faster one past three names. */}
-              <div className="flex items-center justify-end gap-4">
-                <button
-                  onClick={() => {
-                    setFinding(false);
-                    setTab("queue");
-                  }}
-                  className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors duration-150"
-                >
-                  Paste the whole page into the queue
-                </button>
-                <button
-                  onClick={() => {
-                    setFinding(false);
-                    setAdding(true);
-                  }}
-                  className="text-xs font-semibold text-accent-blue hover:opacity-80 transition-opacity duration-150"
-                >
-                  Found someone? Add them →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Add: the record. Pasting the profile URL fills the name from its slug at
-              once, then from the profile's public page (name and current company) when
-              LinkedIn answers a logged-out request, which it does not always. The role
-              stays typed: LinkedIn masks it for logged-out visitors. Saving keeps the
-              panel open and clears it, because people arrive in batches of five. */}
-          {adding && (
-            <div className="bg-zinc-900 border border-accent-blue/30 rounded-lg p-4 space-y-2">
-              <input
-                ref={urlRef}
-                value={addUrl}
-                onChange={(e) => onUrlChange(e.target.value)}
-                placeholder="LinkedIn profile URL (optional)"
-                autoFocus
-                className={INPUT}
-              />
-              {/* Quiet and in flow, under the field it is about. Reserved height so the
-                  form does not jump when it appears and goes. */}
-              <p className="text-[11px] text-zinc-500 h-3 -mt-1" aria-live="polite">
-                {lookingUp ? "Looking up…" : ""}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <input
-                  value={addName}
-                  onChange={(e) => setAddName(e.target.value)}
-                  placeholder="Name"
-                  className={INPUT}
-                />
-                <input
-                  value={addCompany}
-                  onChange={(e) => setAddCompany(e.target.value)}
-                  list="target-company-names"
-                  placeholder="Company"
-                  className={INPUT}
-                />
-                <input
-                  value={addRole}
-                  onChange={(e) => setAddRole(e.target.value)}
-                  placeholder="Their role"
-                  className={INPUT}
-                />
-              </div>
-              <datalist id="target-company-names">
-                {companies.map((co) => (
-                  <option key={co.name} value={co.name} />
-                ))}
-              </datalist>
-
-              {/* The mutual, same picker as a referral on the applications side. Empty by
-                  default, because most of these are cold and a prompt to name a connection
-                  you do not have is a prompt to leave a field blank. */}
-              {addVia ? (
-                <div className="flex items-center justify-between gap-2 border border-accent-blue/40 rounded px-2 py-1">
-                  <p className="text-xs text-zinc-200 truncate">Found through {addVia}</p>
-                  <button
-                    onClick={() => setAddVia("")}
-                    className="text-xs text-zinc-600 hover:text-zinc-300 shrink-0"
-                    title="Cold instead"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : pickingVia ? (
-                <PersonPicker
-                  accent="rgb(143 205 253)"
-                  confirm={false}
-                  options={contacts.map((c) => ({ id: c.id, name: c.name, subtitle: c.company }))}
-                  placeholder="Who connects you?"
-                  onSave={(id) => {
-                    setAddVia(contacts.find((c) => c.id === id)?.name ?? "");
-                    setPickingVia(false);
-                  }}
-                  onCancel={() => setPickingVia(false)}
-                />
-              ) : (
-                <button
-                  onClick={() => setPickingVia(true)}
-                  className="text-xs font-semibold text-accent-blue hover:opacity-80 transition-opacity duration-150"
-                >
-                  + Add a mutual
-                </button>
-              )}
-
-              <div className="flex items-center justify-end pt-1">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setAdding(false);
-                      clearAddForm();
-                    }}
-                    className="text-xs text-zinc-500 hover:text-zinc-300"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={addOne}
-                    disabled={!addName.trim()}
-                    className="text-sm font-medium px-4 py-1.5 bg-accent-blue text-black rounded-md hover:opacity-90 disabled:opacity-40 transition-all duration-150"
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Filter */}
           {contacts.length > 0 && (
             <div className="space-y-2">
               <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                <Search size={14} strokeWidth={1.5} absoluteStrokeWidth className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3 pointer-events-none" />
                 <input
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="Search by name, role or company…"
-                  className="w-full text-sm pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-accent-blue/50 transition-all duration-150"
+                  className={`${input()} pl-8`}
                 />
               </div>
               <ChipFilterRow
@@ -689,7 +478,7 @@ export default function NetworkingPage() {
                   {usedWarmth.map((w) => (
                     <FilterChip key={w} label={w} on={selectedWarmth.has(w)} onClick={() => toggleIn(setSelectedWarmth, w)} />
                   ))}
-                  {usedWarmth.length > 0 && usedTags.length > 0 && <span className="w-px h-3 bg-zinc-800 mx-1" />}
+                  {usedWarmth.length > 0 && usedTags.length > 0 && <span className="w-px h-3 bg-line-2 mx-1" />}
                   {usedTags.map((t) => (
                     <FilterChip key={t} label={t} on={selectedTags.has(t)} onClick={() => toggleIn(setSelectedTags, t)} />
                   ))}
@@ -699,7 +488,7 @@ export default function NetworkingPage() {
                         setSelectedTags(new Set());
                         setSelectedWarmth(new Set());
                       }}
-                      className="text-[11px] px-1.5 py-0.5 text-zinc-500 hover:text-zinc-300 transition-colors duration-150"
+                      className={`${button("quiet", "compact")} h-6`}
                     >
                       Clear
                     </button>
@@ -710,23 +499,27 @@ export default function NetworkingPage() {
           )}
 
           {loading ? (
-            <p className="text-sm text-zinc-500">Loading…</p>
+            <p className="text-body text-fg-3">Loading…</p>
           ) : contacts.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-              <p className="text-zinc-500">Nobody here yet. Add someone from the queue and they land here.</p>
+            <div className={emptyBox}>
+              <p>No people yet. Add someone from the queue, or use Add people.</p>
               <button
-                onClick={() => setFinding(true)}
-                className="mt-3 text-sm text-accent-blue hover:opacity-80 transition-opacity duration-150"
+                onClick={() => {
+                  setTab("queue");
+                  setShowAdd(false);
+                  setFinding(true);
+                }}
+                className={`${button("secondary")} mt-3`}
               >
-                Find people at a company you are tracking
+                Find people
               </button>
             </div>
           ) : (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {/* Warmth, tags, companies and the search all narrow together, so they can
                   meet at nobody. Say so, rather than leave a blank page under the chips. */}
               {visible.length === 0 && (
-                <p className="px-1 text-sm text-zinc-500">
+                <p className={emptyBox}>
                   Nobody matches these filters.{" "}
                   <button
                     onClick={() => {
@@ -735,7 +528,7 @@ export default function NetworkingPage() {
                       setSelectedTags(new Set());
                       setSelectedWarmth(new Set());
                     }}
-                    className="text-zinc-300 hover:text-white transition-colors duration-150"
+                    className="text-fg-1 underline decoration-line-3 underline-offset-4 hover:decoration-fg-1"
                   >
                     Clear all
                   </button>
@@ -743,12 +536,25 @@ export default function NetworkingPage() {
               )}
               {groups.map(({ stage, people: group }) => {
                 return (
-                  <div key={stage}>
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{stage}</h3>
-                      <span className="text-xs text-zinc-600">{group.length}</span>
+                  // scroll-mt clears the sticky nav when ?stage= scrolls here.
+                  <div key={stage} id={`stage-${stage}`} className="scroll-mt-14">
+                    {/* Sticky under the nav, so a long Identified group still says
+                        which group you are in. */}
+                    <div className="sticky top-12 z-[5] bg-canvas flex items-center gap-2 h-8">
+                      <h3 className="t-group">{stage}</h3>
+                      <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
                     </div>
-                    <div className="space-y-2">
+                    {/* One container per stage, 56px two-line rows divided by
+                        hairlines. Each person was a separately bordered card of about
+                        66px; the 44px rows that replaced them were too thin to read a
+                        logo on. Arriving by
+                        ?stage= lights the group with a neutral lift for a moment, so
+                        the eye finds it; no rope, because nothing is being asked. */}
+                    <div
+                      className={`${card} divide-y divide-line-1 overflow-hidden transition-colors duration-140 ease-enter ${
+                        flashStage === stage && flashOn ? "bg-lift!" : ""
+                      }`}
+                    >
                       {group.map((c) => {
                         const hist = (() => {
                           try {
@@ -758,65 +564,91 @@ export default function NetworkingPage() {
                             return [];
                           }
                         })();
-                        // Days since the last stage change or recorded nudge, for people
-                        // who have accepted but have no call booked.
-                        const last = hist.length ? new Date(hist[hist.length - 1].at).getTime() : NaN;
-                        const quietDays =
-                          FOLLOW_UP_STAGES.includes(c.stage ?? DEFAULT_STAGE) && !Number.isNaN(last)
-                            ? Math.max(0, Math.floor((now - last) / 86_400_000))
-                            : null;
-                        const overdue = quietDays !== null && quietDays >= NUDGE_AFTER_DAYS;
+                        const stageNow = c.stage ?? DEFAULT_STAGE;
+                        // Days since the last stage change or recorded nudge (or since
+                        // they were added, for someone never moved), on every row, so the
+                        // right edge is one column. Overdue only where the ball is with
+                        // them and nothing is booked.
+                        const touched = lastTouch(c);
+                        const quietDays = touched ? Math.max(0, Math.floor((now - touched) / 86_400_000)) : null;
+                        const overdue =
+                          FOLLOW_UP_STAGES.includes(stageNow) && quietDays !== null && quietDays >= NUDGE_AFTER_DAYS;
+                        // Nobody has been contacted at Identified, so its count is how
+                        // long they have waited on you, not a touch.
+                        const untouched = stageNow === DEFAULT_STAGE && hist.length <= 1;
+                        const mutualsOf = (() => {
+                          try {
+                            const v = JSON.parse(c.introVias ?? "[]");
+                            if (Array.isArray(v) && v.length) return v.map(String);
+                          } catch {}
+                          return c.introVia ? [c.introVia] : [];
+                        })();
+                        const rowTags = [...(c.warmth ? [c.warmth] : []), ...tagsOf(c)];
                         return (
                           <div
                             key={c.id}
-                            className="bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all duration-150"
+                            className={`group/row relative flex items-center gap-3 h-14 px-3 transition-colors duration-90 ease-enter ${
+                              c.id === openId ? "bg-rope-wash" : "hover:bg-lift"
+                            }`}
                           >
-                            <div className="flex items-center gap-3 px-3.5 py-3">
-                              <CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} size={40} />
-                              <button onClick={() => setOpenId(c.id)} className="flex-1 min-w-0 text-left">
-                                <p className="text-sm font-semibold text-zinc-100 flex items-center gap-1.5">
-                                  <span className="truncate">{c.name}</span>
-                                  {c.linkedinUrl && (
-                                    <a
-                                      href={c.linkedinUrl}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="shrink-0 text-zinc-600 hover:text-accent-blue transition-colors duration-150"
-                                      title="Open their LinkedIn"
-                                    >
-                                      <ExternalLink size={13} />
-                                    </a>
+                              {/* Selected while its panel is open: rope-wash and a 2px
+                                  rope bar inside the left edge. */}
+                              {c.id === openId && <span className="absolute left-0 inset-y-0 w-0.5 bg-rope" />}
+                              {/* Two lines at 56px, a 32px logo: the name, then
+                                  "Company · Role" as in the panel's header. */}
+                              <CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} size={32} />
+                              <button
+                                onClick={() => setOpenId(c.id)}
+                                className="flex-1 min-w-0 flex items-center gap-6 text-left rounded-control"
+                              >
+                                <span className="block min-w-0 flex-1 md:flex-none md:w-[38%]">
+                                  <span className="text-name text-fg-1 flex items-center gap-1.5 min-w-0">
+                                    <span className="truncate">{c.name}</span>
+                                    {c.linkedinUrl && (
+                                      <a
+                                        href={c.linkedinUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={revealLink}
+                                        title="Open their LinkedIn"
+                                      >
+                                        <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                                      </a>
+                                    )}
+                                  </span>
+                                  <span className="block text-meta text-fg-2 truncate">
+                                    {c.company}
+                                    {(c.title || c.role) && <> · {c.title || c.role}</>}
+                                  </span>
+                                </span>
+                                {/* The relationship, in the space the row left empty: how
+                                    you met, what they are to you, and who connects you.
+                                    The things the filters above ask about, readable
+                                    without opening anyone. Hidden on a phone. */}
+                                <span className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 text-meta text-fg-3 overflow-hidden whitespace-nowrap">
+                                  {c.howMet && <span className="truncate shrink">{c.howMet}</span>}
+                                  {c.howMet && rowTags.length > 0 && <span className="text-fg-4">·</span>}
+                                  {rowTags.slice(0, 3).map((t, i) => (
+                                    <span key={t} className={`${tag} ${i === 0 && c.warmth ? "text-fg-1" : ""} shrink-0`}>
+                                      {t}
+                                    </span>
+                                  ))}
+                                  {mutualsOf.length > 0 && (c.howMet || rowTags.length > 0) && (
+                                    <span className="text-fg-4">·</span>
                                   )}
-                                </p>
-                                <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1.5 min-w-0">
-                                  <span className="shrink-0">{c.company}</span>
-                                  {(c.title || c.role) && (
-                                    <>
-                                      <span className="text-zinc-700 shrink-0">·</span>
-                                      <span className="truncate">{c.title || c.role}</span>
-                                    </>
+                                  {mutualsOf.length > 0 && (
+                                    <span className="flex items-center gap-1 min-w-0" title="Mutual connections">
+                                      <Users size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+                                      <span className="truncate text-fg-2">
+                                        {mutualsOf[0]}
+                                        {mutualsOf.length > 1 && <span className="text-fg-3"> +{mutualsOf.length - 1}</span>}
+                                      </span>
+                                    </span>
                                   )}
-
-                                </p>
+                                </span>
                               </button>
                               <div className="flex items-center gap-2 shrink-0">
-                                {/* What is left to fill in on the stage that asks the most
-                                    of you. Quiet on purpose: a to-do marker, not an alarm,
-                                    and it goes the moment a summary is pasted. */}
-                                {(c.stage ?? DEFAULT_STAGE) === DEFAULT_STAGE && !c.profileText?.trim() && (
-                                  <span className="text-[11px] text-zinc-600" title="No summary yet. Open them and paste their profile.">
-                                    no summary
-                                  </span>
-                                )}
-                                {quietDays !== null && (
-                                  <span
-                                    className={`text-xs tabular-nums ${overdue ? "text-accent-blue font-medium" : "text-zinc-600"}`}
-                                    title={overdue ? "Time to reach out again" : "Days since your last touch"}
-                                  >
-                                    {quietDays}d
-                                  </span>
-                                )}
                                 {/* A nudge does not change the stage, so it is recorded as a
                                     history entry of its own, which restarts the count. */}
                                 {overdue && (
@@ -825,41 +657,56 @@ export default function NetworkingPage() {
                                       update(c.id, {
                                         stageHistory: JSON.stringify([
                                           ...hist,
-                                          { stage: c.stage ?? DEFAULT_STAGE, at: new Date().toISOString(), nudge: true },
+                                          { stage: stageNow, at: new Date().toISOString(), nudge: true },
                                         ]),
                                       })
                                     }
-                                    className="text-xs font-semibold text-accent-blue border border-accent-blue/40 rounded-full px-2 py-0.5 hover:bg-accent-blue/10 transition-all duration-150"
+                                    className={button("quiet", "compact")}
                                     title="You followed up; restart the count"
                                   >
-                                    Nudged
+                                    Follow up
                                   </button>
                                 )}
-                                <select
-                                  value={c.stage ?? DEFAULT_STAGE}
-                                  onChange={(e) => {
-                                    const next = e.target.value;
-                                    update(c.id, {
-                                      stage: next,
-                                      stageHistory: JSON.stringify([
-                                        ...hist,
-                                        { stage: next, at: new Date().toISOString() },
-                                      ]),
-                                    });
-                                  }}
-                                  className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer outline-none text-center min-w-[6.5rem] ${
-                                    CONTACT_STAGE_COLORS[c.stage ?? DEFAULT_STAGE] ?? "bg-zinc-800 text-zinc-300"
-                                  }`}
-                                  style={{ appearance: "none" }}
-                                >
-                                  {CONTACT_STAGES.map((st) => (
-                                    <option key={st} value={st}>
-                                      {st}
-                                    </option>
-                                  ))}
-                                </select>
+                                {/* The last slot: the day count, said in words, at rest;
+                                    the stage control on hover or focus (STYLE_GUIDE 5.5).
+                                    Overdue is an action, not an alarm, so its count is
+                                    rope with the clock. */}
+                                <RowStage
+                                  rest={
+                                    quietDays !== null && (
+                                      <span
+                                        className={`flex items-center gap-1 text-meta whitespace-nowrap ${overdue ? "text-rope" : "text-fg-3"}`}
+                                        title={
+                                          untouched
+                                            ? `Added ${quietDays} days ago and not contacted yet`
+                                            : overdue
+                                              ? `${quietDays} days since your last touch (a stage change or a follow-up). Follow up.`
+                                              : `${quietDays} days since your last touch (a stage change or a follow-up)`
+                                        }
+                                      >
+                                        {overdue && <Clock size={14} strokeWidth={1.5} absoluteStrokeWidth />}
+                                        {untouched ? "added" : "last touch"}
+                                        {quietDays === 0 ? " today" : <span className="font-mono text-data">{quietDays}d</span>}
+                                      </span>
+                                    )
+                                  }
+                                  control={
+                                    <StageSelect
+                                      value={stageNow}
+                                      options={CONTACT_STAGES}
+                                      onChange={(next) => {
+                                        update(c.id, {
+                                          stage: next,
+                                          stageHistory: JSON.stringify([
+                                            ...hist,
+                                            { stage: next, at: new Date().toISOString() },
+                                          ]),
+                                        });
+                                      }}
+                                    />
+                                  }
+                                />
                               </div>
-                            </div>
                           </div>
                         );
                       })}

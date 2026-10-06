@@ -69,3 +69,49 @@ export function personKey(name: string | null | undefined, company: string | nul
   const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
   return `${norm(name)}|${norm(company)}`;
 }
+
+/**
+ * The source label a card added from one profile link carries. The queue sorts these
+ * first: you picked the person yourself, which outranks any fit score.
+ */
+export const PROFILE_LINK_SOURCE = "Profile link";
+
+/**
+ * The one profile a paste names, when the paste is nothing but that profile's link,
+ * normalised; null for a page of people or anything else. A link copied from the
+ * address bar can arrive as its HTML flavour, which compactPaste turns into the
+ * visible URL followed by "[canonical URL]", so every token is checked and all of
+ * them must be the same person. A bare "linkedin.com/in/…" without a scheme counts.
+ */
+export function loneProfileUrl(text: string): string | null {
+  const tokens = text
+    .replace(/[[\]]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!tokens.length || tokens.length > 4) return null;
+  const urls = tokens.map((t) => (/^(?:https?:\/\/)?(?:[a-z]+\.)?linkedin\.com\/in\//i.test(t) ? normalizeLinkedInUrl(t) : null));
+  if (urls.some((u) => !u)) return null;
+  return new Set(urls).size === 1 ? urls[0] : null;
+}
+
+/**
+ * A usable name from a profile slug, for when LinkedIn will not say: "jane-doe-4a1b2c3d"
+ * is "Jane Doe". The trailing id LinkedIn appends to common names is dropped. Null
+ * for an opaque member id (/in/ACoAAB…), which spells no name at all.
+ */
+export function nameFromProfileUrl(url: string): string | null {
+  const m = url.match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  if (!m) return null;
+  let slug = m[1];
+  try {
+    slug = decodeURIComponent(slug);
+  } catch {}
+  if (/^ACoA/.test(slug)) return null;
+  const name = slug
+    .replace(/-[a-z0-9]*\d[a-z0-9]*$/i, "")
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(" ");
+  return name || null;
+}

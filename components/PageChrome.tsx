@@ -1,16 +1,18 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { X } from "lucide-react";
+
+import { button, iconButton } from "@/lib/ui";
 
 /**
  * The top of a two-sided page, shared by Applications and Network so the two read
- * as one system: the same title block, the same next-action line, the same tab bar
- * in the side's accent, the same key hints. They were two hand-copied versions of
- * one layout, and every pass drifted them a few pixels apart (a ring on one primary
- * button and not the other, items-start against items-center).
+ * as one system: the same title block, the same next-action line, the same tab bar,
+ * the same key hints. They were two hand-copied versions of one layout, and every
+ * pass drifted them a few pixels apart (a ring on one primary button and not the
+ * other, items-start against items-center). The side-of-the-app tone (pink or blue)
+ * is gone: the title already says which side you are on.
  */
-
-export type Tone = "pink" | "blue";
 
 /** One part of a next-action line: "3 to triage". Zero parts are dropped. */
 export type ActionPart = { n: number; label: string };
@@ -19,22 +21,23 @@ export type ActionPart = { n: number; label: string };
  * The line under the title. It used to be the date on one page and a head count on
  * the other: one told you nothing you did not know, the other counted the directory
  * rather than the work. Now both say what to do next, from the same numbers as
- * Home's funnel, and say nothing loud when there is nothing to do.
+ * Home's funnel, and say nothing loud when there is nothing to do. Numbers are the
+ * bright step and the words the dim one, so the eye lands on the counts.
  *
  * `parts` is null while the numbers load, which keeps the line's height without
- * flashing "All caught up" at someone with a full queue.
+ * flashing "Nothing waiting" at someone with a full queue.
  */
 export function NextActionLine({ parts }: { parts: ActionPart[] | null }) {
-  if (parts === null) return <p className="text-sm text-zinc-500 mt-1">&nbsp;</p>;
+  if (parts === null) return <p className="text-body text-fg-3 mt-1">&nbsp;</p>;
   const live = parts.filter((p) => p.n > 0);
   return (
-    <p className="text-sm text-zinc-500 mt-1">
+    <p className="text-body text-fg-3 mt-1 max-w-[72ch]">
       {live.length === 0
-        ? "All caught up"
+        ? "Nothing waiting"
         : live.map((p, i) => (
             <span key={p.label}>
-              {i > 0 && <span className="text-zinc-700"> · </span>}
-              <span className="text-zinc-300 tabular-nums">{p.n}</span> {p.label}
+              {i > 0 && <span className="text-fg-4 mx-1.5">·</span>}
+              <span className="text-fg-1 tabular-nums">{p.n}</span> {p.label}
             </span>
           ))}
     </p>
@@ -53,56 +56,131 @@ export function PageHeader({
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold text-zinc-100">{title}</h1>
+        <h1 className="text-h1 text-fg-1">{title}</h1>
         <NextActionLine parts={parts} />
       </div>
-      <div className="flex items-center gap-3 shrink-0">{actions}</div>
+      <div className="flex items-center gap-2 shrink-0">{actions}</div>
     </div>
   );
 }
 
-/** The header's two button weights, in either accent. */
-export function headerButton(kind: "primary" | "secondary", tone: Tone): string {
-  const base = "flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-all duration-150";
-  if (kind === "primary") {
-    return tone === "pink"
-      ? `${base} bg-accent-pink text-black hover:opacity-90 ring-1 ring-accent-pink/30 hover:ring-accent-pink/50`
-      : `${base} bg-accent-blue text-black hover:opacity-90 ring-1 ring-accent-blue/30 hover:ring-accent-blue/50`;
-  }
-  return `${base} border border-zinc-700 bg-zinc-900 text-zinc-200 disabled:opacity-50 ${
-    tone === "pink" ? "hover:border-accent-pink/50 hover:text-accent-pink" : "hover:border-accent-blue/50 hover:text-accent-blue"
-  }`;
+/**
+ * The frame every header-triggered form opens in: Add role, Add people and Find
+ * people. They were three hand-built boxes (two in a card, one bare; titles, hints and
+ * footers each placed their own way), so opening Find after Add people felt like a
+ * different app. One frame now: a surface card with 16px padding; the title in
+ * `t-section` with the close X at the top right; one hint line in `meta` `fg-3`; the
+ * fields; then a footer row with any quiet way sideways on the left and the form's
+ * verb (a secondary button: the header's button is the page's one rope fill) on the
+ * right; anything the verb says back (an error, a result) sits under the footer. The
+ * fields are canvas, so a dashed paste field still reads as the target
+ * inside it (STYLE_GUIDE 5.9).
+ */
+export function FormFrame({
+  title,
+  hint,
+  onClose,
+  closeDisabled = false,
+  footerStart,
+  footerEnd,
+  status,
+  children,
+}: {
+  title: string;
+  hint?: ReactNode;
+  onClose: () => void;
+  closeDisabled?: boolean;
+  footerStart?: ReactNode;
+  footerEnd?: ReactNode;
+  /** What the verb said back: an error (alarm, with its glyph) or a result line. */
+  status?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    // Escape closes it from any field inside, as it does in the panels' inline edits.
+    <section
+      className="bg-surface rounded-card p-4"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !closeDisabled) {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
+      <div className="flex items-center justify-between gap-3 h-7">
+        <h2 className="t-section text-fg-1">{title}</h2>
+        <button
+          onClick={onClose}
+          disabled={closeDisabled}
+          className={`${iconButton("quiet", "compact")} -mr-1.5`}
+          aria-label="Close"
+          title="Close (Esc)"
+        >
+          <X size={16} strokeWidth={1.5} absoluteStrokeWidth />
+        </button>
+      </div>
+      {hint && <p className="text-meta text-fg-3 mt-1 max-w-[72ch]">{hint}</p>}
+      <div className="mt-3 space-y-2">{children}</div>
+      {(footerStart || footerEnd) && (
+        <div className="mt-3 flex items-center justify-between gap-3 min-h-8">
+          <div className="flex items-center gap-3 min-w-0">{footerStart}</div>
+          <div className="flex items-center gap-2 shrink-0">{footerEnd}</div>
+        </div>
+      )}
+      {status && <div className="mt-2">{status}</div>}
+    </section>
+  );
 }
 
+/** The quiet way sideways inside a form frame ("Add someone manually", "Paste what
+ * you found"): a meta-sized underlined text link, so it never competes with the verb. */
+export const formLink =
+  "text-meta text-fg-3 underline decoration-line-2 underline-offset-4 hover:text-fg-1 hover:decoration-fg-3 transition-colors duration-90 ease-enter disabled:text-fg-4";
+
+/** The header's two button weights: at most one primary (rope) per header. */
+export function headerButton(kind: "primary" | "secondary"): string {
+  return button(kind);
+}
+
+/**
+ * The tab bar. Counts are mono numerals, not pill badges. A tab flagged `urgent`
+ * (the Queue, while something in it is undecided) shows its count in rope: that is
+ * the "needs you" signal. Directory counts (Pipeline, People) stay neutral, since a
+ * bigger list is not a reason to look.
+ */
 export function TabBar<K extends string>({
   tabs,
   active,
   onChange,
-  tone,
 }: {
-  tabs: { key: K; label: string; count: number }[];
+  tabs: { key: K; label: string; count: number; urgent?: boolean }[];
   active: K | null;
   onChange: (k: K) => void;
-  tone: Tone;
 }) {
-  const badge =
-    tone === "pink" ? "border-accent-pink text-accent-pink" : "border-accent-blue text-accent-blue";
   return (
-    <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 w-fit">
-      {tabs.map((t) => (
-        <button
-          key={t.key}
-          onClick={() => onChange(t.key)}
-          className={`flex items-center gap-2 text-sm font-medium px-4 py-1.5 rounded-md transition-all duration-150 ${
-            active === t.key ? "bg-zinc-800 text-zinc-100 shadow-sm" : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          {t.label}
-          <span className={`text-xs px-2 py-0.5 rounded-full font-bold border bg-transparent tabular-nums ${badge}`}>
-            {t.count}
-          </span>
-        </button>
-      ))}
+    <div className="flex items-center gap-0.5 bg-surface rounded-card p-0.5 w-fit">
+      {tabs.map((t) => {
+        const on = active === t.key;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            aria-pressed={on}
+            className={`flex items-center gap-1.5 h-7 px-3 text-button rounded-control transition-colors duration-140 ease-enter ${
+              on ? "bg-lift text-fg-1" : "text-fg-3 hover:text-fg-2"
+            }`}
+          >
+            {t.label}
+            <span
+              className={`text-meta tabular-nums ${
+                t.urgent && t.count > 0 ? "text-rope" : on ? "text-fg-2" : "text-fg-3"
+              }`}
+            >
+              {t.count}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

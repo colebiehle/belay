@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Clock, Users } from "lucide-react";
 import { computeInsights, type BreakdownRow, type CompanyRow, type CountRow, type Insights } from "@/lib/insights";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import NetworkGraph from "@/components/NetworkGraph";
+import { card, tag } from "@/lib/ui";
 
 // Every visit reads the database. Insights is only worth opening if it agrees
 // with the pipeline you just left.
@@ -37,10 +39,10 @@ export default async function InsightsPage() {
     <div className="space-y-8">
       <div>
         {/* The way back, since there is no tab to click: Insights is reached from Home. */}
-        <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors duration-150">
+        <Link href="/" className="text-meta text-fg-3 hover:text-fg-1 transition-colors duration-90 ease-enter">
           ← Home
         </Link>
-        <h1 className="text-2xl font-semibold text-zinc-100 mt-1">Insights</h1>
+        <h1 className="text-h1 text-fg-1 mt-1">Insights</h1>
       </div>
 
       {/* Applications and Network side by side, each as its own column, so the page
@@ -63,30 +65,36 @@ function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
-function SectionHeading({ children, tone }: { children: ReactNode; tone: "pink" | "blue" }) {
-  // The small dot is the only colour in the heading. The headings themselves stay
-  // zinc like every other section heading in the app; the dot says which half of
-  // the search the section is about.
-  return (
-    <h2 className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-      <span className={`w-1.5 h-1.5 rounded-full ${tone === "pink" ? "bg-accent-pink" : "bg-accent-blue"}`} />
-      {children}
-    </h2>
-  );
+function SectionHeading({ children }: { children: ReactNode }) {
+  // The column's name, one step above the card titles under it. It used to be a
+  // dim eyebrow with a pink or blue dot saying which half of the search it was;
+  // the word already says that, so the dot went and the heading took the h2 step
+  // to carry the column on its own.
+  return <h2 className="t-section">{children}</h2>;
 }
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`bg-zinc-900 border border-zinc-800 rounded-lg p-5 ${className}`}>{children}</div>;
+  return <div className={`${card} p-4 ${className}`}>{children}</div>;
 }
 
 function CardTitle({ children, note }: { children: ReactNode; note?: ReactNode }) {
   return (
     <div className="mb-4">
-      <h3 className="text-sm font-medium text-zinc-200">{children}</h3>
-      {note && <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{note}</p>}
+      <h3 className="text-name text-fg-1">{children}</h3>
+      {note && <p className="text-meta text-fg-3 mt-0.5">{note}</p>}
     </div>
   );
 }
+
+/** The `·` between facts in a line: separator dim, so the facts carry the line. */
+function Sep() {
+  return <span className="text-fg-4 mx-1.5">·</span>;
+}
+
+// Bars are one neutral chalk on a lift track. They used to be pink on the
+// applications side and blue on the network side, which only restated the column.
+const TRACK = "h-2 rounded-[2px] bg-lift overflow-hidden";
+const FILL = "h-full rounded-[2px] bg-fg-2";
 
 /**
  * Hover detail without client JS: a panel that appears under its trigger on hover
@@ -101,11 +109,11 @@ function CardTitle({ children, note }: { children: ReactNode; note?: ReactNode }
 function Hover({ children, detail }: { children: ReactNode; detail: ReactNode }) {
   return (
     <div
-      className="relative group/hover -mx-2 px-2 py-1 rounded-md outline-none hover:bg-zinc-800/60 focus-visible:bg-zinc-800/60 transition-colors duration-150"
+      className="relative group/hover -mx-2 px-2 py-1 rounded-control hover:bg-lift focus-visible:bg-lift transition-colors duration-90 ease-enter"
       tabIndex={0}
     >
       {children}
-      <div className="pointer-events-none absolute left-2 top-full z-20 mt-1 hidden min-w-[14rem] max-w-sm rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-zinc-300 shadow-xl group-hover/hover:block group-focus/hover:block">
+      <div className="pointer-events-none absolute left-2 top-full z-20 mt-1 hidden min-w-[14rem] max-w-sm rounded-card border border-line-2 bg-raised px-3 py-2 text-meta text-fg-2 shadow-float group-hover/hover:block group-focus/hover:block">
         {detail}
       </div>
     </div>
@@ -120,8 +128,8 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
   const sentStep = apps.funnel[0];
 
   return (
-    <section className="space-y-5">
-      <SectionHeading tone="pink">Applications</SectionHeading>
+    <section className="space-y-6">
+      <SectionHeading>Roles</SectionHeading>
 
       {/* The two numbers that matter. Response rate is the headline because it is
           the one that says whether the approach works; the count beside it says how
@@ -130,22 +138,22 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
           card with a band of nothing in it. */}
       <Card className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         <div>
-          <p className="text-sm text-zinc-400">Response rate</p>
-          {/* 4xl, one step above the dashboard's 3xl tiles: the headline, but not
-              so loud the page reads as a BI wall. */}
+          <p className="text-meta text-fg-3">Response rate</p>
+          {/* Display, the page's one headline number. Chalk, not a hue: the number
+              is the finding, and colour would only say which column it is in. */}
           {apps.sent === 0 ? (
-            <p className="text-4xl font-bold mt-1 text-zinc-700">—</p>
+            <p className="text-display mt-1 text-fg-3">—</p>
           ) : apps.responseRate !== null ? (
-            <p className="text-4xl font-bold mt-1 text-accent-pink tabular-nums">{pct(apps.responseRate)}</p>
+            <p className="text-display mt-1 text-fg-1 tabular-nums">{pct(apps.responseRate)}</p>
           ) : (
             // Under the floor the headline is the raw fraction. "1 of 3" is true;
             // "33%" claims a precision three applications cannot carry.
-            <p className="text-4xl font-bold mt-1 text-accent-pink tabular-nums">
+            <p className="text-display mt-1 text-fg-1 tabular-nums">
               {apps.responded}
-              <span className="text-xl text-zinc-500 font-semibold"> of {apps.sent}</span>
+              <span className="text-h2 text-fg-3"> of {apps.sent}</span>
             </p>
           )}
-          <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+          <p className="text-meta text-fg-3 mt-2">
             {apps.sent === 0
               ? "Shows once applications go out."
               : `${apps.responded} of ${apps.sent} sent reached a screen or further.`}
@@ -155,14 +163,14 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
           {apps.freshSent > 0 && (
             // Not "of those": the sentence before ends on rejections, and these are
             // the ones still waiting.
-            <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
+            <p className="text-meta text-fg-3 mt-2">
               {apps.freshSent === apps.waiting && apps.waiting === 1 ? (
                 <>The one application still waiting</>
               ) : apps.freshSent === apps.waiting ? (
-                <>All <span className="text-zinc-300">{apps.waiting}</span> still waiting</>
+                <>All <span className="text-fg-1 tabular-nums">{apps.waiting}</span> still waiting</>
               ) : (
                 <>
-                  <span className="text-zinc-300">{apps.freshSent}</span> of the {apps.waiting} still waiting
+                  <span className="text-fg-1 tabular-nums">{apps.freshSent}</span> of the {apps.waiting} still waiting
                 </>
               )}{" "}
               went out in the last {apps.freshDays} days and may not have been read yet.
@@ -170,12 +178,15 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
           )}
         </div>
         <div>
-          <p className="text-sm text-zinc-400">Applications sent</p>
-          {/* The dashboard tile's size: this is the evidence under the rate, not a
-              second headline competing with it. */}
-          <p className={`text-3xl font-bold mt-1 tabular-nums ${apps.sent > 0 ? "text-accent-pink" : "text-zinc-700"}`}>{apps.sent}</p>
+          <p className="text-meta text-fg-3">Applications sent</p>
+          {/* Stat, Home's tile style: the same height as the headline but condensed,
+              so it reads as the evidence under the rate, not a second headline. */}
+          <p className={`text-stat t-chip mt-1 tabular-nums ${apps.sent > 0 ? "text-fg-1" : "text-fg-3"}`}>{apps.sent}</p>
           {apps.notYetSent > 0 && (
-            <Link href="/applications?tab=pipeline" className="text-xs text-zinc-500 hover:text-zinc-300 mt-1 inline-block">
+            <Link
+              href="/applications?tab=pipeline"
+              className="text-meta text-fg-3 hover:text-fg-1 transition-colors duration-90 ease-enter mt-1 inline-block"
+            >
               + {apps.notYetSent} accepted, not sent yet →
             </Link>
           )}
@@ -185,7 +196,7 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
       <Card className="flex flex-col">
         <CardTitle note="Each step counts every application that reached it, including ones later rejected.">The funnel</CardTitle>
         {apps.sent === 0 ? (
-          <p className="text-sm text-zinc-500">Nothing sent yet. The funnel fills in as applications go out.</p>
+          <p className="text-body text-fg-3">Nothing sent yet. The funnel fills in as applications go out.</p>
         ) : (
           <div className="flex-1 flex flex-col">
             <div className="space-y-1">
@@ -196,13 +207,14 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
                   key={step.key}
                   detail={
                     step.apps.length === 0 ? (
-                      <span className="text-zinc-500">None yet.</span>
+                      <span className="text-fg-3">None yet.</span>
                     ) : (
                       <ul className="space-y-0.5">
                         {step.apps.map((a) => (
                           <li key={a.id} className="truncate">
-                            <span className="text-zinc-100">{a.company}</span>
-                            <span className="text-zinc-500"> · {a.roleTitle}</span>
+                            <span className="text-fg-1">{a.company}</span>
+                            <span className="text-fg-4"> · </span>
+                            <span className="text-fg-3">{a.roleTitle}</span>
                           </li>
                         ))}
                       </ul>
@@ -210,24 +222,25 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
                   }
                 >
                   <div className="grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-3 cursor-default">
-                    <span className={`text-sm ${step.count > 0 ? "text-zinc-300" : "text-zinc-600"}`}>{step.label}</span>
-                    <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <span className={`text-body ${step.count > 0 ? "text-fg-2" : "text-fg-3"}`}>{step.label}</span>
+                    <div className={TRACK}>
                       <div
-                        // One solid pink. A tint per step (40% → 100%) rendered as
-                        // dusty mauve on the dark track, and made two steps with
-                        // the same count look like different amounts.
-                        className="h-full rounded-full bg-accent-pink"
+                        // One solid fill for every step. A tint per step made two
+                        // steps with the same count look like different amounts.
+                        className={FILL}
                         style={{ width: `${(step.count / sentStep.count) * 100}%` }}
                       />
                     </div>
-                    <span className="text-sm tabular-nums text-right">
-                      <span className={step.count > 0 ? "text-zinc-100 font-semibold" : "text-zinc-600"}>{step.count}</span>
+                    <span className="font-mono text-data tabular-nums text-right">
+                      <span className={step.count > 0 ? "text-fg-1" : "text-fg-3"}>{step.count}</span>
                       {i > 0 && prev > 0 && (
-                        <span className="text-xs text-zinc-500">
-                          {" "}
+                        <>
+                          <Sep />
                           {/* Under the floor, a step's conversion is a fraction, not a percentage. */}
-                          · {prev >= minSample && step.fromPrevious !== null ? pct(step.fromPrevious) : `${step.count}/${prev}`}
-                        </span>
+                          <span className="text-fg-3">
+                            {prev >= minSample && step.fromPrevious !== null ? pct(step.fromPrevious) : `${step.count}/${prev}`}
+                          </span>
+                        </>
                       )}
                     </span>
                   </div>
@@ -236,9 +249,16 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
             })}
             </div>
             <div className="mt-auto pt-4">
-              <p className="pt-3 border-t border-zinc-800 text-xs text-zinc-500">
-                {apps.waiting} still waiting · {apps.rejected} rejected
-                {apps.withdrawn > 0 && ` · ${apps.withdrawn} withdrawn`}
+              <p className="pt-3 border-t border-line-1 text-meta text-fg-3 tabular-nums">
+                {apps.waiting} still waiting
+                <Sep />
+                {apps.rejected} rejected
+                {apps.withdrawn > 0 && (
+                  <>
+                    <Sep />
+                    {apps.withdrawn} withdrawn
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -250,8 +270,8 @@ function ApplicationsSection({ apps, minSample }: { apps: Insights["applications
           so the next week's effort can go there. */}
       <div>
         <div className="mb-3">
-          <h3 className="text-sm font-medium text-zinc-200">What is working</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">
+          <h3 className="text-name text-fg-1">What is working</h3>
+          <p className="text-meta text-fg-3 mt-0.5">
             Response rate by group. A group shows a rate once it has {minSample} sent applications; before that, each dot
             is one application, filled where it got a response.
           </p>
@@ -294,7 +314,7 @@ function BreakdownCard({
     <Card>
       <CardTitle>{title}</CardTitle>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing to compare until applications go out.</p>
+        <p className="text-body text-fg-3">Nothing to compare until applications go out.</p>
       ) : (
         <div className="space-y-1">
           {rows.map((r) => (
@@ -303,53 +323,56 @@ function BreakdownCard({
               detail={
                 <>
                   <p>
-                    <span className="text-zinc-100">{r.responded}</span> of {r.sent} got a response.
+                    <span className="text-fg-1 tabular-nums">{r.responded}</span> of {r.sent} got a response.
                   </p>
-                  <p className="text-zinc-500 mt-1">{r.companies.join(", ")}</p>
+                  <p className="text-fg-3 mt-1">{r.companies.join(", ")}</p>
                 </>
               }
             >
               <div className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_4.5rem] items-center gap-3 cursor-default">
                 <div className="min-w-0">
-                  <p className="text-sm text-zinc-300 truncate">{r.label}</p>
-                  <p className="text-[11px] text-zinc-600">{r.sent} sent</p>
+                  <p className="text-body text-fg-2 truncate">{r.label}</p>
+                  <p className="text-meta text-fg-3 tabular-nums">{r.sent} sent</p>
                 </div>
                 {r.rate !== null ? (
                   <>
-                    <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-                      <div className="h-full rounded-full bg-accent-pink" style={{ width: `${r.rate * 100}%` }} />
+                    <div className={TRACK}>
+                      <div className={FILL} style={{ width: `${r.rate * 100}%` }} />
                     </div>
-                    <span className="text-sm font-semibold text-zinc-100 tabular-nums text-right">{pct(r.rate)}</span>
+                    <span className="font-mono text-data text-fg-1 tabular-nums text-right">{pct(r.rate)}</span>
                   </>
                 ) : (
                   <>
+                    {/* One pip per application: filled chalk where it got a response,
+                        a hollow ring where it did not. Fill against outline, not hue,
+                        so it reads the same as the bars above it. */}
                     <div className="flex flex-wrap gap-1">
                       {r.outcomes.map((ok, i) => (
                         <span
                           key={i}
-                          className={`w-2 h-2 rounded-full ${ok ? "bg-accent-pink" : "border border-zinc-600"}`}
+                          className={`w-2 h-2 rounded-full ${ok ? "bg-fg-2" : "border border-line-input"}`}
                         />
                       ))}
                     </div>
                     {/* Short enough for one line in the rate column; "Too few to read"
                         wrapped to two ragged lines at 11px. */}
-                    <span className="text-xs text-zinc-600 text-right whitespace-nowrap">Too early</span>
+                    <span className="text-meta text-fg-3 text-right whitespace-nowrap">Too early</span>
                   </>
                 )}
               </div>
             </Hover>
           ))}
           {readable === 0 && (
-            <p className="text-xs text-zinc-500 mt-3 pt-3 border-t border-zinc-800">
-              No group has {minSample} applications yet, so nothing here is a pattern. Keep going.
+            <p className="text-meta text-fg-3 mt-3 pt-3 border-t border-line-1">
+              No group has {minSample} applications yet, so nothing here is a pattern.
             </p>
           )}
           {readable === 1 && rows.length > 1 && (
-            <p className="text-xs text-zinc-500 mt-3 pt-3 border-t border-zinc-800">
+            <p className="text-meta text-fg-3 mt-3 pt-3 border-t border-line-1">
               Only one group is big enough to read, so there is nothing to compare it with yet.
             </p>
           )}
-          {footnote && <p className="text-[11px] text-zinc-600 leading-relaxed pt-2">{footnote}</p>}
+          {footnote && <p className="text-meta text-fg-3 pt-2">{footnote}</p>}
         </div>
       )}
     </Card>
@@ -373,51 +396,55 @@ function CompaniesCard({ rows }: { rows: CompanyRow[] }) {
   const row = (r: CompanyRow) => {
     // Land on the tab where this company's roles actually are.
     const tab = r.pipeline > 0 || r.closed > 0 ? "pipeline" : r.queue > 0 ? "queue" : "passed";
+    // Columns step down in lightness by how live they are: pipeline brightest,
+    // passed and closed dimmest. A zero is a separator-weight dot, not a "0".
     const cell = (n: number, tone: string) => (
-      <span className={`text-sm tabular-nums text-right ${n > 0 ? tone : "text-zinc-700"}`}>{n > 0 ? n : "·"}</span>
+      <span className={`font-mono text-data tabular-nums text-right ${n > 0 ? tone : "text-fg-4"}`}>{n > 0 ? n : "·"}</span>
     );
     return (
       <Link
         key={r.company}
         href={`/applications?tab=${tab}&company=${encodeURIComponent(r.company)}`}
-        className={`grid ${cols} items-center gap-2 px-2 py-1.5 -mx-2 rounded-md hover:bg-zinc-800/60 transition-colors duration-150`}
+        className={`grid ${cols} items-center gap-2 px-2 py-1 min-h-9 -mx-2 rounded-control hover:bg-lift transition-colors duration-90 ease-enter`}
       >
-        <span className="flex items-center gap-2.5 min-w-0">
-          <CompanyLogo company={r.company} jobUrl={r.jobUrl} domain={r.domain} logo={r.logo} size={22} />
-          <span className="text-sm text-zinc-200 truncate">{r.company}</span>
+        <span className="flex items-center gap-2 min-w-0">
+          <CompanyLogo company={r.company} jobUrl={r.jobUrl} domain={r.domain} logo={r.logo} size={24} />
+          <span className="text-name text-fg-1 truncate">{r.company}</span>
           {/* No badge for untracked companies here. TierBadge's dashed "·" box is
               meant for the queue, where untracked is a signal; in this table a
               column of empty boxes read as missing logos. */}
           {r.tier !== null && <TierBadge tier={r.tier} />}
           {r.contacts > 0 && (
+            // The mutuals glyph, not a hue, says "you know people here".
             <span
-              className="text-[11px] text-accent-blue shrink-0"
+              className="inline-flex items-center gap-1 text-meta text-fg-2 tabular-nums shrink-0"
               title={`You know ${r.contacts} ${r.contacts === 1 ? "person" : "people"} here`}
             >
+              <Users size={12} strokeWidth={1.5} absoluteStrokeWidth />
               {r.contacts} known
             </span>
           )}
         </span>
-        {cell(r.pipeline, "text-accent-pink font-semibold")}
-        {cell(r.queue, "text-zinc-200")}
-        {cell(r.passed, "text-zinc-500")}
-        {anyClosed && cell(r.closed, "text-zinc-500")}
+        {cell(r.pipeline, "text-fg-1")}
+        {cell(r.queue, "text-fg-2")}
+        {cell(r.passed, "text-fg-3")}
+        {anyClosed && cell(r.closed, "text-fg-3")}
       </Link>
     );
   };
 
   return (
     <Card>
-      <CardTitle note="Every company with a role in the queue, the pipeline, or passed on. Click through to its roles.">
+      <CardTitle note="Every company with a role in the queue, active, or passed on. Click through to its roles.">
         Roles by company
       </CardTitle>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">No roles yet. The queue fills from the daily scan.</p>
+        <p className="text-body text-fg-3">No roles yet. The queue fills from the daily scan.</p>
       ) : (
         <div>
-          <div className={`grid ${cols} gap-2 pb-2 mb-1 border-b border-zinc-800 text-[11px] text-zinc-500 uppercase tracking-wider`}>
+          <div className={`grid ${cols} gap-2 pb-2 mb-1 border-b border-line-1 t-label`}>
             <span>Company</span>
-            <span className="text-right">Pipeline</span>
+            <span className="text-right">Active</span>
             <span className="text-right">Queue</span>
             <span className="text-right">Passed</span>
             {anyClosed && <span className="text-right">Closed</span>}
@@ -426,7 +453,7 @@ function CompaniesCard({ rows }: { rows: CompanyRow[] }) {
           {/* <details> rather than state, so the page stays a server component. */}
           {tail.length > 0 && (
             <details className="group/more">
-              <summary className="cursor-pointer list-none text-xs text-zinc-500 hover:text-zinc-300 pt-2">
+              <summary className="cursor-pointer list-none text-meta text-fg-3 hover:text-fg-1 transition-colors duration-90 ease-enter pt-2">
                 <span className="group-open/more:hidden">Show {tail.length} more</span>
                 <span className="hidden group-open/more:inline">Show fewer</span>
               </summary>
@@ -450,8 +477,8 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
   const unknownPipeline = net.pipelineCompanies.filter((c) => !knownSet.has(c));
 
   return (
-    <section className="space-y-5">
-      <SectionHeading tone="blue">Network</SectionHeading>
+    <section className="space-y-6">
+      <SectionHeading>People</SectionHeading>
 
       {/* Everyone you know and how they connect through mutuals, at the top of the
           column because it is the one picture of the whole network. It may move to
@@ -460,11 +487,12 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
 
       <Card className="flex flex-col gap-6">
         <div>
-          <p className="text-sm text-zinc-400">People in conversation</p>
-          <p className={`text-4xl font-bold mt-1 tabular-nums ${net.inConversation > 0 ? "text-accent-blue" : "text-zinc-700"}`}>
+          <p className="text-meta text-fg-3">People in conversation</p>
+          {/* Stat, not display: the response rate is the page's one headline. */}
+          <p className={`text-stat t-chip mt-1 tabular-nums ${net.inConversation > 0 ? "text-fg-1" : "text-fg-3"}`}>
             {net.inConversation}
           </p>
-          <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+          <p className="text-meta text-fg-3 mt-2">
             {net.total === 0
               ? "No one in your network yet."
               : `Of ${net.total} ${net.total === 1 ? "person" : "people"} in your network: replied, booked, or talked.`}
@@ -472,11 +500,13 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
         </div>
 
         {/* Follow-ups due. The one list on the page that is an action, so it names
-            names and links straight to each person. */}
+            names and links straight to each person, and it is the one place the
+            page uses rope: an overdue follow-up is your next move, not an alarm,
+            so it gets the clock glyph and the day count in rope. */}
         <div>
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">Follow-ups due</p>
+          <p className="t-group mb-2">Follow-ups due</p>
           {net.due.length === 0 ? (
-            <p className="text-xs text-zinc-500 leading-relaxed">
+            <p className="text-meta text-fg-3">
               None. A conversation shows here after {net.nudgeAfterDays} quiet days at Connected or Replied.
             </p>
           ) : (
@@ -485,11 +515,17 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
                 <li key={c.id}>
                   <Link
                     href={`/networking?contact=${c.id}`}
-                    className="flex items-center gap-2 text-sm rounded-md px-2 py-1 -mx-2 hover:bg-zinc-800/60 transition-colors duration-150"
+                    className="flex items-center gap-2 rounded-control px-2 py-1 -mx-2 hover:bg-lift transition-colors duration-90 ease-enter"
                   >
-                    <span className="text-zinc-200 truncate">{c.name}</span>
-                    <span className="text-xs text-zinc-500 truncate">{c.company}</span>
-                    <span className="ml-auto text-xs text-accent-blue tabular-nums shrink-0">{c.days}d</span>
+                    <span className="text-body text-fg-1 truncate">{c.name}</span>
+                    <span className="text-meta text-fg-3 truncate">{c.company}</span>
+                    <span
+                      className="ml-auto inline-flex items-center gap-1 font-mono text-data text-rope tabular-nums shrink-0"
+                      title={`${c.days} days since last touch. Follow up.`}
+                    >
+                      <Clock size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                      {c.days}d
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -504,27 +540,30 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
       <Card>
         <CardTitle>Where you know people</CardTitle>
         {net.pipelineCompanies.length === 0 ? (
-          <p className="text-sm text-zinc-400">Nothing in the pipeline yet to check against.</p>
+          <p className="text-body text-fg-3">No active roles yet to check against.</p>
         ) : (
-          <p className="text-base text-zinc-200">
+          <p className="text-body text-fg-2">
             You know someone at{" "}
-            <span className="font-semibold text-accent-blue tabular-nums">{net.knownPipelineCompanies.length}</span> of your{" "}
-            <span className="font-semibold text-zinc-100 tabular-nums">{net.pipelineCompanies.length}</span> pipeline{" "}
-            {net.pipelineCompanies.length === 1 ? "company" : "companies"}.
+            <span className="text-fg-1 tabular-nums">{net.knownPipelineCompanies.length}</span> of your{" "}
+            <span className="text-fg-1 tabular-nums">{net.pipelineCompanies.length}</span>{" "}
+            {net.pipelineCompanies.length === 1 ? "company" : "companies"} with an active role.
           </p>
         )}
 
+        {/* Known and not-yet-known told apart by fill, not hue: a company where you
+            know someone is a solid lifted chip with the head count; one where you
+            know no one is dashed, the guide's mark for "not there yet". */}
         {net.pipelineCompanies.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-4">
             {net.knownPipelineCompanies.map((c) => (
               <Link
                 key={c.company}
                 href={`/networking?company=${encodeURIComponent(c.company)}`}
-                className="inline-flex items-center gap-2 text-sm pl-1.5 pr-2.5 py-1 rounded-md bg-accent-blue/10 border border-accent-blue/30 text-zinc-100 hover:border-accent-blue/60 transition-colors duration-150"
+                className="inline-flex items-center gap-2 text-body pl-1 pr-2 py-1 rounded-control bg-lift text-fg-1 hover:bg-line-2 transition-colors duration-90 ease-enter"
               >
                 <CompanyLogo company={c.company} size={18} />
                 {c.company}
-                <span className="text-xs text-accent-blue tabular-nums">{c.contacts}</span>
+                <span className="text-meta text-fg-2 tabular-nums">{c.contacts}</span>
               </Link>
             ))}
             {/* ?discover= opens the Network page's find-people flow for that company. */}
@@ -533,26 +572,29 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
                 key={c}
                 href={`/networking?discover=${encodeURIComponent(c)}`}
                 title={`No one yet at ${c}. Find someone.`}
-                className="inline-flex items-center gap-2 text-sm pl-1.5 pr-2.5 py-1 rounded-md border border-dashed border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors duration-150"
+                className="inline-flex items-center gap-2 text-body pl-1 pr-2 py-1 rounded-control border border-dashed border-line-3 text-fg-2 hover:text-fg-1 hover:border-line-input transition-colors duration-90 ease-enter"
               >
                 <CompanyLogo company={c} size={18} />
                 {c}
-                <span className="text-xs text-zinc-600">find</span>
+                <span className="text-meta text-fg-3">find</span>
               </Link>
             ))}
           </div>
         )}
 
         {net.otherKnownCompanies.length > 0 && (
-          <p className="text-xs text-zinc-500 mt-4 leading-relaxed">
+          <p className="text-meta text-fg-3 mt-4">
             Also know people at{" "}
             {net.otherKnownCompanies.map((c, i) => (
               <span key={c.company}>
                 {i > 0 && ", "}
-                <Link href={`/networking?company=${encodeURIComponent(c.company)}`} className="text-zinc-300 hover:text-accent-blue">
+                <Link
+                  href={`/networking?company=${encodeURIComponent(c.company)}`}
+                  className="text-fg-2 hover:text-fg-1 hover:underline transition-colors duration-90 ease-enter"
+                >
                   {c.company}
                 </Link>
-                {c.contacts > 1 && <span className="text-zinc-600"> ({c.contacts})</span>}
+                {c.contacts > 1 && <span className="text-fg-3 tabular-nums"> ({c.contacts})</span>}
               </span>
             ))}
             .
@@ -577,17 +619,19 @@ function NetworkSection({ net }: { net: Insights["network"] }) {
  */
 function CountBars({ rows, total }: { rows: CountRow[]; total: number }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {rows.map((r) => (
         <div key={r.key} className="grid grid-cols-[minmax(0,8rem)_minmax(0,1fr)_2.5rem] items-center gap-3">
-          <span className={`text-sm capitalize truncate ${r.count > 0 ? "text-zinc-300" : "text-zinc-600"}`}>{r.label}</span>
-          <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
+          <span className={`text-body capitalize truncate ${r.count > 0 ? "text-fg-2" : "text-fg-3"}`}>{r.label}</span>
+          <div className={TRACK}>
+            {/* "not set" is a lightness step down from the rest: it is the gap in
+                your own notes, not a category, so it should not read as one. */}
             <div
-              className={`h-full rounded-full ${r.key === "unset" ? "bg-zinc-600" : "bg-accent-blue"}`}
+              className={r.key === "unset" ? "h-full rounded-[2px] bg-line-3" : FILL}
               style={{ width: `${total > 0 ? (r.count / total) * 100 : 0}%` }}
             />
           </div>
-          <span className={`text-sm tabular-nums text-right ${r.count > 0 ? "text-zinc-100 font-semibold" : "text-zinc-600"}`}>
+          <span className={`font-mono text-data tabular-nums text-right ${r.count > 0 ? "text-fg-1" : "text-fg-3"}`}>
             {r.count}
           </span>
         </div>
@@ -601,16 +645,16 @@ function TagsCard({ rows, untagged, total }: { rows: CountRow[]; untagged: numbe
     <Card>
       <CardTitle note="What each person is to you. One person can carry several tags.">By relationship</CardTitle>
       {total === 0 ? (
-        <p className="text-sm text-zinc-500">No one in your network yet.</p>
+        <p className="text-body text-fg-3">No one in your network yet.</p>
       ) : rows.length === 0 ? (
         // Honest and quiet: the absence is the finding, and a row of zero bars
         // would only dress it up.
-        <p className="text-sm text-zinc-500">Nobody is tagged yet. Tags like mentor or peer are set on each person.</p>
+        <p className="text-body text-fg-3">Nobody is tagged yet. Tags like mentor or peer are set on each person.</p>
       ) : (
         <>
           <CountBars rows={rows} total={total} />
           {untagged > 0 && (
-            <p className="text-xs text-zinc-500 mt-3 pt-3 border-t border-zinc-800">
+            <p className="text-meta text-fg-3 tabular-nums mt-3 pt-3 border-t border-line-1">
               {untagged} of {total} not tagged yet.
             </p>
           )}
@@ -626,9 +670,9 @@ function WarmthCard({ rows, total }: { rows: CountRow[]; total: number }) {
     <Card>
       <CardTitle note="How close you are decides what you can ask: no referral asks of someone cold.">By warmth</CardTitle>
       {total === 0 ? (
-        <p className="text-sm text-zinc-500">No one in your network yet.</p>
+        <p className="text-body text-fg-3">No one in your network yet.</p>
       ) : unset === total ? (
-        <p className="text-sm text-zinc-500">No warmth set on anyone yet. Cold, warm or close is set on each person.</p>
+        <p className="text-body text-fg-3">No warmth set on anyone yet. Cold, warm or close is set on each person.</p>
       ) : (
         <CountBars rows={rows} total={total} />
       )}
@@ -643,19 +687,19 @@ function PeopleByCompanyCard({ rows }: { rows: Insights["network"]["byCompany"] 
         People by company
       </CardTitle>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">No one in your network yet.</p>
+        <p className="text-body text-fg-3">No one in your network yet.</p>
       ) : (
         <div>
           {rows.map((r) => (
             <Link
               key={r.company}
               href={`/networking?company=${encodeURIComponent(r.company)}`}
-              className="flex items-center gap-2.5 px-2 py-1.5 -mx-2 rounded-md hover:bg-zinc-800/60 transition-colors duration-150"
+              className="flex items-center gap-2 px-2 py-1 min-h-9 -mx-2 rounded-control hover:bg-lift transition-colors duration-90 ease-enter"
             >
-              <CompanyLogo company={r.company} size={22} />
-              <span className="text-sm text-zinc-200 truncate">{r.company}</span>
-              {r.inPipeline && <span className="text-[11px] text-accent-pink shrink-0">in pipeline</span>}
-              <span className="ml-auto text-sm font-semibold text-zinc-100 tabular-nums">{r.contacts}</span>
+              <CompanyLogo company={r.company} size={24} />
+              <span className="text-name text-fg-1 truncate">{r.company}</span>
+              {r.inPipeline && <span className={`${tag} shrink-0`}>active role</span>}
+              <span className="ml-auto font-mono text-data text-fg-1 tabular-nums">{r.contacts}</span>
             </Link>
           ))}
         </div>

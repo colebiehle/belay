@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MessageSquare, X } from "lucide-react";
+import { AlertTriangle, MessageSquare, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
+import { button, iconButton, textarea } from "@/lib/ui";
 
 type ChatMessage = {
   id: string;
@@ -92,12 +93,14 @@ export function ChatPanel({
         try { data = JSON.parse(text); } catch { data = {}; }
       }
       if (!res.ok || data.error) {
-        // Surface failure as an assistant message instead of crashing the page.
+        // Surface failure as an assistant message instead of crashing the page. The
+        // `err-` id is what marks it for the alarm treatment below, so the content
+        // stays plain text rather than carrying a warning emoji.
         const errText = data.error || `Chat failed (HTTP ${res.status}). If the dev server was just updated, restart it.`;
         const errorMsg: ChatMessage = {
           id: `err-${Date.now()}`,
           role: "assistant",
-          content: `⚠️ ${errText}`,
+          content: errText,
           createdAt: new Date().toISOString(),
         };
         setMessages((m) => [...m.filter((msg) => msg.id !== optimistic.id), optimistic, errorMsg]);
@@ -111,7 +114,9 @@ export function ChatPanel({
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: "assistant",
-        content: `⚠️ Network error: ${err instanceof Error ? err.message : String(err)}`,
+        // The fetch itself failed, so the server is not answering. It is a local
+        // tool: say where to look.
+        content: `Can't reach Belay on this machine. Is npm run dev running? (${err instanceof Error ? err.message : String(err)})`,
         createdAt: new Date().toISOString(),
       };
       setMessages((m) => [...m.filter((msg) => msg.id !== optimistic.id), optimistic, errorMsg]);
@@ -120,32 +125,37 @@ export function ChatPanel({
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-accent-pink text-black font-semibold text-sm rounded-full shadow-lg hover:opacity-90 transition-opacity duration-150"
-        aria-label="Open chat"
-      >
-        <MessageSquare size={16} />
-        Chat with Claude
-        {messages.length > 0 && (
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full border border-black/40 bg-transparent">
-            {messages.length}
-          </span>
-        )}
-      </button>
-    );
-  }
+  // The launcher is a quiet button in the page header, not a floating one: a
+  // launcher fixed to the corner covered whatever scrolled under it (Home's Sites
+  // "Add" among them), and there is no corner it is guaranteed not to cover. Quiet,
+  // not rope: asking Claude is always available but never the page's next move.
+  const launcher = (
+    <button
+      onClick={() => setOpen((o) => !o)}
+      className={`${button("quiet")} ${open ? "bg-lift text-fg-1" : ""}`}
+      aria-expanded={open}
+      aria-label={open ? "Close chat" : "Open chat"}
+    >
+      <MessageSquare size={16} strokeWidth={1.5} absoluteStrokeWidth />
+      Ask Claude
+      {messages.length > 0 && <span className="text-meta tabular-nums text-fg-3">{messages.length}</span>}
+    </button>
+  );
 
+  if (!open) return launcher;
+
+  // A sheet docked to the bottom edge: raised like every other floating layer, the
+  // panel radius on the top corners only because the bottom sits on the window edge.
   return (
-    <div className="fixed bottom-6 right-6 z-40 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-3rem)] bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+    <>
+    {launcher}
+    <div className="fixed bottom-0 right-6 z-40 w-[400px] max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100vh-3rem)] bg-raised rounded-t-panel shadow-float flex flex-col">
+      <div className="flex items-center justify-between gap-3 pl-4 pr-2 py-2 border-b border-line-2">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">{title}</p>
-          <p className="text-sm text-zinc-200 truncate">{subtitle}</p>
+          <p className="text-name text-fg-1">{title}</p>
+          <p className="text-meta text-fg-3 truncate">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {onClear && messages.length > 0 && (
             <button
               onClick={async () => {
@@ -153,24 +163,24 @@ export function ChatPanel({
                 await onClear();
                 setMessages([]);
               }}
-              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors duration-150"
+              className={button("quiet", "compact")}
             >
               Clear
             </button>
           )}
-          <button
-            onClick={() => setOpen(false)}
-            className="text-zinc-500 hover:text-zinc-200 transition-colors duration-150"
-            aria-label="Collapse chat"
-          >
-            <X size={16} />
+          <button onClick={() => setOpen(false)} className={iconButton("quiet", "compact")} aria-label="Collapse chat">
+            <X size={16} strokeWidth={1.5} absoluteStrokeWidth />
           </button>
         </div>
       </div>
 
+      {/* Yours on a lift fill, Claude's on nothing: the fill says who spoke without a
+          name on every message, and Claude's answers, the thing you came to read,
+          get the full contrast step with no box around them. Errors are alarm with
+          the glyph, never colour alone. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && !sending && (
-          <p className="text-sm text-zinc-500">
+          <p className="text-body text-fg-3">
             {emptyHint ?? "Ask Claude anything. Full context is loaded."}
           </p>
         )}
@@ -178,20 +188,25 @@ export function ChatPanel({
           m.role === "user" ? (
             <p
               key={m.id}
-              className="text-sm whitespace-pre-wrap leading-relaxed text-zinc-200 border-l-2 border-zinc-700 pl-3"
+              className="text-body whitespace-pre-wrap text-fg-2 bg-lift rounded-card px-3 py-2"
             >
               {m.content}
             </p>
+          ) : m.id.startsWith("err-") ? (
+            <p key={m.id} className="flex items-start gap-2 text-body text-alarm">
+              <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 mt-0.5" />
+              <span className="whitespace-pre-wrap">{m.content}</span>
+            </p>
           ) : (
-            <p key={m.id} className="text-sm whitespace-pre-wrap leading-relaxed text-zinc-400">
+            <p key={m.id} className="text-body whitespace-pre-wrap text-fg-1">
               {m.content}
             </p>
           ),
         )}
-        {sending && <p className="text-sm text-zinc-500 italic">Claude is thinking…</p>}
+        {sending && <p className="text-meta text-fg-3">Writing…</p>}
       </div>
 
-      <div className="border-t border-zinc-800 p-3 flex gap-2">
+      <div className="border-t border-line-2 p-3 flex items-end gap-2">
         <AutoResizeTextarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -202,16 +217,14 @@ export function ChatPanel({
             }
           }}
           placeholder="Ask Claude…"
-          className="flex-1 text-sm border border-zinc-700 rounded-md px-3 py-2 bg-zinc-800 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink focus:ring-1 focus:ring-accent-pink/30 resize-none transition-all duration-150 max-h-32"
+          rows={1}
+          className={`${textarea()} flex-1 max-h-32`}
         />
-        <button
-          onClick={send}
-          disabled={sending || !input.trim()}
-          className="self-stretch text-sm font-medium px-4 bg-accent-pink text-black rounded-md hover:opacity-90 disabled:opacity-40 transition-all duration-150"
-        >
+        <button onClick={send} disabled={sending || !input.trim()} className={button("primary")}>
           {sending ? "…" : "Send"}
         </button>
       </div>
     </div>
+    </>
   );
 }

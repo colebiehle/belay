@@ -36,27 +36,9 @@ export type ContactStage = (typeof CONTACT_STAGES)[number];
 
 export const DEFAULT_STAGE = "Identified";
 
-/**
- * The stage chip's colour, as one ramp, the blue twin of STATUS_COLORS on the
- * applications page.
- *
- * The chip was a flat zinc at every stage while its identical twin on the pipeline
- * row was graded by depth. Same control, same row shape, half the information: at a
- * glance you could not tell a name you had only identified from one you had already
- * talked to.
- */
-export const CONTACT_STAGE_COLORS: Record<string, string> = {
-  Identified: "bg-zinc-800 text-zinc-300",
-  Drafted: "bg-accent-blue/15 text-accent-blue",
-  Sent: "bg-accent-blue/30 text-accent-blue",
-  Connected: "bg-accent-blue/45 text-black",
-  Replied: "bg-accent-blue/65 text-black",
-  Scheduled: "bg-accent-blue/85 text-black",
-  // The point of the whole surface: a conversation that actually happened.
-  Chatted: "bg-accent-blue text-black",
-  // Not a failure, just over. Same treatment as a rejection on the pipeline.
-  "No response": "bg-zinc-900 text-zinc-600",
-};
+// The stage chip's look lives in components/StageChip.tsx, one neutral ramp shared
+// with the pipeline's status chip. It used to be a blue ramp here and a pink twin
+// on the applications page: the same control said "how far along" twice in two hues.
 
 /**
  * Stages where a conversation is open but no call is booked: they have accepted,

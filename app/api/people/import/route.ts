@@ -3,7 +3,14 @@ import { lookupProfile } from "@/lib/linkedin-profile";
 import { callClaudeDetailed, extractJson } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
 import { identity } from "@/lib/identity";
-import { IMPORT_MAX_CHARS, normalizeLinkedInUrl, personKey } from "@/lib/people-import";
+import {
+  IMPORT_MAX_CHARS,
+  loneProfileUrl,
+  nameFromProfileUrl,
+  normalizeLinkedInUrl,
+  personKey,
+  PROFILE_LINK_SOURCE,
+} from "@/lib/people-import";
 import { contextBlock } from "@/lib/foundation";
 import { peopleSignalBlock } from "@/lib/people-signal";
 
@@ -76,6 +83,11 @@ export async function POST(req: NextRequest) {
   const text = raw.slice(0, IMPORT_MAX_CHARS);
   const mutual = str(body.mutual);
   const batchNote = str(body.batchNote);
+
+  // One profile link on its own is one person, not a page: no extraction call, just
+  // the profile's public title for the name and company.
+  const lone = loneProfileUrl(raw);
+  if (lone) return addOneProfile(lone, mutual, batchNote);
 
   // The logged-in user's own card is on every LinkedIn page (the nav's "Me", the
   // left rail's profile card), so name them to the prompt and drop them again below
@@ -159,33 +171,16 @@ ${text}
       return true;
     });
 
-  // Both tables are small (hundreds of rows), so read them whole and match in memory:
-  // the URL needs normalising on the stored side too, and older contacts were saved
-  // with whatever link was pasted.
-  const [contacts, candidates] = await Promise.all([
-    prisma.contact.findMany({ select: { name: true, company: true, linkedinUrl: true } }),
-    prisma.personCandidate.findMany({ select: { name: true, company: true, linkedinUrl: true } }),
-  ]);
-  const index = (rows: { name: string; company: string | null; linkedinUrl: string | null }[]) => ({
-    urls: new Set(rows.map((r) => normalizeLinkedInUrl(r.linkedinUrl)).filter((u): u is string => !!u)),
-    keys: new Set(rows.map((r) => personKey(r.name, r.company))),
-  });
-  const known = index(contacts);
-  const queued = index(candidates);
-  // A link wins when both sides have one, so a person whose headline company changed
-  // since they were added still matches. Name and company is the fallback only when
-  // either side has no link.
-  const matches = (p: (typeof people)[number], idx: ReturnType<typeof index>) =>
-    p.linkedinUrl && idx.urls.has(p.linkedinUrl) ? true : idx.keys.has(personKey(p.name, p.company));
+  const { matchContact, matchQueued } = await dedupeIndex();
 
   let alreadyInNetwork = 0;
   let alreadyQueued = 0;
   const fresh = people.filter((p) => {
-    if (matches(p, known)) {
+    if (matchContact(p)) {
       alreadyInNetwork++;
       return false;
     }
-    if (matches(p, queued)) {
+    if (matchQueued(p)) {
       alreadyQueued++;
       return false;
     }
@@ -230,4 +225,79 @@ async function fillCompanies(batchId: string, urls: string[]) {
     }
     await new Promise((r) => setTimeout(r, 2500));
   }
+}
+
+type Person = { name: string; company: string | null; linkedinUrl: string | null };
+type Row = { id: string; name: string; company: string | null; linkedinUrl: string | null };
+
+/**
+ * Who is already known, from both tables. They are small (hundreds of rows), so read
+ * them whole and match in memory: the URL needs normalising on the stored side too,
+ * and older contacts were saved with whatever link was pasted. A link wins when both
+ * sides have one, so a person whose headline company changed since they were added
+ * still matches. Name and company is the fallback only when either side has no link.
+ * Returns the matching row, so the single-link path can say who it matched.
+ */
+async function dedupeIndex() {
+  const [contacts, candidates] = await Promise.all([
+    prisma.contact.findMany({ select: { id: true, name: true, company: true, linkedinUrl: true } }),
+    prisma.personCandidate.findMany({ select: { id: true, name: true, company: true, linkedinUrl: true, status: true } }),
+  ]);
+  const index = <R extends Row>(rows: R[]) => ({
+    urls: new Map(
+      rows.map((r) => [normalizeLinkedInUrl(r.linkedinUrl), r] as const).filter((e): e is [string, R] => !!e[0]),
+    ),
+    keys: new Map(rows.map((r) => [personKey(r.name, r.company), r] as const)),
+  });
+  const find = <R extends Row>(idx: ReturnType<typeof index<R>>, p: Person): R | null =>
+    (p.linkedinUrl && idx.urls.get(p.linkedinUrl)) || idx.keys.get(personKey(p.name, p.company)) || null;
+  const known = index(contacts);
+  const queued = index(candidates);
+  return {
+    matchContact: (p: Person) => find(known, p),
+    matchQueued: (p: Person) => find(queued, p),
+  };
+}
+
+/**
+ * One profile link into one card. The name and company come from the profile's
+ * public page; the job title is masked for logged-out visitors, so it stays empty.
+ * When LinkedIn blocks the request, the name is spelled from the slug and the
+ * company is left for the card's panel. Deduped like a page, so a link to someone
+ * already in the network or already queued creates nothing.
+ */
+async function addOneProfile(url: string, mutual: string | null, batchNote: string | null) {
+  const found = await lookupProfile(url);
+  const name = str(found.name) ?? nameFromProfileUrl(url);
+  if (!name) {
+    return NextResponse.json(
+      { error: "That link has no name in it and LinkedIn would not say whose it is. Use Add someone manually." },
+      { status: 422 },
+    );
+  }
+  const person = { name, company: str(found.company), linkedinUrl: url };
+  const base = { found: 1, added: 0, alreadyInNetwork: 0, alreadyQueued: 0, source: PROFILE_LINK_SOURCE, truncated: false, single: true };
+
+  const { matchContact, matchQueued } = await dedupeIndex();
+  const contact = matchContact(person);
+  if (contact) {
+    return NextResponse.json({ ...base, alreadyInNetwork: 1, name: contact.name, contactId: contact.id });
+  }
+  const queued = matchQueued(person);
+  if (queued) {
+    return NextResponse.json({ ...base, alreadyQueued: 1, name: queued.name, status: queued.status });
+  }
+
+  const made = await prisma.personCandidate.create({
+    data: {
+      ...person,
+      title: null,
+      batchNote,
+      mutual,
+      source: PROFILE_LINK_SOURCE,
+      batchId: `b${Date.now().toString(36)}`,
+      status: "pending",
+    },
+  });
+  return NextResponse.json({ ...base, added: 1, name: made.name, candidateId: made.id, lookedUp: !!found.name });
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
+import { button, card, iconButton, input, sectionHead } from "@/lib/ui";
 
 type Company = {
   id: string;
@@ -92,6 +93,15 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
     }
   };
 
+  const resetDraft = () => {
+    setAdding(false);
+    setDraftInput("");
+    setDraftName("");
+    setDraftUrl("");
+    setResolved(null);
+    setLookupError(null);
+  };
+
   const create = async () => {
     if (!draftName.trim() || !draftUrl.trim()) return;
     const res = await fetch("/api/target-companies", {
@@ -106,11 +116,7 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
     });
     const made: Company = await res.json();
     setCompanies((prev) => [...prev, made]);
-    setDraftInput("");
-    setDraftName("");
-    setDraftUrl("");
-    setResolved(null);
-    setAdding(false);
+    resetDraft();
   };
 
   const remove = async (id: string) => {
@@ -178,82 +184,103 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
   ].filter((g) => g.items.length > 0);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Companies</h2>
+    <section>
+      {/* Add is a quiet button, not a pink link: it opens a form, it is not the
+          page's next move. It names what it adds and sits after the heading. The
+          form is built the same as the Sites one beside it: one field, a helper
+          line that turns into the error line, then Cancel and the primary action
+          on the right. Enter does the primary action, Escape cancels.
+          A company takes one step more than a site: the lookup fills in the name
+          and careers page, which you can correct before adding. The primary
+          button says which step you are on. */}
+      <div className={`${sectionHead} mb-3`}>
+        <h2 className="t-section">Companies</h2>
         <button
-          onClick={() => setAdding((v) => !v)}
-          className="flex items-center gap-1 text-xs font-semibold text-accent-pink hover:opacity-80 transition-opacity duration-150"
+          onClick={() => (adding ? resetDraft() : setAdding(true))}
+          aria-expanded={adding}
+          className={button("quiet", "compact")}
         >
-          <Plus size={13} /> Add
+          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add company
         </button>
       </div>
 
       {adding && (
-        <div className="mb-3 bg-zinc-900 border border-accent-pink/30 rounded-lg p-4 space-y-2">
-          <div className="flex gap-2">
-            <input
-              value={draftInput}
-              onChange={(e) => setDraftInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") lookup();
-              }}
-              placeholder="Paste the company's LinkedIn URL"
-              autoFocus
-              className="flex-1 text-sm border border-zinc-700 rounded-md px-3 py-1.5 bg-zinc-800 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink transition-all duration-150"
-            />
-            <button
-              onClick={lookup}
-              disabled={!draftInput.trim() || looking}
-              className="text-sm font-medium px-3 py-1.5 border border-zinc-700 text-zinc-300 rounded-md hover:border-accent-pink/50 hover:text-accent-pink disabled:opacity-40 transition-all duration-150"
-            >
-              {looking ? "Looking…" : "Look up"}
-            </button>
-          </div>
-          {lookupError && <p className="text-xs text-accent-pink">{lookupError}</p>}
+        <div className={`mb-3 ${card} p-4 space-y-2`}>
+          <input
+            value={draftInput}
+            onChange={(e) => {
+              setDraftInput(e.target.value);
+              // A new link means a new lookup; the fields below were for the old one.
+              setResolved(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (resolved) create();
+                else lookup();
+              }
+              if (e.key === "Escape") resetDraft();
+            }}
+            placeholder="Paste the company's LinkedIn URL"
+            aria-label="Company LinkedIn URL"
+            autoFocus
+            className={input()}
+          />
           {resolved && (
             <>
               <input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") create();
+                  if (e.key === "Escape") resetDraft();
+                }}
                 placeholder="Name"
-                className="w-full text-sm border border-zinc-700 rounded-md px-3 py-1.5 bg-zinc-800 text-zinc-100 focus:outline-none focus:border-accent-pink"
+                aria-label="Name"
+                className={input()}
               />
               <input
                 value={draftUrl}
                 onChange={(e) => setDraftUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") create();
+                  if (e.key === "Escape") resetDraft();
+                }}
                 placeholder="Careers or board URL"
-                className="w-full text-sm border border-zinc-700 rounded-md px-3 py-1.5 bg-zinc-800 text-zinc-100 focus:outline-none focus:border-accent-pink"
+                aria-label="Careers or board URL"
+                className={input()}
               />
-              <p className="text-xs text-zinc-600">
-                Lands in Unsorted. Drag it into a tier from there.
-              </p>
             </>
           )}
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => {
-                setAdding(false);
-                setDraftInput("");
-                setResolved(null);
-                setLookupError(null);
-              }}
-              className="text-xs text-zinc-500 hover:text-zinc-300"
-            >
+          {lookupError ? (
+            <p className="flex items-start gap-1.5 text-meta text-alarm">
+              <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+              {lookupError}
+            </p>
+          ) : (
+            <p className="text-meta text-fg-3">
+              {resolved
+                ? "Check the name and careers page. It lands in Unsorted; drag it into a tier from there."
+                : "The name and careers page come from the company's page."}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={resetDraft} className={button("quiet")}>
               Cancel
             </button>
-            <button
-              onClick={create}
-              disabled={!draftName.trim() || !draftUrl.trim()}
-              className="text-sm font-medium px-4 py-1.5 bg-accent-pink text-black rounded-md hover:opacity-90 disabled:opacity-40 transition-all duration-150"
-            >
-              Add
-            </button>
+            {resolved ? (
+              <button onClick={create} disabled={!draftName.trim() || !draftUrl.trim()} className={button("primary")}>
+                Add company
+              </button>
+            ) : (
+              <button onClick={lookup} disabled={!draftInput.trim() || looking} className={button("primary")}>
+                {looking ? "Looking up…" : "Look up"}
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      <div className="space-y-5">
+      <div className="space-y-6">
         {groups.map((g) => (
           <div
             key={g.tier}
@@ -265,26 +292,28 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
             {/* Same treatment as every other group heading in the app: the pipeline's
                 status groups, the network's stage groups, the sites' categories. This
                 one was bolder, lighter, un-cased and differently tracked, and it held
-                the count inside itself instead of beside it. */}
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
-                {g.tier === 0 ? g.label : `${g.label}-tier`}
-              </h3>
-              <span className="text-xs text-zinc-600">{g.items.length}</span>
+                the count inside itself instead of beside it. The count is mono, so
+                it reads as a number to compare down the column. */}
+            <div className="flex items-baseline gap-2 mb-2">
+              <h3 className="t-group">{g.tier === 0 ? g.label : `${g.label}-tier`}</h3>
+              <span className="text-meta tabular-nums text-fg-3">{g.items.length}</span>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 gap-2">
+            {/* Auto-fill at 88px or wider: a fixed 7 across stranded the eighth tile
+                of an 8-company tier alone on a second row. At 1440 the column holds 8. */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2">
               {g.items.map((c) =>
                 editingId === c.id ? (
                   <div
                     key={c.id}
-                    className="col-span-3 sm:col-span-5 md:col-span-7 bg-zinc-900 border border-accent-pink/40 rounded-lg p-3 space-y-1.5"
+                    className={`col-span-full ${card} p-3 space-y-2`}
                   >
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       autoFocus
-                      className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 focus:outline-none focus:border-accent-pink"
+                      aria-label="Name"
+                      className={input("compact")}
                     />
                     <input
                       value={editUrl}
@@ -293,20 +322,20 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
                         if (e.key === "Enter") saveEdit();
                         if (e.key === "Escape") setEditingId(null);
                       }}
-                      className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 focus:outline-none focus:border-accent-pink"
+                      aria-label="Careers or board URL"
+                      className={input("compact")}
                     />
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => remove(c.id)}
-                          className="text-xs text-zinc-600 hover:text-accent-pink transition-colors duration-150"
-                        >
-                          Delete
-                        </button>
-                        <button onClick={() => setEditingId(null)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                    {/* Delete on the far left, away from Save, and only alarm on
+                        hover with its glyph: the destructive quiet button. */}
+                    <div className="flex items-center justify-between gap-2">
+                      <button onClick={() => remove(c.id)} className={button("destructive", "compact")}>
+                        <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth /> Delete
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setEditingId(null)} className={button("quiet", "compact")}>
                           Cancel
                         </button>
-                        <button onClick={saveEdit} className="text-xs font-semibold text-accent-pink hover:opacity-80">
+                        <button onClick={saveEdit} className={button("primary", "compact")}>
                           Save
                         </button>
                       </div>
@@ -331,27 +360,30 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
                       href={c.careersUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex flex-col items-center gap-2 p-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-accent-pink/50 hover:bg-zinc-800 transition-all duration-150"
+                      className="flex flex-col items-center gap-2 h-full p-3 bg-surface rounded-card hover:bg-lift transition-colors duration-90 ease-enter"
                       title={c.name}
                     >
+                      {/* The logo is the one place company colour lives on this
+                          surface; the tile around it stays graphite. */}
                       <img
                         src={logoUrl(c.domain)}
                         alt={c.name}
-                        className="w-10 h-10 rounded-md object-contain bg-white p-1"
+                        className="w-10 h-10 rounded-card object-contain bg-plate p-1"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = logoUrl(c.domain, 64);
                         }}
                       />
-                      <span className="text-xs text-zinc-300 group-hover:text-accent-pink transition-colors duration-150 text-center leading-tight">
+                      <span className="text-meta text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter text-center">
                         {c.name}
                       </span>
                     </a>
                     <button
                       onClick={() => startEdit(c)}
-                      className="absolute top-1.5 right-1.5 text-zinc-600 hover:text-accent-pink opacity-0 group-hover:opacity-100 transition-all duration-150"
+                      className={`absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${iconButton("quiet", "compact")}`}
                       title="Edit or delete"
+                      aria-label={`Edit or delete ${c.name}`}
                     >
-                      <Pencil size={11} />
+                      <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     </button>
                   </div>
                 ),
@@ -360,6 +392,6 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

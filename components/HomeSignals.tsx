@@ -20,38 +20,21 @@ import type { Insights } from "@/lib/insights";
 export function Signals({ insights }: { insights: Insights }) {
   const { applications: apps, network: net } = insights;
 
+  // Two sections side by side, each with its own section heading, like Companies
+  // and Sites further down. They were headed in small uppercase (a column-header
+  // label), which put the two blocks a step below "Progress", "Companies" and
+  // "Sites" although they are peers of them: every block on Home now opens with a
+  // t-section heading, and t-group is kept for groups inside a section.
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Overview</h2>
-        {/* A button, not a quiet text link: Insights has no nav tab, so this is the
-            way in and it has to be findable without hunting. Neutral, because
-            Insights reads across both halves and takes neither accent. */}
-        <Link
-          href="/insights"
-          className="text-sm font-medium px-3 py-1.5 border border-zinc-700 text-zinc-300 rounded-md hover:border-zinc-500 hover:text-zinc-100 transition-all duration-150"
-        >
-          Insights →
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ApplicationsCard apps={apps} />
-        <NetworkCard net={net} />
-      </div>
-    </section>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-6">
+      <ApplicationsCard apps={apps} />
+      <NetworkCard net={net} />
+    </div>
   );
 }
 
-function CardHeading({ tone, children }: { tone: "pink" | "blue"; children: ReactNode }) {
-  // Same dot-and-label heading as /insights, so the two halves read as the same two
-  // halves on both pages.
-  return (
-    <h3 className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-4">
-      <span className={`w-1.5 h-1.5 rounded-full ${tone === "pink" ? "bg-accent-pink" : "bg-accent-blue"}`} />
-      {children}
-    </h3>
-  );
+function SectionHeading({ children }: { children: ReactNode }) {
+  return <h2 className="t-section mb-3">{children}</h2>;
 }
 
 function Stat({
@@ -60,38 +43,47 @@ function Stat({
   note,
   href,
   dim,
-  tone,
+  next = false,
 }: {
   label: string;
   value: ReactNode;
   note?: ReactNode;
   href?: string;
   dim: boolean;
-  tone: "pink" | "blue";
+  /** Undecided work waiting on you: the number is rope (STYLE_GUIDE 2.1, 5.3). */
+  next?: boolean;
 }) {
-  // 3xl, the size the old tiles used. One size for every number here: none of them
-  // is the headline, and a single big one would make the others look like footnotes.
+  // A tile: its name in sentence case meta, then the number at stat size. The name
+  // was an uppercase label too, which put it on the same step as the "Applications"
+  // label above it. One size for every number: none of them is the headline. The
+  // number is chalk, not a section hue; a zero drops to the dim step so the eye
+  // skips it. The one exception is the queue: roles waiting for a verdict are the
+  // next move, so a non-zero queue is rope, the same as the Queue tab's count. The
+  // other tiles are work in motion or dates to keep, not a decision to make.
   const body = (
     <>
-      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="text-meta text-fg-3">{label}</p>
+      {/* mt-auto: on a phone a long name wraps to two lines, and the numbers in a
+          row of three should still line up. */}
       <p
-        className={`text-3xl font-bold mt-1 tabular-nums ${
-          dim ? "text-zinc-600" : tone === "pink" ? "text-accent-pink" : "text-accent-blue"
-        }`}
+        className={`text-stat t-chip tabular-nums mt-auto pt-1 ${dim ? "text-fg-3" : next ? "text-rope" : "text-fg-1"}`}
       >
         {value}
       </p>
-      {note && <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{note}</p>}
+      {note && <p className="text-meta text-fg-3 mt-1">{note}</p>}
     </>
   );
-  // A linked stat lights up like the rows on /insights. The negative margin keeps the
-  // number on the card's text edge while giving the hover a little room.
-  return href ? (
-    <Link href={href} className="block -m-2 p-2 rounded-md hover:bg-zinc-800/60 transition-colors duration-150">
+  // The whole tile links, so the hit target is the tile and the hover is the fill
+  // stepping up to lift, the same as every other tile (STYLE_GUIDE 4.3). No border,
+  // no rope, no glow. A zero is not a link: there is nothing behind it to go and look at, and a
+  // tile that lifts on hover promises there is.
+  const tile = "flex flex-col h-full bg-surface rounded-card p-3";
+  return href && !dim ? (
+    <Link href={href} className={`${tile} hover:bg-lift transition-colors duration-90 ease-enter`}>
       {body}
     </Link>
   ) : (
-    <div>{body}</div>
+    <div className={tile}>{body}</div>
   );
 }
 
@@ -104,64 +96,67 @@ function when(at: string): string {
   return `${day}, ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
 }
 
+// The two halves are sections, not cards: the tiles are the cards now, and a card of
+// cards is one hairline too many.
 function ApplicationsCard({ apps }: { apps: Insights["applications"] }) {
   const next = apps.nextInterview;
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-      <CardHeading tone="pink">Applications</CardHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <Stat label="In the queue" value={apps.queued} href="/applications" dim={apps.queued === 0} tone="pink" />
+    <section>
+      <SectionHeading>Roles</SectionHeading>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="In the queue" value={apps.queued} href="/applications" dim={apps.queued === 0} next />
         <Stat
-          label="Active pipeline"
+          label="Active"
           value={apps.activePipeline}
           href="/applications?tab=pipeline"
           dim={apps.activePipeline === 0}
-          tone="pink"
         />
         <Stat
           label="Upcoming interviews"
           value={apps.upcomingInterviews}
-          href={next ? `/applications?app=${next.appId}` : undefined}
+          // The pipeline, parked on the interviewing stage, so you see every
+          // interview in context rather than one role's panel.
+          href="/applications?tab=pipeline&stage=Interviewing"
           dim={apps.upcomingInterviews === 0}
-          tone="pink"
           // The one note worth its line: a dated count is not useful until you know
           // when. Empty states say nothing; the dimmed zero already says it.
           note={next && <NextLine name={next.company} at={next.at} />}
         />
       </div>
-    </div>
+    </section>
   );
 }
 
 function NetworkCard({ net }: { net: Insights["network"] }) {
   const next = net.nextCall;
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5">
-      <CardHeading tone="blue">Network</CardHeading>
+    <section>
+      <SectionHeading>People</SectionHeading>
       {/* The networking funnel, step for step with the applications card: people to
           message, people connected but not yet on a call, calls coming up. Totals and
           follow-ups live on /insights; the progress chart below already counts what
           was done, so these are only what to do next. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <Stat label="To message" value={net.toMessage} href="/networking" dim={net.toMessage === 0} tone="blue" />
-        <Stat label="To schedule" value={net.toSchedule} href="/networking" dim={net.toSchedule === 0} tone="blue" />
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="To message" value={net.toMessage} href="/networking" dim={net.toMessage === 0} />
+        <Stat label="To schedule" value={net.toSchedule} href="/networking" dim={net.toSchedule === 0} />
         <Stat
           label="Upcoming calls"
           value={net.upcomingCalls}
-          href={next ? `/networking?contact=${next.contactId}` : undefined}
+          // The people list's Scheduled group. /networking reads ?stage= to scroll
+          // there (or lands on the People tab until it does).
+          href="/networking?tab=people&stage=Scheduled"
           dim={net.upcomingCalls === 0}
-          tone="blue"
           note={next && <NextLine name={next.name} at={next.at} />}
         />
       </div>
-    </div>
+    </section>
   );
 }
 
 function NextLine({ name, at }: { name: string; at: string }) {
   return (
     <>
-      Next: <span className="text-zinc-300">{name}</span>, {when(at)}
+      Next: <span className="text-fg-2">{name}</span>, {when(at)}
     </>
   );
 }

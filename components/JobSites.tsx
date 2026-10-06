@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Pencil } from "lucide-react";
+import { AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
+import { button, card, iconButton, input, sectionHead } from "@/lib/ui";
 
 type Site = {
   id: string;
@@ -150,42 +151,52 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
   const tileGrid = compact ? "flex flex-col gap-2" : "grid grid-cols-1 sm:grid-cols-2 gap-2";
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Sites</h2>
+    <section>
+      {/* The same header and the same add form as Companies beside it, part for
+          part: the button names what it adds and sits after the heading; the form
+          is one field, a helper line that turns into the error line, then Cancel
+          and the primary action on the right. Enter submits, Escape cancels. */}
+      <div className={`${sectionHead} mb-3`}>
+        <h2 className="t-section">Sites</h2>
         <button
-          onClick={() => setAdding((v) => !v)}
-          className="flex items-center gap-1 text-xs font-semibold text-accent-pink hover:opacity-80 transition-opacity duration-150"
+          onClick={() => (adding ? resetDraft() : setAdding(true))}
+          aria-expanded={adding}
+          className={button("quiet", "compact")}
         >
-          <Plus size={13} /> Add
+          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add site
         </button>
       </div>
 
       {adding && (
-        <div className="mb-3 bg-zinc-900 border border-accent-pink/30 rounded-lg p-4 space-y-2">
-          <div className="flex gap-2">
-            <input
-              value={draftUrl}
-              onChange={(e) => setDraftUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") create();
-                if (e.key === "Escape") resetDraft();
-              }}
-              placeholder="Paste the board's URL"
-              autoFocus
-              className="flex-1 text-sm border border-zinc-700 rounded-md px-3 py-1.5 bg-zinc-800 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink transition-all duration-150"
-            />
-            <button
-              onClick={create}
-              disabled={!draftUrl.trim() || saving}
-              className="text-sm font-medium px-4 py-1.5 bg-accent-pink text-black rounded-md hover:opacity-90 disabled:opacity-40 transition-all duration-150 shrink-0"
-            >
-              {saving ? "Reading…" : "Add"}
+        <div className={`mb-3 ${card} p-4 space-y-2`}>
+          <input
+            value={draftUrl}
+            onChange={(e) => setDraftUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") create();
+              if (e.key === "Escape") resetDraft();
+            }}
+            placeholder="Paste the job board's URL"
+            aria-label="Job board URL"
+            autoFocus
+            className={input()}
+          />
+          {addError ? (
+            <p className="flex items-start gap-1.5 text-meta text-alarm">
+              <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+              {addError}
+            </p>
+          ) : (
+            <p className="text-meta text-fg-3">The name comes from the page. A test scan sorts it into a group.</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={resetDraft} className={button("quiet")}>
+              Cancel
+            </button>
+            <button onClick={create} disabled={!draftUrl.trim() || saving} className={button("primary")}>
+              {saving ? "Adding…" : "Add site"}
             </button>
           </div>
-          <p className="text-xs text-zinc-600">
-            {addError ?? "The name comes from the page itself, and a test scan sorts it into a group."}
-          </p>
         </div>
       )}
 
@@ -199,19 +210,19 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             onDrop={() => dropOn(g.cat, null)}
           >
             <div className="flex items-baseline gap-2 mb-2">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{g.label}</h3>
-              <span className="text-xs text-zinc-600">{g.items.length}</span>
+              <h3 className="t-group">{g.label}</h3>
+              <span className="text-meta tabular-nums text-fg-3">{g.items.length}</span>
             </div>
             <div className={tileGrid}>
               {g.items.map((s) =>
                 editingId === s.id ? (
-                  <div key={s.id} className="bg-zinc-900 border border-accent-pink/40 rounded-lg p-3 space-y-1.5">
+                  <div key={s.id} className={`${card} p-3 space-y-2`}>
                     <input
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       placeholder="Name"
                       autoFocus
-                      className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink"
+                      className={input("compact")}
                     />
                     <input
                       value={editUrl}
@@ -221,20 +232,17 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                         if (e.key === "Enter") saveEdit();
                         if (e.key === "Escape") setEditingId(null);
                       }}
-                      className="w-full text-xs bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink"
+                      className={input("compact")}
                     />
-                    <div className="flex items-center justify-end gap-2">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => remove(s.id)}
-                          className="text-xs text-zinc-600 hover:text-accent-pink transition-colors duration-150"
-                        >
-                          Delete
-                        </button>
-                        <button onClick={() => setEditingId(null)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                    <div className="flex items-center justify-between gap-2">
+                      <button onClick={() => remove(s.id)} className={button("destructive", "compact")}>
+                        <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth /> Delete
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setEditingId(null)} className={button("quiet", "compact")}>
                           Cancel
                         </button>
-                        <button onClick={saveEdit} className="text-xs font-semibold text-accent-pink hover:opacity-80">
+                        <button onClick={saveEdit} className={button("primary", "compact")}>
                           Save
                         </button>
                       </div>
@@ -260,17 +268,17 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                       target="_blank"
                       rel="noopener noreferrer"
                       title={s.scanNote ?? undefined}
-                      className="flex items-center gap-3 p-3 pr-7 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-accent-pink/50 hover:bg-zinc-800 transition-all duration-150"
+                      className="flex items-center gap-3 p-3 pr-8 bg-surface rounded-card hover:bg-lift transition-colors duration-90 ease-enter"
                     >
                       <img
                         src={logoUrl(s.domain)}
                         alt={s.name}
-                        className="w-10 h-10 rounded-md object-contain bg-white p-1 shrink-0"
+                        className="w-10 h-10 rounded-card object-contain bg-plate p-1 shrink-0"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = logoUrl(s.domain, 64);
                         }}
                       />
-                      <span className="text-xs font-medium text-zinc-300 group-hover:text-accent-pink transition-colors duration-150">
+                      <span className="text-body text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter">
                         {s.name}
                       </span>
                     </a>
@@ -278,10 +286,11 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                         site lives behind it, so there is no second icon to aim at. */}
                     <button
                       onClick={() => startEdit(s)}
-                      className="absolute top-1.5 right-1.5 text-zinc-600 hover:text-accent-pink opacity-0 group-hover:opacity-100 transition-all duration-150"
+                      className={`absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${iconButton("quiet", "compact")}`}
                       title="Edit or delete"
+                      aria-label={`Edit or delete ${s.name}`}
                     >
-                      <Pencil size={13} />
+                      <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     </button>
                   </div>
                 ),
@@ -290,6 +299,6 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

@@ -1,6 +1,7 @@
 /**
- * Name and company from a LinkedIn profile's public page, shared by the Add person
- * form's lookup and the people import, which fills in a company the pasted
+ * Name and company from a LinkedIn profile's public page, shared by the Network
+ * queue's Add people box (a lone profile link becomes a card named from this), the
+ * manual form's lookup, and the page import, which fills in a company the pasted
  * headline did not name.
  *
  * LinkedIn's public profile page, fetched logged out, puts the real name in its

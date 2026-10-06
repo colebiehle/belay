@@ -7,7 +7,7 @@ import { TargetCompanies } from "@/components/TargetCompanies";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Signals } from "@/components/HomeSignals";
 
-export default async function Dashboard() {
+export default async function Home() {
   // The signals come from computeInsights, the same function behind /insights and
   // /api/insights, so a number here can never disagree with the page it links to.
   const [insights, withInterviews] = await Promise.all([
@@ -37,9 +37,26 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-100">Dashboard</h1>
-        <p className="text-sm text-zinc-500 mt-1">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}</p>
+      {/* "Home", because the nav calls it Home: one name per thing. The date sits
+          under it in the dim step where the other pages put their next-action line,
+          since Home's next actions are the signal tiles below. */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-h1 text-fg-1">Home</h1>
+          <p className="text-body text-fg-3 mt-1">
+            {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+          </p>
+        </div>
+        {/* Docked here rather than floating in the corner, where it covered content.
+            The sheet it opens still docks to the bottom edge. */}
+        <ChatPanel
+          storageKey="homeChatOpen"
+          title="Ask Claude"
+          subtitle="What should I focus on today?"
+          fetchUrl="/api/home/chat"
+          postUrl="/api/home/chat"
+          emptyHint="What to do today, who is due a follow-up, how the week went."
+        />
       </div>
 
       {/* The "Today" section is gone. It held the follow-ups panel and a
@@ -50,33 +67,40 @@ export default async function Dashboard() {
       {/* Upcoming interviews. The only thing on this page that has a date attached,
           so it goes first — and it is the answer to "how do I track interviews",
           which nothing in the app held before. */}
+      {/* Log rows in one container rather than a card each: a fixed mono date
+          column, then the time, so the dates line up down the edge and the eye reads
+          the column rather than hunting each row. The date was pink; it is a date,
+          not an action, so it takes the same dim mono as every other log column. */}
       {upcoming.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Coming up</h2>
-          <div className="space-y-2">
+        <section>
+          <h2 className="t-section mb-3">Coming up</h2>
+          <div className="bg-surface rounded-card divide-y divide-line-1">
             {upcoming.map((iv) => (
               <Link
                 key={iv.id}
-                href="/applications?tab=pipeline"
-                className="flex items-center gap-3 px-3.5 py-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all duration-150"
+                href="/applications?tab=pipeline&stage=Interviewing"
+                className="flex items-center gap-3 h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter first:rounded-t-card last:rounded-b-card"
               >
-                <span className="text-sm font-semibold text-accent-pink tabular-nums shrink-0">
-                  {new Date(iv.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                <span className="w-14 shrink-0 font-mono text-data tabular-nums text-fg-3">
+                  {new Date(iv.at).toLocaleDateString(undefined, { month: "short", day: "2-digit" })}
                 </span>
-                <span className="text-xs text-zinc-500 tabular-nums shrink-0">
+                <span className="w-16 shrink-0 font-mono text-data tabular-nums text-fg-3">
                   {new Date(iv.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                 </span>
-                <span className="text-sm text-zinc-200 truncate">{iv.company}</span>
-                {iv.label && <span className="text-xs text-zinc-500 truncate">{iv.label}</span>}
+                <span className="text-body text-fg-1 truncate">{iv.company}</span>
+                {iv.label && <span className="text-meta text-fg-3 truncate">{iv.label}</span>}
               </Link>
             ))}
           </div>
         </section>
       )}
 
-      {/* The overview: what is on the plate, three numbers a side (queue, active
-          pipeline, upcoming interviews; people, upcoming calls, follow-ups due).
-          Rates and warm paths are on /insights, behind the button in its header. */}
+      {/* The overview: what is on the plate, as two sections side by side,
+          "Applications" and "Network", three numbers each. Every block on Home opens
+          with a t-section heading (Coming up, Applications, Network, Progress,
+          Companies, Sites), all with the same 12px to their content; t-group names
+          only the groups inside a section (the tiers, the site groups, Applying and
+          People in the day detail). Rates and warm paths are on /insights. */}
       <Signals insights={insights} />
 
       {/* Its own section now the tiles above it are gone: the heatmap is a record
@@ -86,24 +110,16 @@ export default async function Dashboard() {
       {/* Where to look. The tier list is the primary discovery surface now that the
           scan only covers S and A, so it gets the wide column; the four browse
           sites are a short list and sit beside it rather than above it. */}
-      <section className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8 lg:gap-6 items-start">
         <TargetCompanies compact />
         <JobSites compact />
-      </section>
+      </div>
 
 
       {/* "Review Matches" used to sit here, listing the top five pending roles.
           It duplicated the queue one click away, and the action list above already
           says how many are waiting. */}
 
-      <ChatPanel
-        storageKey="homeChatOpen"
-        title="Chat with Claude"
-        subtitle="What should I focus on today?"
-        fetchUrl="/api/home/chat"
-        postUrl="/api/home/chat"
-        emptyHint="Ask Claude what to prioritize today, who needs a follow-up, how this week is going."
-      />
     </div>
   );
 }

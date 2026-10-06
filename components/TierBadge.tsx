@@ -8,27 +8,29 @@ import { TIER_LABEL } from "@/lib/company-tier";
  * passed list, where the rows are not tier-ordered and the tier is the context for
  * why a role was in the queue at all.
  *
- * S and A are filled so they read at a glance down a long scan. Untracked is
- * deliberately legible rather than hidden — those roles come from the
+ * Graded by fill and outline, not hue: S is a chalk fill so it reads at a glance
+ * down a long scan, A a chalk outline, then each step dimmer. The pink that S and A
+ * used to wear only said "applications side", which the page already says.
+ * Untracked is deliberately legible rather than hidden — those roles come from the
  * company-blind arms and are worth seeing, just never above a tracked one.
  */
 const STYLES: Record<string, string> = {
-  S: "bg-accent-pink text-black border-accent-pink",
-  A: "bg-accent-pink/20 text-accent-pink-light border-accent-pink/50",
-  B: "bg-transparent text-zinc-300 border-zinc-600",
-  C: "bg-transparent text-zinc-500 border-zinc-700",
-  D: "bg-transparent text-zinc-600 border-zinc-800",
+  S: "bg-fg-1 text-canvas border-fg-1",
+  A: "text-fg-1 border-fg-2",
+  B: "text-fg-2 border-line-input",
+  C: "text-fg-3 border-line-2",
+  D: "text-fg-3 border-line-2",
 };
 
 const SHAPE =
-  "inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 " +
-  "text-xs font-bold rounded border leading-none";
+  "inline-flex items-center justify-center w-5 h-5 shrink-0 " +
+  "font-mono text-data font-medium rounded-control border leading-none";
 
 export function TierBadge({ tier }: { tier: number | null | undefined }) {
   if (tier === null || tier === undefined) {
     return (
       <span
-        className={`${SHAPE} border-dashed border-zinc-800 text-zinc-700 font-medium`}
+        className={`${SHAPE} border-dashed border-line-2 text-fg-3`}
         title="Not on your target list. Surfaced by the LinkedIn or VC-board scan, so it is worth a look, but it never outranks a tracked company."
       >
         ·

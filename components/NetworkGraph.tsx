@@ -16,6 +16,7 @@ import {
 } from "d3-force";
 import { brandColor, usableAccent } from "@/lib/brand-colors";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
+import { button } from "@/lib/ui";
 
 /**
  * The network as a graph, the way Obsidian draws a vault: every person is a dot, and
@@ -53,6 +54,7 @@ type GNode = SimulationNodeDatum & {
   degree: number;
   r: number;
   color: string;
+  shape: NodeShape;
 };
 type GLink = SimulationLinkDatum<GNode> & { key: string };
 
@@ -63,26 +65,52 @@ const MIN_HEIGHT = 420;
 const MIN_K = 0.25;
 const MAX_K = 4;
 
-/** The networking side's accent, for anything highlighted. */
-const ACCENT = "#8fcdfd";
+/**
+ * The hover highlight is chalk, not rope. Hover is a neutral lift everywhere in the
+ * app (STYLE_GUIDE 4.3), and orange that follows the cursor around the graph spent the
+ * accent on pointing rather than on a next move. Rope stays for keyboard focus: the
+ * node ring turns rope only under :focus-visible, the same as the app's focus ring.
+ * It used to be the networking side's blue before that. A CSS variable, so it stays
+ * in step with the token instead of being a second copy of the hex.
+ */
+const HIGHLIGHT = "var(--color-fg-1)";
 
 /**
- * Muted, mid-lightness hues. They have to read as distinct dots on zinc-950 at 4px,
- * and none of them can be accent-blue, because blue is what "highlighted" means here.
+ * The fallback when a company has no brand colour: eight muted hues at one lightness
+ * (OKLCH L 0.74, C 0.075), all 8.1-8.7:1 on canvas, so no company outshouts another
+ * just by landing on a brighter slot. Hues 20-80 are left out on purpose: that band
+ * is rope and alarm, and a node that reads as orange reads as "highlighted" or
+ * "broken" when it is neither (STYLE_GUIDE 5.13).
  */
 const PALETTE = [
-  "#e3a587", // clay
-  "#9cc9a4", // sage
-  "#e6c27a", // sand
-  "#d99a9a", // rose
-  "#7fbfb8", // teal
-  "#b3abe0", // periwinkle
-  "#c9b28f", // tan
-  "#a9c47f", // olive
-  "#d9a3c6", // orchid
-  "#94b3cf", // slate
+  "#B6AC75", // olive sand
+  "#92B78A", // sage
+  "#76BBA8", // jade
+  "#6FB9C1", // teal
+  "#7BB3D4", // sky
+  "#98A9DB", // periwinkle
+  "#B69FD1", // lavender
+  "#CC99BA", // orchid
 ];
-const NO_COMPANY = "#71717a"; // zinc-500
+// fg-3: someone with no company is still a person, just not part of any cluster's hue.
+const NO_COMPANY = "#90949A";
+// The neutral brand colours are pulled toward. Hex rather than a CSS variable
+// because `mix` does arithmetic on it.
+const GRAPH_NEUTRAL = "#A1A5AB";
+
+/**
+ * Stage is drawn as shape, not hue, because hue is already the company. Not yet
+ * contacted (Identified, and Drafted, which is written but still unsent) is a hollow
+ * ring: nothing has gone out, so there is nothing to fill. Sent onward is a solid
+ * dot. No response is solid but faded to 40%: it happened, and it went quiet.
+ */
+type NodeShape = "hollow" | "filled" | "faded";
+function stageShape(stage: string | null | undefined): NodeShape {
+  const s = stage || DEFAULT_STAGE;
+  if (s === "Identified" || s === "Drafted") return "hollow";
+  if (s === "No response") return "faded";
+  return "filled";
+}
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -109,8 +137,8 @@ function mix(a: string, b: string, t: number): string {
  * name squashed onto the three TLDs it actually uses. That is a guess, which is why it
  * only ever upgrades the colour: a miss falls through to the palette, never to wrong.
  * Brand colours come in at full saturation, so they are pulled 40% of the way
- * toward zinc to sit with the palette instead of shouting over it; near-black brands
- * (Notion, Nike) are lifted first or they vanish on the background.
+ * toward the graph neutral to sit with the palette instead of shouting over it;
+ * near-black brands (Notion, Nike) are lifted first or they vanish on the canvas.
  *
  * The palette is indexed by a hash of the name rather than by order of appearance, so
  * adding a person at a new company does not repaint everyone else.
@@ -121,7 +149,7 @@ function companyColor(company: string): string {
   const slug = key.replace(/[^a-z0-9]/g, "");
   for (const tld of [".com", ".so", ".app"]) {
     const brand = brandColor(slug + tld);
-    if (brand) return mix(usableAccent(brand), "#a1a1aa", 0.4);
+    if (brand) return mix(usableAccent(brand), GRAPH_NEUTRAL, 0.4);
   }
   return PALETTE[hash(key) % PALETTE.length];
 }
@@ -183,6 +211,7 @@ function buildGraph(contacts: GraphContact[]) {
       // sizing is about this gentle.
       r: 4 + Math.sqrt(degree) * 2.2,
       color: companyColor(c.company),
+      shape: stageShape(c.stage),
     };
   });
   return { nodes, links, neighbours };
@@ -330,8 +359,14 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
     } else {
       // A head start, so the first frame is already a recognisable shape and the
       // animation is the last stretch of settling rather than an explosion from a dot.
-      for (let i = 0; i < 70; i++) sim.tick();
+      for (let i = 0; i < 120; i++) sim.tick();
       fitRef.current(false);
+      // Then cool fast enough that what is left takes about 72 ticks, 1.2s at 60fps,
+      // and the simulation stops itself. d3's default decay would keep nudging dots
+      // for another few seconds, which reads as idle drift: a graph that will not sit
+      // still while you are trying to read it. A drag warms it back up, and releasing
+      // (alphaTarget(0)) cools it on the same short curve.
+      sim.alphaDecay(1 - Math.pow(sim.alphaMin() / sim.alpha(), 1 / 72));
       sim.on("tick", scheduleFrame);
       sim.on("end", () => {
         if (!userMovedRef.current) fitRef.current(true);
@@ -537,10 +572,11 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
   // --- Render ----------------------------------------------------------------------
 
   const { k } = view;
-  // Labels fade in with zoom, as in Obsidian: at overview scale a big graph is just its
-  // shape, and names arrive as you lean in. A small graph fits at a scale where they
-  // are already fully visible, so it reads as named from the start.
-  const labelBase = clamp((k - 0.75) / 0.45, 0, 1);
+  // Labels arrive with zoom, as in Obsidian: at overview scale a big graph is just its
+  // shape, and names fade in over 1.0-1.2x so they are fully there from 1.2x on. A
+  // small graph fits at a scale past that, so it reads as named from the start; a big
+  // one never prints every name at once over its own dots.
+  const labelBase = clamp((k - 1) / 0.2, 0, 1);
   // Dots grow with the square root of zoom, not linearly. Zooming in is for reading
   // names and following lines; at 3x a linearly scaled dot is a coin that covers both.
   const dot = 1 / Math.sqrt(k);
@@ -555,12 +591,24 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
     tooltipSide = dx > 0 ? -1 : 1;
   }
 
-  const shell = `relative w-full h-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 select-none ${className}`;
+  const shell = `relative w-full h-full overflow-hidden rounded-panel border border-line-2 bg-canvas select-none ${className}`;
+  // The only place in the app with a dot grid: here it is a surface you pan across,
+  // so it moves with the view and tells you that you are moving. Under it, a radial
+  // lift from canvas to surface at the centre, so the canvas reads as a space rather
+  // than a flat panel and the dots near the edge feel further away. The grid does not
+  // scale with zoom; 24px dots that grew to 96px would stop reading as texture.
+  const canvasStyle = {
+    minHeight: MIN_HEIGHT,
+    backgroundImage:
+      "radial-gradient(var(--color-line-1) 1px, transparent 1px), radial-gradient(ellipse at center, var(--color-surface), var(--color-canvas) 70%)",
+    backgroundSize: "24px 24px, 100% 100%",
+    backgroundPosition: `${view.x}px ${view.y}px, center`,
+  };
 
   if (error || isEmpty) {
     return (
-      <div ref={wrapRef} className={shell} style={{ minHeight: MIN_HEIGHT }}>
-        <p className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">
+      <div ref={wrapRef} className={shell} style={canvasStyle}>
+        <p className="absolute inset-0 flex items-center justify-center px-4 text-center text-meta text-fg-3">
           {error ? "Could not load your network." : "No people yet. Add someone on the Network page and they appear here."}
         </p>
       </div>
@@ -568,14 +616,7 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
   }
 
   return (
-    <div ref={wrapRef} className={shell} style={{ minHeight: MIN_HEIGHT }}>
-      {/* A faint radial lift in the middle, so the canvas reads as a space rather
-          than a flat panel, and the dots near the edge feel further away. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(ellipse at center, rgb(39 39 42 / 0.35), transparent 70%)" }}
-      />
+    <div ref={wrapRef} className={shell} style={canvasStyle}>
       <svg
         ref={svgRef}
         width={size.w}
@@ -594,17 +635,22 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
               {graph.links.map((l) => {
                 const s = l.source as GNode, t = l.target as GNode;
                 if (typeof s !== "object" || typeof t !== "object") return null;
-                const on = !!centerId && (s.id === centerId || t.id === centerId);
-                const inCompany = lit && !centerId && lit.has(s.id) && lit.has(t.id);
+                // Focused edges are the ones out of the hovered node, or, when a legend
+                // company is hovered, the ones between its people. They turn chalk and
+                // thicken; everything else drops to 6% so the lit paths are the only
+                // lines left to follow. At rest, lines are fg-3 at 28%: present enough
+                // to show the clusters, quiet enough that the dots stay the subject.
+                const on = centerId
+                  ? s.id === centerId || t.id === centerId
+                  : !!lit && lit.has(s.id) && lit.has(t.id);
                 return (
                   <line
                     key={l.key}
                     x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-                    stroke={on ? ACCENT : "#a1a1aa"}
-                    strokeOpacity={on ? 0.75 : lit && !inCompany ? 0.05 : 0.22}
-                    strokeWidth={on ? 1.4 : 1}
+                    strokeOpacity={on ? 0.85 : lit ? 0.06 : 0.28}
+                    strokeWidth={on ? 1.5 : 1}
                     vectorEffect="non-scaling-stroke"
-                    style={{ transition: "stroke-opacity 150ms" }}
+                    style={{ stroke: on ? HIGHLIGHT : "var(--color-fg-3)", transition: "stroke-opacity 140ms" }}
                   />
                 );
               })}
@@ -614,13 +660,15 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
                 const isLit = !lit || lit.has(n.id);
                 const isCenter = n.id === centerId;
                 const labelOpacity = lit ? (isLit ? 1 : 0.06) : labelBase;
+                const r = n.r * dot;
+                const hollow = n.shape === "hollow";
                 return (
                   <g
                     key={n.id}
                     data-node={n.id}
                     transform={`translate(${n.x ?? 0},${n.y ?? 0})`}
                     opacity={isLit ? 1 : 0.18}
-                    style={{ transition: "opacity 150ms", cursor: "pointer" }}
+                    style={{ transition: "opacity 140ms", cursor: "pointer" }}
                     tabIndex={0}
                     role="button"
                     aria-label={`${n.contact.name}${n.contact.company ? `, ${n.contact.company}` : ""}`}
@@ -634,25 +682,53 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
                         select(n.contact);
                       }
                     }}
+                    // The ring below is this node's focus indicator, drawn at the
+                    // node's own size, so the browser's square outline is not needed.
                     className="outline-none"
                   >
                     {/* A larger invisible target: a 4px dot is hard to hit. */}
-                    <circle r={Math.max(n.r * dot, 9 / k)} fill="transparent" />
+                    <circle r={Math.max(r, 9 / k)} fill="transparent" />
+                    {/* A 1.5px ring with a 3px gap of canvas between it and the dot,
+                        the same offset-ring shape as the app's focus outline. Chalk on
+                        hover, rope when the node has keyboard focus. */}
                     {isCenter && (
-                      <circle r={n.r * dot + 3.5 / k} fill="none" stroke={ACCENT} strokeOpacity={0.9} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+                      <circle
+                        r={r + 3.75 / k}
+                        fill="none"
+                        strokeWidth={1.5}
+                        vectorEffect="non-scaling-stroke"
+                        className="stroke-fg-1 [g:focus-visible>&]:stroke-rope"
+                      />
                     )}
-                    <circle r={n.r * dot} fill={n.color} fillOpacity={n.degree ? 0.95 : 0.7} />
+                    {/* Hollow is drawn 0.75px inside the radius so its 1.5px stroke
+                        lands on the same outer edge as a filled dot of that degree. */}
+                    <circle
+                      r={hollow ? Math.max(r - 0.75 / k, 0.5 / k) : r}
+                      fillOpacity={n.shape === "faded" ? 0.4 : 1}
+                      stroke={hollow ? n.color : "none"}
+                      strokeWidth={1.5}
+                      vectorEffect="non-scaling-stroke"
+                      style={{ fill: hollow ? "var(--color-canvas)" : n.color }}
+                    />
                     {labelOpacity > 0.01 && (
+                      // Archivo, not mono: a name is text, not data. The canvas halo
+                      // (stroke painted under the fill) keeps it legible where it
+                      // crosses a line or another dot.
                       <text
-                        y={n.r * dot + 11 / k}
+                        y={r + 11 / k}
                         textAnchor="middle"
                         fontSize={11 / k}
-                        fill={isCenter ? "#f4f4f5" : "#a1a1aa"}
                         opacity={labelOpacity}
-                        style={{ pointerEvents: "none", paintOrder: "stroke" }}
-                        stroke="#09090b"
                         strokeWidth={3 / k}
-                        strokeOpacity={0.8}
+                        strokeLinejoin="round"
+                        className="font-sans"
+                        style={{
+                          pointerEvents: "none",
+                          paintOrder: "stroke",
+                          fill: isCenter ? "var(--color-fg-1)" : "var(--color-fg-2)",
+                          stroke: "var(--color-canvas)",
+                          transition: "opacity 140ms",
+                        }}
                       >
                         {n.contact.name}
                       </text>
@@ -666,13 +742,14 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
       </svg>
 
       {!contacts && (
-        <p className="absolute inset-0 flex items-center justify-center text-xs text-zinc-600">Loading network…</p>
+        <p className="absolute inset-0 flex items-center justify-center text-meta text-fg-3">Loading network…</p>
       )}
 
       {contacts && (
-        <div className="pointer-events-none absolute left-3 top-3 text-[11px] text-zinc-500">
-          {graph.nodes.length} {graph.nodes.length === 1 ? "person" : "people"} · {graph.links.length}{" "}
-          {graph.links.length === 1 ? "link" : "links"}
+        <div className="pointer-events-none absolute left-3 top-3 text-meta text-fg-3">
+          <span className="tabular-nums">{graph.nodes.length}</span> {graph.nodes.length === 1 ? "person" : "people"}
+          <span className="mx-1 text-fg-4">·</span>
+          <span className="tabular-nums">{graph.links.length}</span> {graph.links.length === 1 ? "link" : "links"}
         </div>
       )}
 
@@ -681,34 +758,36 @@ export default function NetworkGraph({ contacts: given, onSelect, className = ""
         onClick={resetView}
         title="Reset view"
         aria-label="Reset view"
-        className="absolute right-3 top-3 flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-950/80 px-2 py-1 text-[11px] text-zinc-500 hover:border-accent-blue/40 hover:text-accent-blue transition-colors duration-150"
+        className={`${button("quiet", "compact")} absolute right-2 top-2`}
       >
-        <LocateFixed size={12} />
+        <LocateFixed size={14} strokeWidth={1.5} absoluteStrokeWidth />
         Reset
       </button>
 
       {contacts && graph.links.length === 0 && (
-        <p className="pointer-events-none absolute bottom-3 left-1/2 w-max max-w-[90%] -translate-x-1/2 text-center text-xs text-zinc-600">
+        <p className="pointer-events-none absolute bottom-3 left-1/2 w-max max-w-[90%] -translate-x-1/2 text-center text-meta text-fg-3">
           No mutual links yet. Add mutuals in a person&apos;s panel and they connect here.
         </p>
       )}
 
-      {/* The legend doubles as a filter: hovering a company lights its people. */}
+      {/* The legend doubles as a filter: hovering a company lights its people. The
+          count is fg-3, not the guide's fg-4: fg-4 is 3.2:1 and a count is
+          information, and nothing a person has to read goes below fg-3. */}
       {contacts && legend.length > 0 && graph.links.length > 0 && (
-        <ul className="absolute bottom-3 left-3 flex max-w-[70%] flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+        <ul className="absolute bottom-3 left-3 flex max-w-[70%] flex-wrap gap-x-3 gap-y-1 text-meta text-fg-3">
           {legend.slice(0, 7).map((c) => (
             <li
               key={c.key}
-              className="flex cursor-default items-center gap-1.5 hover:text-zinc-300"
+              className="flex cursor-default items-center gap-1.5 transition-colors duration-90 ease-enter hover:text-fg-1"
               onPointerEnter={() => setFocus({ kind: "company", name: c.key })}
               onPointerLeave={() => setFocus(null)}
             >
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: c.color }} />
               {c.label}
-              <span className="text-zinc-700">{c.n}</span>
+              <span className="font-mono text-data-sm text-fg-3">{c.n}</span>
             </li>
           ))}
-          {legend.length > 7 && <li className="text-zinc-700">+{legend.length - 7} more</li>}
+          {legend.length > 7 && <li>+{legend.length - 7} more</li>}
         </ul>
       )}
 
@@ -734,7 +813,7 @@ function Tooltip({
   const sx = (node.x ?? 0) * view.k + view.x;
   const sy = (node.y ?? 0) * view.k + view.y;
   const W = 200;
-  const H = 62;
+  const H = 66;
   const r = node.r * Math.sqrt(view.k);
   // Beside the dot, on the side away from its connections, so the lines and names
   // the hover just lit are the ones left uncovered. Above was tried first: on a hub
@@ -750,24 +829,27 @@ function Tooltip({
   const c = node.contact;
   const warmth = c.warmth ? c.warmth[0].toUpperCase() + c.warmth.slice(1) : null;
   const meta = [c.stage || DEFAULT_STAGE, warmth].filter(Boolean).join(" · ");
+  // The mutual count used to be the networking blue; it is plain metadata now, since
+  // the lines the hover just lit already show the same thing.
   return (
     <div
-      className="pointer-events-none absolute rounded-md border border-zinc-800 bg-zinc-900/95 px-2.5 py-1.5 shadow-lg shadow-black/40"
+      className="pointer-events-none absolute rounded-card border border-line-2 bg-raised px-3 py-2 shadow-float"
       style={{ left, top, width: W, minHeight: H }}
     >
-      <div className="truncate text-xs font-medium text-zinc-100">{c.name}</div>
+      <div className="truncate text-body font-medium text-fg-1">{c.name}</div>
       {c.company && (
-        <div className="flex items-center gap-1.5 truncate text-[11px] text-zinc-400">
+        <div className="flex items-center gap-1.5 truncate text-meta text-fg-2">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: node.color }} />
           {c.company}
         </div>
       )}
-      <div className="mt-0.5 text-[11px] text-zinc-500">
+      <div className="text-meta text-fg-3">
         {meta}
         {node.degree > 0 && (
-          <span className="text-accent-blue/80">
-            {" "}· {node.degree} {node.degree === 1 ? "mutual link" : "mutual links"}
-          </span>
+          <>
+            <span className="mx-1 text-fg-4">·</span>
+            <span className="tabular-nums">{node.degree}</span> {node.degree === 1 ? "mutual link" : "mutual links"}
+          </>
         )}
       </div>
     </div>

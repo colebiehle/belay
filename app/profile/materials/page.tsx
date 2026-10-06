@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
+import { button, card, iconButton, textarea } from "@/lib/ui";
 
 type Material = {
   id: string;
@@ -134,23 +135,31 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
+      {/* The count line reads like the next-action line on the other pages: numbers
+          in the bright step, words in the dim one. The nudge about the queue was
+          alarm red on its own; it is a gap, not a breakage, so it is warn, and it
+          carries the glyph so colour is never the only signal. */}
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-100">Settings</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          {filled} of {AUTHORED.length} written
+        <h1 className="text-h1 text-fg-1">Settings</h1>
+        <p className="text-body text-fg-3 mt-1">
+          <span className="text-fg-1 tabular-nums">{filled}</span> of{" "}
+          <span className="text-fg-1 tabular-nums">{AUTHORED.length}</span> written
           {filled < AUTHORED.length && (
             <>
-              {" · "}
-              <span className="text-alarm">the queue scores against these</span>
+              <span className="text-fg-4 mx-1.5">·</span>
+              <span className="inline-flex items-center gap-1 align-bottom text-warn">
+                <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+                the queue scores against these
+              </span>
             </>
           )}
         </p>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Your profile</h2>
+      <section className="space-y-2">
+        <h2 className="t-section">Your profile</h2>
         {loading ? (
-          <p className="text-sm text-zinc-500">Loading…</p>
+          <p className="text-body text-fg-3">Loading…</p>
         ) : (
           <div className="space-y-2">
             {AUTHORED.map((a) => {
@@ -158,11 +167,11 @@ export default function SettingsPage() {
               const value = drafts[a.kind] ?? row?.content ?? "";
               const dirty = drafts[a.kind] !== undefined && drafts[a.kind] !== (row?.content ?? "");
               return (
-                <div key={a.kind} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-1.5">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-sm font-medium text-zinc-100">{a.label}</p>
+                <div key={a.kind} className={`${card} p-4 space-y-2`}>
+                  <div className="flex items-center justify-between gap-3 h-5">
+                    <p className="text-name text-fg-1">{a.label}</p>
                     {savedId && savedId === row?.id && !dirty ? (
-                      <span className="text-xs text-zinc-600 shrink-0">Saved</span>
+                      <span className="text-meta text-fg-3 shrink-0">Saved</span>
                     ) : dirty ? (
                       <button
                         onClick={() => {
@@ -173,18 +182,22 @@ export default function SettingsPage() {
                             return n;
                           });
                         }}
-                        className="text-xs font-semibold text-zinc-100 hover:opacity-80 shrink-0"
+                        // Quiet, not rope: any number of cells can be dirty at once,
+                        // and thirteen rope Saves would make rope mean nothing.
+                        className={`${button("quiet", "compact")} shrink-0`}
                       >
                         Save
                       </button>
                     ) : null}
                   </div>
-                  <p className="text-xs text-zinc-600">{a.hint}</p>
+                  <p className="text-meta text-fg-3">{a.hint}</p>
                   <AutoResizeTextarea
                     value={value}
                     onChange={(e) => setDrafts((d) => ({ ...d, [a.kind]: e.target.value }))}
                     placeholder="Write this in your own words. It is read verbatim by the drafts."
-                    className="w-full text-xs bg-transparent text-zinc-300 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed pt-1 min-h-[2rem]"
+                    aria-label={a.label}
+                    rows={1}
+                    className={textarea()}
                   />
                 </div>
               );
@@ -195,43 +208,56 @@ export default function SettingsPage() {
 
       {(gathered.length > 0 || other.length > 0) && (
         <section className="space-y-3">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">What the app has gathered</h2>
+          <h2 className="t-section">What the app has gathered</h2>
           <div className="space-y-2">
             {[...gathered, ...(other.length > 0 ? [{ label: "Other", note: "Everything else in the table.", items: other }] : [])].map(
               (g) => (
-                <div key={g.label} className="bg-zinc-900 border border-zinc-800 rounded-lg">
+                <div key={g.label} className={card}>
                   <button
                     onClick={() => toggle(g.label)}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-zinc-800/40 transition-colors duration-150 rounded-lg"
+                    className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-lift transition-colors duration-90 ease-enter rounded-card"
                   >
                     {open.has(g.label) ? (
-                      <ChevronDown size={13} className="text-zinc-600 shrink-0" />
+                      <ChevronDown size={14} strokeWidth={1.5} absoluteStrokeWidth className="text-fg-3 shrink-0" />
                     ) : (
-                      <ChevronRight size={13} className="text-zinc-600 shrink-0" />
+                      <ChevronRight size={14} strokeWidth={1.5} absoluteStrokeWidth className="text-fg-3 shrink-0" />
                     )}
-                    <span className="text-sm text-zinc-200">{g.label}</span>
-                    <span className="text-xs text-zinc-600">{g.items.length}</span>
-                    <span className="text-xs text-zinc-700 truncate ml-2">{g.note}</span>
+                    <span className="text-body text-fg-1">{g.label}</span>
+                    <span className="text-meta tabular-nums text-fg-3">{g.items.length}</span>
+                    {/* The note was near-invisible grey; it says what the group is,
+                        which is information, so it takes the readable floor. */}
+                    <span className="text-meta text-fg-3 truncate ml-2">{g.note}</span>
                   </button>
                   {open.has(g.label) && (
-                    <div className="px-4 pb-3 space-y-1">
+                    <div className="px-4 pb-3">
                       {g.items.slice(0, 200).map((m) => (
                         <div key={m.id} className="flex items-center gap-2 group">
-                          <span className="text-xs text-zinc-400 truncate flex-1">
+                          <span className="text-meta text-fg-2 truncate flex-1">
                             {m.title || m.kind}
-                            {m.content && <span className="text-zinc-700"> · {m.content.length.toLocaleString()} chars</span>}
+                            {m.content && (
+                              <>
+                                <span className="text-fg-4 mx-1.5">·</span>
+                                <span className="tabular-nums text-fg-3">
+                                  {m.content.length.toLocaleString()}
+                                </span>
+                                <span className="text-fg-3"> chars</span>
+                              </>
+                            )}
                           </span>
                           <button
                             onClick={() => remove(m.id)}
-                            className="text-zinc-700 hover:text-alarm opacity-0 group-hover:opacity-100 transition-all duration-150 shrink-0"
+                            className={`opacity-0 group-hover:opacity-100 focus-visible:opacity-100 shrink-0 ${iconButton("destructive", "compact")}`}
                             title="Delete"
+                            aria-label={`Delete ${m.title || m.kind}`}
                           >
-                            <Trash2 size={11} />
+                            <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth />
                           </button>
                         </div>
                       ))}
                       {g.items.length > 200 && (
-                        <p className="text-xs text-zinc-700">…and {g.items.length - 200} more.</p>
+                        <p className="text-meta text-fg-3">
+                          …and <span className="tabular-nums">{g.items.length - 200}</span> more.
+                        </p>
                       )}
                     </div>
                   )}

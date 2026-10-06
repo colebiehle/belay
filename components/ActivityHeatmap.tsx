@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type DayBucket = {
   date: string;
@@ -24,6 +24,7 @@ type Totals = {
 };
 
 type ActivityResponse = {
+  year: number | null;
   days: DayBucket[];
   streak: number;
   todayCounts: boolean;
@@ -31,18 +32,21 @@ type ActivityResponse = {
   yearTotals: Totals;
 };
 
-// Sized to fill the block's width with a calendar year in it. GitHub's own 11px
-// works because GitHub gives the grid a full page; here it shared a row with the
-// recap panel and came out unreadably small. The recap now sits below instead, so a
-// year of 53 columns at 18px pitch fits the container at about 980px.
-// No fixed cell size. Columns flex to fill whatever width the block has and cells
-// are square, so a year always spans the container instead of being whatever
-// 53 × a guessed pixel width happens to come to.
-// 2px rather than 3: close enough that the cursor is rarely between cells, far
-// enough that they still read as separate days.
-const GAP = 2;
-// The day-label gutter. Month labels offset by exactly this so a label sits over its
-// own column rather than near it.
+// The grid fills the panel's width: each week is a 1fr column and each day a square
+// in it, so at 1440 a cell is about 19px and at 1280 about 16px. A fixed 11px cell
+// (GitHub's) left a third of the panel empty on a wide screen, and the panel read as
+// a box with a chart in a corner. Below MIN_CELL the cells stop shrinking and the
+// year wraps into stacked bands of weeks instead (two or three on a phone). It never
+// scrolls sideways: it used to, on a phone and (with a stray 54th week) on wide
+// screens too, and a chart you have to pan is a chart you only see part of.
+// The legend keeps 11px squares: it is a key, not a row of days.
+const MIN_CELL = 10;
+const LEGEND_CELL = 11;
+// Close enough that the cursor is rarely between cells, far enough that they still
+// read as separate days at the larger sizes.
+const GAP = 3;
+// The day-label gutter: the first grid column, so month labels and cells share the
+// grid's own columns rather than being offset to match them.
 const GUTTER = 32;
 
 // API date strings are local-calendar YYYY-MM-DD. `new Date("2026-05-19")` parses
@@ -53,48 +57,30 @@ function parseLocalDate(dateStr: string): Date {
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
-// Intensity is total effort; hue is where the effort went. A day with any networking
-// in it at all leans blue, because networking is the rarer act and the thing worth
-// seeing on a wall of application days — a day that was mostly triage and one message
-// is still a day you reached out, and that is the fact worth surfacing.
-//
-// This replaces fill-plus-underline. The underline was a second channel saying what
-// the hue can say on its own, and it also lit up for "a contact was added", which is
-// not progress and had no row in the recap to explain itself.
-//
-// Empty is a step lighter than the panel: bg-zinc-900 was the panel's own background,
-// so empty days used to be invisible and the grid had no shape before activity.
 /**
- * Fill is how much, hue is which half of the search it was.
+ * One neutral ramp, by how much happened. Which half of the search it was is no
+ * longer a hue: the grid used pink for applying, blue for people and violet for a day
+ * of both, which made three colours carry one question ("how much?") and pushed a
+ * second one ("which side?") onto a 11px square that cannot hold it. The day detail
+ * under the grid answers the second question in words, by position.
  *
- * The ramp starts at 45% rather than 25%: these accents are pastels, and a quarter
- * of a pastel over a near-black ground is mostly ground, so the quietest days came
- * out grey-mauve and grey-teal instead of a dull pink and a dull blue. Four steps
- * between 45 and 100 keep the hue legible the whole way down.
+ * Steps are about 1.5-2.1:1 apart, so each one reads at 11px, and empty (heat-0) is
+ * a step lighter than the card, so the grid has its shape before any activity.
  *
- * Three hues, not two. The old version asked `netWeight > 0` and painted the whole
- * cell blue on that alone, so a day of nine roles triaged and one message sent
- * reported itself as a networking day. That is backwards, and it hid the days that
- * actually matter most: the ones where both halves happened. Those get their own
- * colour now, sitting between the two accents, because a day you applied *and*
- * reached out is not a louder version of either one.
+ * The total is weighted the way it always was: an application or an interview is
+ * three triages' worth, a message two, a call three. Ten roles skimmed is a busy day
+ * but not three times the day one application and one coffee chat make.
  */
 // Written out rather than composed, because Tailwind scans for literal class
-// strings and a `bg-${hue}/25` template never makes it into the stylesheet.
-const RAMP: Record<"app" | "net" | "both", [string, string, string, string]> = {
-  app: ["bg-accent-pink/45", "bg-accent-pink/65", "bg-accent-pink/85", "bg-accent-pink"],
-  net: ["bg-accent-blue/45", "bg-accent-blue/65", "bg-accent-blue/85", "bg-accent-blue"],
-  both: ["bg-accent-both/45", "bg-accent-both/65", "bg-accent-both/85", "bg-accent-both"],
-};
+// strings and a `bg-heat-${n}` template never makes it into the stylesheet.
+const HEAT = ["bg-heat-0", "bg-heat-1", "bg-heat-2", "bg-heat-3", "bg-heat-4"] as const;
 
-function intensityClass(appWeight: number, netWeight: number): string {
-  const total = appWeight + netWeight;
-  if (total === 0) return "bg-zinc-800";
-  const ramp = RAMP[appWeight > 0 && netWeight > 0 ? "both" : netWeight > 0 ? "net" : "app"];
-  if (total < 2) return ramp[0];
-  if (total < 5) return ramp[1];
-  if (total < 10) return ramp[2];
-  return ramp[3];
+function intensityClass(weight: number): string {
+  if (weight === 0) return HEAT[0];
+  if (weight < 2) return HEAT[1];
+  if (weight < 5) return HEAT[2];
+  if (weight < 10) return HEAT[3];
+  return HEAT[4];
 }
 
 function formatDateLong(dateStr: string): string {
@@ -130,14 +116,16 @@ function buildGrid(days: DayBucket[]): (DayBucket | null)[][] {
   return columns;
 }
 
-// Labels the column that actually contains the 1st of a month, positioned
-// absolutely at that column's offset. The old version labelled whichever column
-// happened to hold the month's earliest *Monday*, so a month starting on a Friday
-// was labelled a column early, and it laid labels out in a flex row of
-// fixed-width divs that did not match the grid's own column pitch.
-function MonthLabels({ columns }: { columns: (DayBucket | null)[][] }) {
+// Labels the column that actually contains the 1st of a month, placed in that
+// column of the same grid as the cells. Each label is zero-width and overflows to the
+// right, so a three-letter month never widens its one-week column. In a wrapped band
+// (a phone), a band that starts mid-month names that month on its first column, and
+// a 1st in a band's last two columns is left to the next band's first column, so no
+// label overruns the band's right edge.
+function MonthLabels({ columns, band }: { columns: (DayBucket | null)[][]; band: number }) {
   const labels: { month: string; idx: number }[] = [];
   columns.forEach((col, idx) => {
+    if (idx >= columns.length - 2) return;
     for (const cell of col) {
       if (!cell) continue;
       const d = parseLocalDate(cell.date);
@@ -147,75 +135,111 @@ function MonthLabels({ columns }: { columns: (DayBucket | null)[][] }) {
       }
     }
   });
+  if (band > 0 && !(labels[0]?.idx < 3)) {
+    const first = columns[0]?.find((c) => c !== null);
+    if (first) labels.unshift({ month: parseLocalDate(first.date).toLocaleString(undefined, { month: "short" }), idx: 0 });
+  }
   return (
-    <div className="relative h-4 mb-1.5" style={{ marginLeft: GUTTER }}>
+    <>
       {labels.map((l) => (
         <span
           key={`${l.month}-${l.idx}`}
-          className="absolute text-[11px] text-zinc-500 whitespace-nowrap"
-          style={{ left: `${(l.idx / columns.length) * 100}%` }}
+          className="w-0 text-meta text-fg-3 whitespace-nowrap"
+          style={{ gridRow: 1, gridColumn: l.idx + 2 }}
         >
           {l.month}
         </span>
       ))}
-    </div>
+    </>
   );
 }
 
+type RecapRow = { label: string; day: number; year: number };
 
 function RecapPanel({
   day,
   isToday,
+  year,
   yearTotals,
 }: {
-  day: DayBucket;
+  day: DayBucket | null;
   isToday: boolean;
+  year: number;
   yearTotals: Totals;
 }) {
-  // A horizontal strip rather than a tall four-column table. Under a full-width
-  // grid the table shape left most of the row empty, and five rows of
-  // label-number-number-number is a lot of repeated structure for fifteen numbers.
-  const rows: { label: string; day: number; all: number; tone: "app" | "net" }[] = [
-    { label: "Roles triaged", day: day.jobsReviewed, all: yearTotals.jobsReviewed, tone: "app" },
-    { label: "Applications submitted", day: day.applied, all: yearTotals.applied, tone: "app" },
-    { label: "Interviews", day: day.interviewScheduled, all: yearTotals.interviewScheduled, tone: "app" },
-    { label: "People identified", day: day.contactsAdded, all: yearTotals.contactsAdded, tone: "net" },
-    { label: "People messaged", day: day.outreachSent, all: yearTotals.outreachSent, tone: "net" },
-    { label: "Coffee chats", day: day.coffeeChats, all: yearTotals.coffeeChats, tone: "net" },
+  // Two groups, one per half of the search, side by side. The side is where the row
+  // sits and the word above it, not a hue.
+  const groups: { title: string; rows: RecapRow[] }[] = [
+    {
+      title: "Roles",
+      rows: [
+        { label: "Roles triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
+        { label: "Applications submitted", day: day?.applied ?? 0, year: yearTotals.applied },
+        { label: "Interviews", day: day?.interviewScheduled ?? 0, year: yearTotals.interviewScheduled },
+      ],
+    },
+    {
+      title: "People",
+      rows: [
+        { label: "People identified", day: day?.contactsAdded ?? 0, year: yearTotals.contactsAdded },
+        { label: "People messaged", day: day?.outreachSent ?? 0, year: yearTotals.outreachSent },
+        { label: "Coffee chats", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
+      ],
+    },
   ];
 
   return (
     <div>
-      {/* Always rendered. When this appeared only on hover the block changed height
-          as the cursor crossed the grid, which made the whole panel jump. */}
-      <p className="text-xs text-zinc-500 mb-3">
-        {isToday ? "Today" : formatDateLong(day.date)}
+      {/* Always rendered, at a fixed height. When this appeared only on hover the
+          block changed height as the cursor crossed the grid and the panel jumped.
+          A year with no activity has no day to show, and says so here. */}
+      <p className="flex items-baseline gap-2 mb-2 h-5">
+        {day ? (
+          <>
+            <span className="text-body text-fg-1 tabular-nums">{formatDateLong(day.date)}</span>
+            {isToday && <span className="text-meta text-fg-3">Today</span>}
+          </>
+        ) : (
+          <span className="text-body text-fg-3">No activity in {year}</span>
+        )}
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {rows.map((r) => {
-          const tone = r.tone === "app" ? "text-accent-pink" : "text-accent-blue";
-          return (
-            <div key={r.label} className="border border-zinc-800 rounded-lg px-3 py-2.5">
-              <p className="text-xs text-zinc-400 leading-snug min-h-[2rem]">{r.label}</p>
-              <div className="mt-1.5 flex items-end gap-4">
-                {/* Day is the number they are here to read; year is reference behind it.
-                    Same size at the same weight made them compete. */}
-                <div>
-                  <p className={`text-2xl font-bold tabular-nums leading-none ${r.day > 0 ? tone : "text-zinc-700"}`}>
-                    {r.day}
-                  </p>
-                  <p className="text-[10px] text-zinc-600 mt-0.5">day</p>
+      {/* Each row reads as a sentence: the day's count, what it counts, then the
+          year's total in the dim step after it ("3 Roles triaged · 41 in 2026").
+          The numbers used to sit in two right-hand columns, a hundred pixels or more
+          from labels like "Interviews", so it was hard to see which number went
+          with which row. Now every number touches its label.
+          No jitter: the day count is a fixed 3ch box, right-aligned in tabular mono,
+          so the label after it never moves as the cursor sweeps the grid; the year
+          total does not change on hover at all; rows are a fixed 28px. */}
+      <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
+        {groups.map((g) => (
+          <div key={g.title}>
+            <h3 className="t-group h-7 leading-7">{g.title}</h3>
+            <dl>
+              {g.rows.map((r) => (
+                <div key={r.label} className="flex items-baseline gap-1.5 h-7 leading-7 min-w-0">
+                  {/* Day is the number they are here to read, so it is the bright
+                      step; a zero day drops to fg-3 so the counts that happened are
+                      the ones that show. */}
+                  <dd
+                    className={`order-first w-[3ch] mr-1.5 shrink-0 font-mono text-data tabular-nums text-right ${
+                      day && r.day > 0 ? "text-fg-1" : "text-fg-3"
+                    }`}
+                  >
+                    {day ? r.day : "–"}
+                  </dd>
+                  <dt className="text-body text-fg-2 truncate min-w-0">{r.label}</dt>
+                  <dd className="shrink-0 text-meta text-fg-3 tabular-nums">
+                    <span className="text-fg-4 mr-1.5" aria-hidden>
+                      ·
+                    </span>
+                    {r.year} in {year}
+                  </dd>
                 </div>
-                <div className="opacity-50">
-                  <p className={`text-lg font-bold tabular-nums leading-none ${r.all > 0 ? tone : "text-zinc-700"}`}>
-                    {r.all}
-                  </p>
-                  <p className="text-[10px] text-zinc-600 mt-0.5">year</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              ))}
+            </dl>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -223,20 +247,43 @@ function RecapPanel({
 
 const THIS_YEAR = new Date().getFullYear();
 
+/**
+ * The day the detail shows when the cursor is not on the grid. The current year:
+ * today. Another year: its last active day, since that year's "today" is not on the
+ * grid (it used to show today's date, with today's counts, under a 2025 grid). A
+ * year with no activity: nothing, and the detail says so.
+ */
+function restingDay(data: ActivityResponse): DayBucket | null {
+  if (data.days.some((d) => d.date === data.today.date)) return data.today;
+  for (let i = data.days.length - 1; i >= 0; i--) if (data.days[i].total > 0) return data.days[i];
+  return null;
+}
+
+/** How many stacked bands the year needs so a cell stays at MIN_CELL or more. */
+function bandsFor(width: number, weeks: number): number {
+  if (width <= 0 || weeks === 0) return 1;
+  const perBand = Math.max(1, Math.floor((width - GUTTER + GAP) / (MIN_CELL + GAP)));
+  return Math.ceil(weeks / perBand);
+}
+
 export function ActivityHeatmap() {
   const [year, setYear] = useState(THIS_YEAR);
-  // The grid is a year wide, so the current week can sit off the right edge. Scroll
-  // to it on load rather than making you find today yourself.
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<ActivityResponse | null>(null);
   const [hoveredDay, setHoveredDay] = useState<DayBucket | null>(null);
+  // The grid's width, so the year can wrap into bands rather than scroll.
+  const gridHostRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState(0);
 
   useEffect(() => {
-    // A full calendar year, like GitHub's. 91 days showed a quarter of a search
-    // that has been running longer than that, and left the grid mostly empty with
-    // no sense of the shape of the whole thing.
+    // A full calendar year, like GitHub's. A response for a year you have since
+    // moved off is dropped, so a slow 2025 cannot land on top of 2026.
+    let live = true;
     const load = () =>
-      fetch(`/api/activity?year=${year}`).then((r) => r.json()).then(setData);
+      fetch(`/api/activity?year=${year}`)
+        .then((r) => r.json())
+        .then((d: ActivityResponse) => {
+          if (live) setData(d);
+        });
     load();
     // Refetch when the tab regains focus so activity logged today updates today's cell
     // without a full reload.
@@ -245,158 +292,176 @@ export function ActivityHeatmap() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      live = false;
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [year]);
 
-  // Park the view on the current week once the year's data is in.
+  const loaded = data !== null;
   useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el || !data) return;
-    el.scrollLeft = el.scrollWidth;
-  }, [data]);
+    const el = gridHostRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setGridWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loaded]);
 
   if (!data) {
-    return <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 h-56 animate-pulse" />;
+    // A still placeholder at about the loaded height, not a pulse: nothing on first
+    // paint animates, and a shimmering block is louder than the grid it stands for.
+    // The heading renders straight away so the sections below do not move up and
+    // back down when the data lands.
+    return (
+      <section>
+        <h2 className="t-section mb-3">Progress</h2>
+        <div className="bg-surface rounded-card h-96" aria-hidden />
+      </section>
+    );
   }
 
+  // Until the response for the picked year lands, the numbers on screen are the old
+  // year's; label them with the year they belong to, not the one in the select.
+  const shownYear = data.year ?? year;
   const columns = buildGrid(data.days);
+  const bandCount = bandsFor(gridWidth, columns.length);
+  const perBand = Math.ceil(columns.length / bandCount);
+  const bands = Array.from({ length: bandCount }, (_, i) => columns.slice(i * perBand, (i + 1) * perBand));
   const dayRowLabels = ["Mon", "", "Wed", "", "Fri", "", ""];
 
-  const displayDay = hoveredDay ?? data.today;
+  const displayDay = hoveredDay ?? restingDay(data);
   const todayDate = data.today.date;
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Progress</h2>
-        {/* The year picker, not a streak. The streak moved inside the block below:
-            out here, right-aligned on its own, it read as a button. */}
-        <select
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value))}
-          className="text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-zinc-400 focus:outline-none focus:border-zinc-700"
-        >
-          {[THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2].map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
+  // The select, shared by the panel header. Same frame as every other select (canvas
+  // fill, line-input border, rope on focus). Changing it drops the hovered day, so
+  // the detail falls back to the new year's resting day.
+  const yearSelect = (
+    <select
+      value={year}
+      onChange={(e) => {
+        setHoveredDay(null);
+        setYear(Number(e.target.value));
+      }}
+      aria-label="Year"
+      className="h-7 bg-canvas border border-line-input rounded-control px-2 text-body tabular-nums text-fg-1 hover:border-fg-3 focus:border-rope transition-colors duration-90 ease-enter"
+    >
+      {[THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2].map((y) => (
+        <option key={y} value={y}>
+          {y}
+        </option>
+      ))}
+    </select>
+  );
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-6">
-        {/* Heatmap */}
+  return (
+    <section>
+      <h2 className="t-section mb-3">Progress</h2>
+
+      <div className="bg-surface rounded-card p-4 space-y-4">
+        {/* The panel's own header: the streak on the left, the year on the right.
+            The streak is always the current one, whichever year is on screen. */}
+        <div className="flex items-center justify-between gap-4">
+          <p className="flex items-center gap-2 text-meta">
+            <span className="text-fg-2">{data.streak === 0 ? "No streak" : `${data.streak}-day streak`}</span>
+            {data.streak > 0 && !data.todayCounts && <span className="text-fg-3">save it today</span>}
+          </p>
+          {yearSelect}
+        </div>
+
         {/* onMouseLeave lives here, not on each cell. Clearing per cell meant the
-            3px gaps between them reset the recap to today, so sweeping across a week
-            flickered between the hovered day and today on every gap. */}
-        <div ref={scrollerRef} onMouseLeave={() => setHoveredDay(null)}>
-          <MonthLabels columns={columns} />
-          <div className="flex" style={{ gap: GAP }}>
-            <div
-              className="flex flex-col text-[11px] text-zinc-500 select-none shrink-0"
-              style={{ gap: GAP, width: GUTTER }}
-            >
-              {dayRowLabels.map((l, i) => (
-                <div key={i} className="flex-1 flex items-center">
-                  {l}
-                </div>
-              ))}
-            </div>
-            {columns.map((col, ci) => (
-              <div key={ci} className="flex flex-col flex-1 min-w-0" style={{ gap: GAP }}>
-                {col.map((b, ri) => {
-                  if (b === null) return <div key={ri} className="w-full aspect-square" />;
-                  const isHovered = hoveredDay?.date === b.date;
-                  const isToday = b.date === todayDate;
-                  // Today is a white outline sitting outside the cell.
-                  const todayRing = isToday
-                    ? "ring-2 ring-zinc-100 ring-offset-1 ring-offset-zinc-900"
-                    : "";
-                  // Fill intensity is effort, fill hue is where it went, and a dot in
-                  // the middle means a dated event happened: an interview, or a call.
-                  //
-                  // It used to be an inset ring, which put three different meanings on
-                  // the same device — today, hover and event were all rings — so they
-                  // had to take turns, and an interview on a hovered day simply
-                  // vanished. A dot sits inside the cell and never competes. Not an X:
-                  // at this size it is fiddly, and a cross reads as cancelled, which is
-                  // the wrong note for the two best things that happen in a search.
-                  //
-                  // A plain coloured dot did not work: an interview already makes its
-                  // day pink, so a pink dot on it vanished. The dot is dark for contrast
-                  // against any fill, and the colour moved out to the cell edge where it
-                  // has room to read.
-                  //
-                  // contactsAdded counts on the networking side at triage weight; it has
-                  // its own recap row now, so a day of finding people reports it.
-                  const appWeight = b.jobsReviewed * 1 + b.applied * 3 + b.interviewScheduled * 3;
-                  const netWeight = b.contactsAdded * 1 + b.outreachSent * 2 + b.coffeeChats * 3;
-                  // Two marks doing two jobs: a dark dot that says something was on the
-                  // calendar, and a coloured outline on the whole cell that says which.
-                  //
-                  // Splitting them is what makes the outline safe to lose. Today's ring
-                  // sits outside the cell so the two coexist, and hover replaces the
-                  // outline for as long as the cursor is there — but the dot stays put,
-                  // so the day never stops announcing itself.
-                  const hasEvent = b.interviewScheduled > 0 || b.coffeeChats > 0;
-                  const eventRing = b.interviewScheduled
-                    ? "ring-2 ring-inset ring-accent-pink"
-                    : b.coffeeChats
-                      ? "ring-2 ring-inset ring-accent-blue"
-                      : "";
-                  return (
-                    <div
-                      key={ri}
-                      onMouseEnter={() => setHoveredDay(b)}
-                      className={`relative w-full aspect-square rounded-sm flex items-center justify-center ${intensityClass(
-                        appWeight,
-                        netWeight,
-                      )} ${
-                        isHovered
-                          ? "ring-2 ring-inset ring-zinc-100"
-                          : `${eventRing} ${todayRing}`
-                      }`}
-                    >
-                      {hasEvent && <span className="w-1.5 h-1.5 rounded-full bg-zinc-950/80" />}
-                    </div>
-                  );
-                })}
+            gaps between them reset the recap, so sweeping across a week flickered
+            between the hovered day and the resting day on every gap. */}
+        <div onMouseLeave={() => setHoveredDay(null)}>
+          {/* min-w-0 and overflow clip: nothing in here may widen the page. Bands
+              keep each cell at MIN_CELL or more, and a month label is never placed
+              where it could overrun the right edge, so the clip is a backstop. */}
+          <div ref={gridHostRef} className="min-w-0 overflow-x-clip space-y-3">
+            {bands.map((band, bi) => (
+              <div
+                key={bi}
+                className="grid"
+                style={{
+                  // Every band has the same column count (the last is padded), so a
+                  // cell is the same size in every band.
+                  gridTemplateColumns: `${GUTTER}px repeat(${perBand}, minmax(0, 1fr))`,
+                  gridTemplateRows: "16px",
+                  gridAutoRows: "auto",
+                  gap: GAP,
+                }}
+              >
+                <MonthLabels columns={band} band={bi} />
+                {dayRowLabels.map((l, i) => (
+                  <div
+                    key={`d${i}`}
+                    className="flex items-center text-meta leading-none text-fg-3 select-none"
+                    style={{ gridRow: i + 2, gridColumn: 1 }}
+                  >
+                    {l}
+                  </div>
+                ))}
+                {band.map((col, ci) =>
+                  col.map((b, ri) => {
+                    const place = { gridRow: ri + 2, gridColumn: ci + 2 };
+                    if (b === null) return <div key={`${ci}-${ri}`} className="aspect-square" style={place} />;
+                    const isHovered = hoveredDay?.date === b.date;
+                    const isToday = b.date === todayDate;
+                    // contactsAdded counts on the people side at triage weight; it has
+                    // its own recap row, so a day of finding people reports it.
+                    const weight =
+                      b.jobsReviewed * 1 + b.applied * 3 + b.interviewScheduled * 3 +
+                      b.contactsAdded * 1 + b.outreachSent * 2 + b.coffeeChats * 3;
+                    // Rings are inset and 1.5px so they sit inside the cell and never
+                    // push into the gap. Today is rope, because rope is "where you are";
+                    // the day you are pointing at is fg-1 and takes over for as long as
+                    // the cursor is there, since the detail below is then about that day.
+                    // With the cursor off the grid, the resting day of a past year
+                    // carries the fg-1 ring, so you can see which day the detail is.
+                    const isResting = !hoveredDay && !isToday && displayDay?.date === b.date;
+                    const ring = isHovered || isResting
+                      ? "ring-[1.5px] ring-inset ring-fg-1"
+                      : isToday
+                        ? "ring-[1.5px] ring-inset ring-rope"
+                        : "";
+                    // A dated event (an interview or a call) is a small canvas dot in
+                    // the middle of the cell; the detail below says what it was.
+                    const hasEvent = b.interviewScheduled > 0 || b.coffeeChats > 0;
+                    return (
+                      <div
+                        key={`${ci}-${ri}`}
+                        onMouseEnter={() => setHoveredDay(b)}
+                        style={place}
+                        className={`aspect-square rounded-[2px] flex items-center justify-center ${intensityClass(weight)} ${ring}`}
+                      >
+                        {hasEvent && <span className="w-1 h-1 rounded-full bg-canvas" />}
+                      </div>
+                    );
+                  }),
+                )}
               </div>
             ))}
           </div>
-          {/* The Less/More key is gone: the scale is obvious from the grid, and it
-              was five squares explaining five squares. The streak sits here instead,
-              inside the block, where it reads as a stat rather than a control. */}
-          <p className="mt-5 text-xs flex items-center gap-1.5">
-            <span
-              className={
-                data.streak === 0
-                  ? "text-zinc-600"
-                  : data.todayCounts
-                    ? "text-accent-pink font-semibold"
-                    : "text-zinc-500 font-semibold"
-              }
-            >
-              {data.streak === 0 ? "No streak" : `${data.streak}-day streak`}
-            </span>
-            {data.streak > 0 && !data.todayCounts && (
-              <span className="text-[10px] text-zinc-600 italic">save it today</span>
-            )}
-          </p>
+          {/* The key, right-aligned under the grid: with one neutral ramp the five
+              steps are close enough that "Less" and "More" are worth the line. */}
+          <div className="mt-3 flex items-center justify-end gap-0.5 text-meta text-fg-3" aria-hidden>
+            <span className="mr-1">Less</span>
+            {HEAT.map((c) => (
+              <span key={c} className={`rounded-[2px] ${c}`} style={{ width: LEGEND_CELL, height: LEGEND_CELL }} />
+            ))}
+            <span className="ml-1">More</span>
+          </div>
         </div>
 
-        {/* Recap below the grid, not beside it. Side by side, the grid got half
-            the width and a year of 11px cells was not readable. */}
-        <div className="border-t border-zinc-800 pt-5">
+        {/* Day detail below the grid, not beside it. Side by side, the grid got half
+            the width and a year of cells was not readable. */}
+        <div className="border-t border-line-1 pt-4">
           <RecapPanel
             day={displayDay}
-            isToday={displayDay.date === todayDate}
+            isToday={displayDay?.date === todayDate}
+            year={shownYear}
             yearTotals={data.yearTotals}
           />
         </div>
       </div>
-    </div>
+    </section>
   );
 }

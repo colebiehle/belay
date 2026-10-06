@@ -1,5 +1,7 @@
 /**
- * Brand accents for the role workspace.
+ * Company colours. They are content, not chrome: a brand colour appears on the logo
+ * tile, the slide-over header's 3px band and 24% wash, and the network graph's
+ * nodes, and on no control anywhere (STYLE_GUIDE 2.6).
  *
  * The first attempt sampled the company's logo on a canvas at runtime. It did not
  * work, for two reasons: the panel built the logo URL by stripping non-alphanumerics
@@ -7,9 +9,9 @@
  * and Clearbit's response taints a cross-origin canvas, so even a correct URL
  * returned nothing readable.
  *
- * This is the honest version: a short hand-checked list, and the theme accent for
- * everything else. It covers the companies you actually have roles from; the
- * fallback is not a degraded state, it just looks like the rest of the app.
+ * This is the honest version: a short hand-checked list, then the logo read through
+ * /api/logo (lib/use-brand-color.ts). The fallback is not a degraded state: a
+ * company with no colour gets a plain header, which looks like the rest of the app.
  */
 const BRAND: Record<string, string> = {
   "google.com": "#4285F4",
@@ -50,7 +52,7 @@ const BRAND: Record<string, string> = {
   "ideo.com": "#000000",
 };
 
-/** Null means "use the theme accent", which is a choice rather than a failure. */
+/** Null means "no brand colour": no band, no wash, a neutral graph node. A choice, not a failure. */
 export function brandColor(logoDomain: string): string | null {
   return BRAND[logoDomain.toLowerCase()] ?? null;
 }
@@ -58,11 +60,11 @@ export function brandColor(logoDomain: string): string | null {
 /**
  * Black or white, whichever is legible on `hex`.
  *
- * The panel paints the stage chip with the brand colour and the label in black. Five
- * of the colours in this table are near-black — Notion, IDEO, Nike, Uber, Epic — so
- * those chips were black text on a black fill. One gradient per company would have
- * made this harder rather than easier, since the contrast would then vary across the
- * chip; a single colour plus this check is the version that holds.
+ * Written when the panel painted its stage chip in the brand colour: five of the
+ * colours in this table are near-black (Notion, IDEO, Nike, Uber, Epic), so those
+ * chips were black text on a black fill. Stage chips are a neutral ramp now and no
+ * text sits on a brand fill, so nothing calls this today; it is kept for logo
+ * plates, the one place a brand fill could still carry a mark or a letter.
  *
  * sRGB relative luminance, 0.5 as the switch point. Close enough for a chip, and it
  * needs no colour library.
@@ -88,9 +90,9 @@ export function readableOn(hex: string): "#000000" | "#ffffff" {
  * Lift a brand colour that is too dark to function as an accent.
  *
  * Five of the colours in the table are effectively black: Notion and IDEO are
- * #000000, Nike is #111111, Uber is #09091A, Epic is #2A2A2A. The panel they accent
- * sits on zinc-950, so those brands produced an invisible left border, an invisible
- * glow, and a stage chip that read as a hole punched in the page.
+ * #000000, Nike is #111111, Uber is #09091A, Epic is #2A2A2A. The panel header band
+ * and the graph nodes sit on near-black graphite, so those brands drew an invisible
+ * band and a node that read as a hole punched in the canvas.
  *
  * The fix is a floor, not a replacement: the hue is kept and the colour is raised
  * toward a dark grey until it separates from the background. A brand that is actually
@@ -118,7 +120,7 @@ export function usableAccent(hex: string): string {
   if (Number.isNaN(n) || full.length !== 6) return "#52525b";
   let [r, g, bl] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   // Walk it up toward grey until it clears the floor. Pure black has no hue to
-  // preserve, so it lands on zinc-600 and reads as a deliberate neutral.
+  // preserve, so it lands on a mid grey and reads as a deliberate neutral.
   for (let i = 0; i < 24 && luminance(`#${[r, g, bl].map((v) => v.toString(16).padStart(2, "0")).join("")}`) < MIN_LUM; i++) {
     r = Math.min(255, r + 10);
     g = Math.min(255, g + 10);

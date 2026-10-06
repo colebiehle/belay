@@ -1,7 +1,10 @@
 # Belay style guide
 
-*Version 1, 6 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
-This is the decision. The proposals stay as the record of the argument.*
+*Version 1.2, 6 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
+This is the decision. The proposals stay as the record of the argument. Version 1.1
+folds in a design critique of the shipped rebrand; version 1.2 folds in the owner's
+feedback on the queues, lists, panels and add forms. Every change each made is listed,
+with its reason, in Part 3 at the end.*
 
 How to read this: Part 1 explains the rulings and why they were made. Part 2 is the
 spec. If you are only implementing, start at Part 2. Every value in Part 2 is final
@@ -22,7 +25,8 @@ unless it is marked "verify".
 - **One accent, rope orange.** Two of the three chose it independently (`#F57F3A` and
   `#F0803C`). The third chose a yellow highlighter.
 - **Hierarchy comes from lightness, not shadow.** The surface gets lighter as it gets
-  closer to you. Hairline borders do the structure. Shadows only on things that float.
+  closer to you. Tone does the structure; hairlines only where tone cannot (v1.1, see
+  4.3). Shadows only on things that float.
 - **The dot grid comes off content pages.** Two of the three move it to the network
   graph only. The third keeps it on the page ground.
 - **The dimmest readable text is at least 4.5:1.** Today `text-zinc-600` and
@@ -42,10 +46,10 @@ unless it is marked "verify".
 | 2 | Do pink and blue survive as section accents? | **No. Both are retired from the UI.** Stage ramps become one shared neutral ramp. The heatmap becomes one ramp. The nav underline is rope on every page. | "Practical, dense, legible" means each hue gets one job. Pink and blue only tell you which side of the app you are on, which the nav and the page title already say. They also forced a third chrome hue (`accent-both`) and a separate alarm hue. Removing them is what lets company colour be the only colour in a panel. | They are a learned mapping, and the half-rope argument is real: two strands in two colours, so one person never mixes them up. |
 | 3 | Type families: one (Plex Sans + Plex Mono), two (Archivo + Plex Mono) or three (Newsreader + Instrument Sans + Plex Mono) | **Two: Archivo for everything, IBM Plex Mono for numbers that get compared.** | One working face keeps it dense and quick to build. Archivo's width axis gives the wordmark and labels a stamped, engineered look. It reads as a decision without needing a serif. A serif on a dark, dense triage tool is the "precious" the owner ruled out. | A serif display face makes the tool look authored and editorial, which is good for a portfolio. Plex Sans with Plex Mono share metrics exactly. |
 | 4 | Warm or cool neutrals | **Cool-neutral graphite**: OKLCH hue 260 at chroma 0.004 to 0.010. Close enough to grey that it reads as neutral. | Company colours are the point of the panels, so the ground has to sit as close to neutral as possible. Warm greys turn brown next to an orange accent and look like a theme. A faint cool tint makes orange stand out by complement. | Warm granite or paper is easier on the eyes in month four of a stressful search, and less "developer tool". |
-| 5 | Density | **Set per surface, never by the user.** Queue: comfortable cards. Every list: compact 44px rows in one container instead of separate cards. No density setting. | Daily use and fast scanning. The people list today spends about 66px per person in separate cards. At 44px, a 900px viewport shows about 14 people instead of 8. A setting is one more thing to maintain in a solo codebase. | A user setting would cover the laptop screen and the large monitor, and the days you want air. |
+| 5 | Density | **Set per surface, never by the user.** Queue: comfortable cards. Every list: two-line rows in one container instead of separate cards (44px in v1, 56px since v1.2). No density setting. | Daily use and fast scanning. The people list today spends about 66px per person in separate cards. At 44px, a 900px viewport shows about 14 people instead of 8. A setting is one more thing to maintain in a solo codebase. | A user setting would cover the laptop screen and the large monitor, and the days you want air. |
 | 6 | Network graph | **A hybrid.** Instrument-style canvas (the dot grid lives only here, and the simulation stops when it settles). Company-coloured nodes, kept. Stage is encoded as a hollow or filled node, the notebook's idea. Rope orange is the only highlight. | Graph nodes are the second place company colour belongs, and the owner likes it. Hollow versus filled works without colour. Stage-weighted edges (the chalk-and-rope proposal) do not fit the data: edges are mutual links between two contacts, not your relationship with either one. | A pure topo (single ink, stage on edges) would be the most distinctive portfolio image. |
 | 7 | Logo | **The top-rope arch** (from "quiet instrument"). Not the figure-eight knot. | Two proposals chose the knot, but it fails two practical tests. Its over-and-under crossing turns to mush at 16px, and Gemini reliably draws knots wrong, so the owner would be fixing topology instead of refining. The arch is three points and one line. It is literally a belay (anchor, climber, belayer), it is a three-node graph fragment for the network side, and it holds at favicon size. | The figure-eight is the most trusted object in climbing, checked by a partner, and it doubles as a B. |
-| 8 | Panel header: brand wash or a 4px strip | **Keep the wash**, made safer: a 16% brand-tinted gradient fading to the panel colour, plus a 3px brand band on the top edge. Nothing else in the panel takes brand colour. | The owner asked for this explicitly. Contrast is computed: at 16%, `fg-1` stays at 8.8:1 or better and `fg-2` at 5.4:1 or better against every tested brand, including pure white and lime. | A strip says the panel is about your relationship with the company, not the company's marketing. |
+| 8 | Panel header: brand wash or a 4px strip | **Keep the wash**, made safer: a brand tint (16% at rollout, 24% after, 22% since the v1.1 panel colour; see 2.6), a gradient fading to the panel colour until v1.2 and a **flat band across the whole header** since. Nothing else in the panel takes brand colour. (The 3px brand band that sat on the top edge was dropped in v1.1: on orange brands it read as rope.) | The owner asked for this explicitly. Contrast is measured: at 22% on the v1.1 `raised`, `fg-1` stays at 7.64:1 or better and `fg-2` at 4.67:1 or better across the whole flat band against every tested brand, including pure white and Snap yellow. | A strip says the panel is about your relationship with the company, not the company's marketing. |
 | 9 | Pills | **No pills except dots and avatars.** Chips, stage chips, filter toggles and count badges are 4px rectangles. | Rectangles are denser and read as controls on an instrument. Pills read as friendly decoration. | Pill for "moves along a track", rectangle for "holds things" gives shape a meaning. |
 | 10 | Notebook grammar (date margin, dashed means tentative) | **Adopt two pieces.** A dashed border means written but not sent (the **Drafted** stage chip and unsent drafts). A fixed mono date column goes on log-shaped lists (history, timeline, Coming up). No double rules, no 72px margin on the queue. | Both carry meaning without colour, and Drafted is a stage the owner built specifically to make visible. | The full ledger system is what makes the notebook direction coherent. Partial adoption weakens it. |
 
@@ -71,8 +75,8 @@ in the panels, and one rope-orange line that marks your next move.**
   2. **Motivational.** No cheering, no confetti, no "You've got this", no exclamation
      marks.
   3. **Decorative.** No gradients on chrome, no glass, no glow, and no colour that
-     doesn't have a job. The only gradients are the brand header wash and the graph
-     canvas lift.
+     doesn't have a job. The only gradient is the graph canvas lift (the brand header
+     is a flat tint since v1.2).
 
 ### 2. Colour
 
@@ -97,37 +101,48 @@ background (`canvas`), cards (`surface`), panels (`raised`), and hover or select
 
 **Surfaces and lines**
 
-| Token | Hex | OKLCH | vs canvas | vs surface | vs raised | Use |
-|---|---|---|---|---|---|---|
-| `canvas` | `#0D0E10` | `oklch(0.165 0.004 260)` | — | 1.06 | 1.14 | Page background, input fill on panels |
-| `surface` | `#141618` | `oklch(0.198 0.005 260)` | 1.06 | — | 1.07 | Cards, list containers, tab bar |
-| `raised` | `#1B1D1F` | `oklch(0.228 0.006 260)` | 1.14 | 1.07 | — | Slide-over panels, popovers, modals, tooltips |
-| `lift` | `#232528` | `oklch(0.262 0.007 260)` | 1.26 | 1.18 | 1.10 | Row hover, active tab segment, pressed quiet button |
-| `line-1` | `#232528` | `oklch(0.262 0.007 260)` | 1.26 | 1.18 | 1.10 | Dividers between rows inside a container |
-| `line-2` | `#2F3236` | `oklch(0.315 0.008 260)` | 1.50 | 1.41 | 1.31 | Card, container and panel borders |
-| `line-3` | `#4A4D52` | `oklch(0.420 0.009 260)` | 2.28 | 2.14 | 1.99 | Hover border on cards and secondary buttons |
-| `line-input` | `#606368` | `oklch(0.500 0.009 260)` | **3.20** | **3.01** | 2.80 | Input and checkbox borders (the 3:1 non-text rule on canvas and surface) |
+| Token | Hex | OKLCH | vs canvas | vs surface | vs raised | vs lift | Use |
+|---|---|---|---|---|---|---|---|
+| `canvas` | `#0D0E10` | `oklch(0.165 0.004 260)` | — | 1.10 | 1.18 | 1.34 | Page background, input fill on panels |
+| `surface` | `#17191C` | `oklch(0.213 0.007 258)` | 1.10 | — | 1.08 | 1.23 | Cards, tiles, list containers, tab bar |
+| `raised` | `#1E2023` | `oklch(0.243 0.006 258)` | 1.18 | 1.08 | — | 1.14 | Slide-over panels, popovers, modals, tooltips |
+| `lift` | `#282A2E` | `oklch(0.285 0.008 264)` | 1.34 | 1.23 | 1.14 | — | Row and tile hover, tags, toggle on, active tab segment |
+| `line-1` | `#1E2023` | `oklch(0.243 0.006 258)` | 1.18 | 1.08 | — | 1.14 | Dividers between rows inside a container |
+| `line-2` | `#2F3236` | `oklch(0.315 0.008 260)` | 1.50 | 1.37 | 1.27 | 1.12 | Floating-layer edges, panel and header rules, secondary button, step-0 stage chip |
+| `line-3` | `#4A4D52` | `oklch(0.420 0.009 260)` | 2.28 | 2.08 | 1.92 | 1.69 | Hover border on secondary buttons, the dashed Drafted chip |
+| `line-input` | `#63666B` | `oklch(0.509 0.009 261)` | **3.35** | **3.06** | 2.83 | 2.49 | Input and checkbox borders (the 3:1 non-text rule on canvas and surface) |
+| `plate` | `#E6E8EB` | `oklch(0.930 0.005 258)` | 15.73 | 14.35 | 13.30 | 11.71 | The plate behind a company logo |
+
+*Why these values (v1.1).* The surface steps were 1.06 and 1.07 apart, too close for
+tone alone to separate a card from the page, so every card needed a hairline. They are
+now 1.10, 1.08 and 1.14 apart with `canvas` unchanged, which is enough for a tile to
+read as a tile with no border (4.3). `line-1` used to equal `lift`, so a hovered row
+merged with the dividers above and below it; it now sits one step under `lift`.
+`line-input` rose from `#606368` because on the lighter `surface` it would have fallen
+to 2.92, under 3:1. `plate` replaces pure white behind logos: white was the brightest
+thing on every screen (17.6:1 on `surface`), and a plate a step under `fg-1` keeps
+every logo legible without the glare.
 
 **Text**
 
 | Token | Hex | OKLCH | vs canvas | vs surface | vs raised | vs lift | Use |
 |---|---|---|---|---|---|---|---|
-| `fg-1` | `#ECEEF0` | `oklch(0.948 0.004 260)` | **16.60** | **15.60** | **14.54** | **13.21** | Names, titles, values, primary text |
-| `fg-2` | `#B9BCC1` | `oklch(0.795 0.008 260)` | **10.14** | **9.52** | **8.88** | **8.07** | Body copy in panels, role titles, secondary text |
-| `fg-3` | `#90949A` | `oklch(0.665 0.010 260)` | **6.33** | **5.95** | **5.55** | **5.04** | Metadata, labels, placeholders, timestamps. **The dimmest readable text.** |
-| `fg-4` | `#606369` | `oklch(0.500 0.010 260)` | 3.21 | 3.01 | 2.81 | 2.55 | Disabled controls and `·` separators only. Never information. |
+| `fg-1` | `#ECEEF0` | `oklch(0.948 0.004 260)` | **16.60** | **15.14** | **14.04** | **12.36** | Names, titles, values, primary text |
+| `fg-2` | `#B9BCC1` | `oklch(0.795 0.008 260)` | **10.14** | **9.25** | **8.57** | **7.55** | Body copy in panels, role titles, secondary text |
+| `fg-3` | `#90949A` | `oklch(0.665 0.010 260)` | **6.33** | **5.78** | **5.36** | **4.72** | Metadata, labels, placeholders, timestamps. **The dimmest readable text.** |
+| `fg-4` | `#606369` | `oklch(0.500 0.010 260)` | 3.21 | 2.92 | 2.71 | 2.39 | Disabled controls and `·` separators only. Never information. |
 
-`fg-3` passes AA (4.5:1) on every surface, including hover. That is why it is the
-floor. Nothing a person has to read uses `fg-4`.
+`fg-3` passes AA (4.5:1) on every surface, including hover (4.72 on the v1.1 `lift`,
+and 4.71 on `rope-wash`). That is why it is the floor. Nothing a person has to read uses `fg-4`.
 
 #### 2.3 Accent: Rope
 
 | Token | Hex | OKLCH | vs canvas | vs surface | vs raised | vs lift | Use |
 |---|---|---|---|---|---|---|---|
-| `rope` | `#F67F3D` | `oklch(0.72 0.165 47)` | **7.38** | **6.93** | **6.46** | **5.87** | Primary button fill, focus ring, active nav underline, rope text |
-| `rope-hover` | `#FD9C5D` | `oklch(0.78 0.140 52)` | 9.28 | 8.72 | 8.12 | 7.38 | Hover on rope fills and rope text |
-| `rope-press` | `#E06C34` | `oklch(0.66 0.160 44)` | 5.85 | 5.50 | 5.12 | 4.66 | Pressed |
-| `rope-wash` | `#412212` | `oklch(0.29 0.055 47)` | 1.34 | 1.26 | 1.18 | — | Selected row or keyboard-cursor row background |
+| `rope` | `#F67F3D` | `oklch(0.72 0.165 47)` | **7.38** | **6.73** | **6.24** | **5.49** | Primary button fill, focus ring, active nav underline, rope text |
+| `rope-hover` | `#FD9C5D` | `oklch(0.78 0.140 52)` | 9.28 | 8.46 | 7.85 | 6.91 | Hover on rope fills and rope text |
+| `rope-press` | `#E06C34` | `oklch(0.66 0.160 44)` | 5.85 | 5.34 | 4.95 | 4.36 | Pressed |
+| `rope-wash` | `#412212` | `oklch(0.29 0.055 47)` | 1.34 | 1.23 | 1.14 | 1.00 | Selected row background |
 | `on-rope` | `#0D0E10` (= `canvas`) | — | — | — | — | — | Text and icons on a rope fill |
 
 - Text on rope: `on-rope` on `rope` is **7.38**, on `rope-hover` **9.28**, on
@@ -136,16 +151,17 @@ floor. Nothing a person has to read uses `fg-4`.
 - **Disabled** primary button: `lift` fill, `fg-4` text, no rope. Rope never means "you
   can't".
 - **Focus ring:** `outline: 2px solid rope; outline-offset: 2px`. The offset shows the
-  canvas behind it, so the ring is 7.38:1 against that gap, even next to a white logo
-  plate (rope against white alone is only 2.62).
+  canvas behind it, so the ring is 7.38:1 against that gap, even next to a logo plate.
+  **On a rope fill the ring is `fg-1`** (16.60 against the canvas gap): a rope ring
+  around a rope button is the same colour twice and does not read as focus (v1.1).
 
 #### 2.4 Semantic colours
 
 | Token | Hex | OKLCH | vs canvas | vs surface | vs raised | Meaning |
 |---|---|---|---|---|---|---|
-| `ok` | `#7FCC94` | `oklch(0.78 0.110 152)` | 10.09 | 9.47 | 8.83 | It happened: sent, scan succeeded, offer |
-| `warn` | `#ECCA6C` | `oklch(0.85 0.120 90)` | 12.17 | 11.43 | 10.65 | Getting close: due within 2 days, a source returned 0 rows |
-| `alarm` | `#F0626E` | `oklch(0.68 0.175 18)` | 6.14 | 5.77 | 5.38 | Stale or broken: failed scan arm, posting opened 7+ days ago and not sent, destructive hover |
+| `ok` | `#7FCC94` | `oklch(0.78 0.110 152)` | 10.09 | 9.20 | 8.53 | It happened: sent, scan succeeded, offer |
+| `warn` | `#ECCA6C` | `oklch(0.85 0.120 90)` | 12.17 | 11.10 | 10.29 | Getting close: due within 2 days, a source returned 0 rows |
+| `alarm` | `#F0626E` | `oklch(0.68 0.175 18)` | 6.14 | 5.60 | 5.19 | Stale or broken: failed scan arm, posting opened 7+ days ago and not sent, destructive hover |
 
 **Pairing rule (no exceptions):** a semantic colour always comes with a glyph **and**
 a word or number. Examples: `● 9d stale`, `[!] LinkedIn arm failed`, `[✓] Sent`.
@@ -171,7 +187,7 @@ jobs are reassigned:
 | Heatmap pink, blue and both | One neutral ramp, with the side breakdown in the day detail, see 5.12 |
 | Tier S and A badges (pink) | Chalk fill and chalk outline, see 5.5 |
 | Graph highlight (blue) | `rope` |
-| Home signal card headings (pink and blue) | `label` eyebrow in `fg-3` |
+| Home signal card headings (pink and blue) | `t-section` headings, "Applications" and "Network", like every other block on Home (v1.2) |
 
 Fallback, only if the owner misses the cue after two weeks of use: a 2px section tick
 to the left of the page title. It must be argued for. Do not ship it by default.
@@ -182,18 +198,58 @@ The brand colour `B` is `usableAccent(brandColor(domain))` from `lib/brand-color
 
 **Allowed, and only here:**
 
-1. **Logo tiles** (the logo itself, on its white or brand plate, at full strength).
-2. **Slide-over header wash** (role panel and contact panel):
-   - a 3px band at the top edge in `B` at 100%;
-   - a background of
-     `linear-gradient(180deg, color-mix(in oklab, B 16%, var(--color-raised)) 0%, var(--color-raised) 100%)`
-     across the header block only (logo, name, title, stage). It stops at the
-     header's bottom border (`line-2`).
-   - Text on the wash: `fg-1` and `fg-2` only. Computed worst cases at the top of the
-     gradient, against white, `#FFD43B` yellow, `#C6F432` lime, Figma `#F24E1E` and
-     Spotify `#1DB954`: **`fg-1` ≥ 8.81, `fg-2` ≥ 5.38.** `fg-3` drops to 2.7 on a
-     white brand, so it is **not allowed on the wash**.
-   - Remove the blurred blob (`blur-3xl` at 20%). The gradient replaces it.
+1. **Logo tiles** (the logo itself, on the `plate` token `#E6E8EB`, never pure white,
+   at full strength).
+2. **Slide-over header band** (role panel and contact panel):
+   - a **flat** background of `color-mix(in oklab, B 22%, var(--color-raised))`
+     across the header block only (logo, name, title, stage), with no fade. It stops
+     at the header's bottom border (`line-2`). The recipe is `washOf()` in `lib/ui.ts`.
+   - **Why flat (v1.2).** It was a gradient from 22% at the top row to the bare panel
+     colour at the bottom border, so most of the header sat at a few percent and the
+     owner read it as "too subtle". Flat, the whole header carries the strength only the
+     top row had, so nothing about the contrast floor moves: the old worst case was
+     measured at the top row, and the top row is now everywhere.
+   - Text on the band: `fg-1` and `fg-2` only. Measured in Chromium (pixel-sampled on
+     the flat band, v1.2) on the `#1E2023` panel:
+
+     | Brand `B` (after `usableAccent`) | Band | `fg-1` | `fg-2` | `fg-3` |
+     |---|---|---|---|---|
+     | White `#FFFFFF` | `#484A4D` | **7.64** | **4.67** | 2.92 |
+     | Snap `#FFFC00` | `#484A30` | 7.86 | 4.80 | 3.00 |
+     | Figma `#F24E1E` | `#492E28` | 10.59 | 6.47 | 4.04 |
+     | Google `#4285F4` | `#27354C` | 10.62 | 6.49 | 4.05 |
+     | Stripe `#635BFF` | `#2B2F4E` | 11.15 | 6.81 | 4.25 |
+     | Uber `#09091A` → `#636374` | `#2C2E33` | 11.68 | 7.13 | 4.46 |
+     | Black `#000000` → `#646464` | `#2C2E30` | 11.72 | 7.16 | 4.47 |
+
+     **`fg-1` ≥ 7.64, `fg-2` ≥ 4.67** (both worst cases are the white brand). `fg-3`
+     drops under 3 on light brands, so it is **not allowed on the band**; a stage chip
+     there whose step would use `fg-3` takes `fg-2` instead (5.5). (v1.1 quoted 7.76
+     and 4.74 for the same 22% from a sample at the gradient's first row, which
+     sub-pixel blending had already pulled a fraction toward the panel colour.)
+   - **Why 22% (v1.1).** `raised` moved from `#1B1D1F` to `#1E2023`. Re-measured the
+     same way, 24% on the lighter panel drops the white brand to `fg-1` 7.30 and `fg-2`
+     **4.46, under AA**; 22% brings it back to 7.76 and 4.74, the figures 24% gave on
+     the old panel, and the brand reads at the same strength because the base is
+     lighter. The history of the step:
+   - **Why 24%** (raised from 16% in October 2026, when 16% read as "a tint of grey"
+     on most brands; measured on the old `#1B1D1F` panel). The steps compared, worst
+     case across the eight brands:
+
+     | Wash | `fg-1` worst | `fg-2` worst | Reads as the brand? |
+     |---|---|---|---|
+     | 16% | 9.83 | 6.00 | Only the saturated ones (Figma, Stripe); Google and Airbnb read as grey-blue and grey-brown |
+     | **24%** | **7.77** | **4.75** | Yes for every chromatic brand; black and white brands stay neutral, as they should |
+     | 32% | 6.05 | 3.69 | Yes, but fails: `fg-1` under 7 and `fg-2` under AA on white and yellow (3.83) |
+
+     The rule that came out of this holds on any panel colour: the wash is the
+     strongest step where `fg-1` stays above 7:1 and `fg-2` above 4.5:1 on every brand.
+     It is the ceiling, not a starting point: do not raise it, or lighten `raised`,
+     without re-measuring the white and yellow cases.
+   - **No band** (v1.1). The 3px brand band on the top edge was removed: on an orange
+     brand (Figma's, Amazon's, Strava's) it sat a few degrees from rope and read as
+     "your next move" across the top of the panel. The wash already names the brand.
+   - Remove the blurred blob (`blur-3xl` at 20%). The band replaces it.
 3. **Network graph nodes and their legend swatches** (see 5.13).
 4. **Company filter chip swatch:** a 6px dot of `B` before the company name is
    allowed. The chip itself stays neutral.
@@ -239,13 +295,18 @@ In light mode, text on a rope fill is white (5.22). The brand wash drops to 10%.
     label without a second family.
   - It is not Inter, Roboto, Arial, Geist or the system stack, which are the faces
     that make a tool look undesigned.
-- **IBM Plex Mono** (static 400 and 500). Used only for **numbers that get compared or
-  scanned**:
-  - scores, day counts and gaps (`12d`, `+12d`), dates in log columns (`06 Oct`),
-    times, salary ranges, counts in tabs and group headers, the 300-character counter,
-    and keyboard hints.
+- **IBM Plex Mono** (static 400 and 500). Used only for **numbers in a column or a
+  log** (v1.1):
+  - the right-hand day count on list rows (`12d`, `+12d`), dates and times in log
+    columns (`06 Oct`), the heatmap's Day and Year columns, the queue card score,
+    the character counter, and keyboard hints.
+  - **Inline numbers are Archivo with `tabular-nums`:** counts in tabs and group
+    headers, the next-action line, "28 of 34", and every number on the meta line
+    (`2d old`, `5+ yrs`, `$169–303k`).
   - **Never** for names, sentences, buttons or labels.
-  - Fixed width means number columns line up without a table.
+  - *Why:* mono's job is to make a column line up. Inline, a mono figure sits a
+    different width and colour of type from the words around it, so "28 of 34" or a
+    salary read as code pasted into a sentence.
 
 Not used: a serif (too precious for a triage tool) or a third family.
 
@@ -283,38 +344,66 @@ const plexMono = IBM_Plex_Mono({
 
 #### 3.3 Type scale
 
-The base size is 14px. Line heights sit on a 4px grid. Negative tracking only at 20px
-and above. Weights in use: 400, 500 and 600 (700 only for the wordmark).
+The base size is 14px. Line heights sit on a 4px grid (22px is the one exception,
+for 16px). Negative tracking only at 16px and above. Weights in use: 400, 500 and 600
+(700 only for the wordmark).
+
+**Seven sizes and no more (v1.1): 11, 12, 14, 16, 20, 24, 28.** The 13px step and the
+10px key hint are gone. Below 14 the scale steps by one pixel at a time and the eye
+cannot tell 12 from 13, so two names for nearly one size only produced drift; above 14
+it grows by about 1.2 per step, which is a difference you can see.
 
 | Token | Family | Size / line | Weight | Width | Tracking | Use |
 |---|---|---|---|---|---|---|
-| `display` | Archivo | 28 / 32 | 600 | 100 | −0.02em | At most one per page: Home's date, Insights' headline number |
+| `display` | Archivo | 28 / 32 | 600 | 100 | −0.02em | At most one per page: Insights' headline number |
 | `stat` | Archivo, `tnum` | 28 / 32 | 600 | 87 | −0.01em | The signal numbers on Home and Insights |
-| `h1` | Archivo | 20 / 28 | 600 | 100 | −0.012em | Page titles |
-| `h2` | Archivo | 16 / 22 | 600 | 100 | −0.005em | Panel titles: person or role name in a slide-over |
-| `h3` | Archivo | 14 / 20 | 600 | 100 | 0 | Card titles, company name, person name in rows |
-| `body` | Archivo | 14 / 20 | 400 | 100 | 0 | Headlines, notes, chat, summaries |
-| `body-sm` | Archivo | 13 / 18 | 400 | 100 | 0 | Role title under a name, the next-action line |
-| `meta` | Archivo | 12 / 16 | 400 | 100 | +0.005em | Metadata lines, helper text |
-| `button` | Archivo | 13 / 16 | 500 | 100 | 0 | Buttons and tabs |
+| `h1` | Archivo | 24 / 32 | 600 | 100 | −0.015em | Page titles |
+| `h2` | Archivo | 20 / 28 | 600 | 100 | −0.01em | Panel titles: person or role name in a slide-over |
+| `h3` (`t-section`) | Archivo | 16 / 22 | 600 | 100 | −0.005em | Section headings, on a page ("Progress", "Companies", "Sites", "Coming up") and in a slide-over ("History", "Mutuals", "Notes"), and the titles of the add forms (5.9). Always `fg-1`, sentence case. As `text-h3` it is also the **primary name on a queue card** (`cardTitle`, v1.2), the largest text on the card |
+| `name` | Archivo | 14 / 20 | 600 | 100 | 0 | A name in a row or card: person, company, role |
+| `body` | Archivo | 14 / 20 | 400 | 100 | 0 | Headlines, notes, chat, summaries, the next-action line, empty states |
+| `button` | Archivo | 14 / 20 | 500 | 100 | 0 | Buttons and tabs |
+| `meta` | Archivo | 12 / 16 | 400 | 100 | +0.005em | Metadata lines, the second line of a row, helper text, tile names |
+| `group` (`t-group`) | Archivo | 12 / 16 | 600 | 100 | +0.01em | **Group names inside a section**, sentence case, `fg-3`: "S-tier", "Scanned for you", "Applied", "Identified". The count beside it is `meta` `tabular-nums` |
 | `chip` | Archivo | 12 / 16 | 500 | 87 | +0.01em | Stage chips, tags, filter toggles |
-| `label` | Archivo, uppercase | 11 / 16 | 600 | 80 | +0.08em | Section eyebrows ("COMING UP", "CONNECTED"), table headers. Always `fg-3`. |
-| `data` | Plex Mono | 12 / 16 | 400 | — | 0 | Days, dates, scores, salary, counts |
-| `data-sm` | Plex Mono | 11 / 16 | 400 | — | 0 | Counts in group headers and tabs, graph legend counts |
-| `kbd` | Plex Mono | 10 / 14 | 500 | — | +0.02em | Key hints in a 16px box with a 1px `line-2` border and 4px radius |
-| `wordmark` | Archivo, uppercase | 13 / 16 | 700 | 75 | +0.14em | "BELAY" in the nav and lockup |
+| `data` | Plex Mono | 12 / 16 | 400 | — | 0 | Numbers in a column or log: day counts, log dates, scores |
+| `label` (`t-label`) | Archivo, uppercase | 11 / 16 | 600 | 80 | +0.08em | **Column headers only** ("DAY", "YEAR"). The two halves of Home's overview are section headings, not labels (v1.2). At most one row of them per section. Always `fg-3` |
+| `data-sm` | Plex Mono | 11 / 16 | 400 | — | 0 | Graph legend counts, the character counter |
+| `kbd` | Plex Mono | 11 / 14 | 500 | — | +0.02em | Key hints in a 16px box with a 1px `line-2` border and 4px radius |
+| `wordmark` | Archivo, uppercase | 13 / 16 | 700 | 75 | +0.14em | "BELAY" in the nav and lockup. A logotype, not a step of the scale, so it keeps its 13 |
+
+**The heading ladder.** Four steps, and each one changes size or colour, so no single
+cue has to carry the difference:
+
+| Step | Style | Example |
+|---|---|---|
+| Page title | `text-h1` 24px `fg-1` (in a slide-over: `text-h2`, 20px) | Home, Applications |
+| Section heading | `t-section`, 16px `fg-1` sentence case (the same in a slide-over) | Progress, Companies, History |
+| Group name | `t-group`, 12px semibold `fg-3` sentence case | S-tier, Applied, Scanned for you |
+| Body | `text-name` / `text-body` `fg-1`/`fg-2`, `text-meta` `fg-3` | a row, a tile's name |
+
+*Why:* sections and the groups inside them used to share `label`, so "COMPANIES" and
+"S-TIER" sat one above the other in the same 11px uppercase grey and read as peers. In
+v1 the section moved up to 16px chalk; in v1.1 the group name also drops its capitals,
+because five uppercase tier labels stacked down one section turned capitals back into
+texture. Uppercase now means one thing, "this heads a column", and a section has at
+most one row of it.
 
 **Rules**
 
-- Sentence case everywhere except `label` and `wordmark`. No italics in the UI. The
-  current `tracking-widest` (0.1em) on 12px eyebrows becomes `label`.
+- Sentence case everywhere except `label` and `wordmark`. No italics in the UI.
 - **Emphasis comes from colour step (`fg-1` against `fg-3`), not bold.** Never use
   `font-bold` in body text.
 - **Tabular figures:** every number that changes, stacks or sits in a column is either
-  Plex Mono (`data`) or Archivo with `font-variant-numeric: tabular-nums` (`stat`, and
-  numbers inside sentences in the next-action line). Proportional figures are only
-  acceptable inside running prose. **Verify** that Archivo's `tnum` works in a quick
-  test. If it doesn't, `stat` switches to Plex Mono 500.
+  Plex Mono (`data`, in a column or a log) or Archivo with
+  `font-variant-numeric: tabular-nums` (inline: `stat`, the next-action line, tab and
+  group counts, the meta line, "28 of 34"). Proportional figures are only acceptable
+  inside running prose.
+- **Prose measure: 72ch at most** (v1.1). Answers on Profile, page lead text, panel
+  summaries and notes cap at `max-w-[72ch]`. Past about 75 characters the eye loses
+  the next line on the way back; a dense app still reads prose like a page. On Profile
+  the answers are one readable column, with the question in a left rail from `lg` up
+  and above the answer below it.
 - Truncate with an ellipsis on one line. Never wrap names in rows.
 
 ### 4. Space, shape, structure
@@ -329,6 +418,8 @@ The base is 4px. Allowed steps are **2, 4, 8, 12, 16, 24, 32 and 48** (Tailwind
 - Vertical rhythm between page sections: 32px. Between a section label and its
   content: 8px.
 - Inside cards: 16px padding (queue) or 12px (compact).
+- **Slide-over panels: 24px on the sides** (v1.1; was 20px, `px-5`, which is off the
+  scale). Header and body share the edge so the title, tabs and fields line up.
 
 #### 4.2 Radii
 
@@ -345,9 +436,26 @@ Slide-overs are full-height and flush right, with radius 0.
 
 - **Elevation is lightness:** `canvas` → `surface` (cards) → `raised` (panels) →
   `lift` (hover or selected).
-- **Structure comes from 1px hairlines.** Cards and containers use `line-2`, which
-  moves to `line-3` on hover. Rows inside a container are divided by `line-1`. There
-  is no lift, glow or ring on hover.
+- **Tone does the structure; a hairline only where tone cannot** (v1.1). Cards, tiles,
+  list containers, the tab bar, stat tiles, company tiles, site rows and queue cards
+  are a `surface` fill with **no border**: the v1.1 steps are far enough apart to
+  separate them from the page. Hairlines stay in three places: **row dividers**
+  (`line-1`) inside a container, **inputs** (`line-input`, the 3:1 rule), and
+  **floating layers** (the `shadow-float` ring, and the slide-over's left edge and
+  header rules). A secondary button keeps its `line-2` edge because it is a control,
+  and a control must read as pressable at rest.
+  *Why:* a hairline around every card drew a grid of boxes on the page, and a border
+  that tone can replace is chrome the eye still has to read past.
+- **No card in a card.** A surface inside a surface gets no second fill; group it with
+  space and a `t-group` name instead.
+- **Hover is always neutral.** Rows and tiles step to `lift`, fields and secondary
+  buttons step their border up a line, text steps up a colour (`fg-3` → `fg-2` → `fg-1`).
+  Because `line-1` sits a step under `lift`, a hovered row is always distinct from
+  the dividers around it. **Rope never appears
+  on hover**, including in the graph: rope is the next move, focus and "you are here",
+  and orange that follows the cursor spends it on pointing. The one exception is a
+  rope fill (the primary button) going to `rope-hover`, which is the same element
+  getting lighter, not orange appearing.
 - **One shadow, only for things that float over content** (slide-over, popover, menu,
   modal, tooltip, chat sheet): `shadow-float` =
   `0 12px 32px -8px rgb(0 0 0 / 0.6), 0 0 0 1px #2F3236`.
@@ -366,12 +474,14 @@ Slide-overs are full-height and flush right, with radius 0.
 | Input / select | 32px | Compact inside rows: 28px |
 | Chip / stage chip / tag | 20px | `px-1.5`, `chip` type |
 | Filter toggle | 24px | `px-2` |
-| Two-line list row (person, pipeline role) | **44px** | 24px logo, `h3` and `body-sm`, 12px horizontal padding |
+| Two-line list row (person, pipeline role) | **56px** | 32px logo, `name` and `meta`, 12px horizontal padding (v1.2; was 44px with a 24px logo, too thin to read the marks) |
 | Single-line list row (Coming up, history, notes, sites) | **36px** | Mono date column first |
-| Group header in a list | 32px | Sticky, `label` plus `data-sm` count |
+| Group header in a list | 32px | Sticky, `t-group` plus a `meta` `tabular-nums` count |
 | Queue card (role) | about 176px (min 160) | 16px padding, 32px logo. Two side by side at 1280px or more |
-| Queue card (person) | about 120px | Same frame |
-| Home signal tile | 88px | `label`, then `stat` |
+| Queue card (person) | about 164px | Same frame and the same rows as the role card, without tags |
+| Verdict button (Pass, Accept, Add) | 28 × 88px | Fixed in every state (v1.2) |
+| Home signal tile | 88px | `meta` name, then `stat`. Three across at every width (two rows of three on a phone) |
+| Company tile | about 88px wide | Auto-fill grid, `minmax(88px, 1fr)`, so a tier of 8 fits one row at 1440 and no tier strands one tile under a full row |
 | Slide-over width | 640px | Was `max-w-2xl` (672px) |
 | Heatmap cell | 11px, 2px gap | 53 weeks fit in 676px |
 
@@ -413,7 +523,7 @@ Slide-overs are full-height and flush right, with radius 0.
 
 - **Global focus style:** `:focus-visible { outline: 2px solid var(--color-rope); outline-offset: 2px; }`.
   Never `outline-none` without a replacement. Inputs also take a `rope` border on
-  focus.
+  focus. **A rope-filled button takes an `fg-1` ring instead** (2.3).
 - **Text contrast floor is 4.5:1 on the surface it actually sits on**, including
   hover. In this palette that means `fg-3` or brighter. `fg-4` is for disabled
   controls and separators only.
@@ -424,8 +534,16 @@ Slide-overs are full-height and flush right, with radius 0.
 - **Colour is never the only signal:** semantics follow 2.4, stages carry their name,
   Drafted is dashed, graph stages are hollow or filled.
 - **Keyboard:** every action that has a key shows a `kbd` hint on hover or in its
-  `title` ("Accept (A)"). The keyboard-cursor card has a 1px `rope` border. Escape
-  closes the top layer only.
+  `title` ("Accept (A)"). The keyboard-cursor card has a 1px `rope` border, and
+  **the cursor appears only once you start keyboard navigation** (v1.2): the first J
+  or K shows it where it is (the first card, or the last one clicked) without moving
+  it, a click hides it again, and A and P do nothing while it is hidden. At rest no
+  card is orange; the only rope on the page is the header's primary button. (v1.1 put
+  the cursor on the first card at load so one rope Accept always showed; the owner read
+  an orange box nobody had chosen as a bug.) Escape closes the top layer only.
+- **Hover-revealed controls are focus-revealed too.** Anything shown on row hover (the
+  stage control, the external-link icon, a tile's edit button) also shows on
+  `:focus-visible` or `:focus-within`, and stays in the tab order while hidden.
 - Hit targets are at least 24×24px (WCAG 2.2 AA). Icon-only buttons get
   `aria-label`.
 - `<html>` keeps `color-scheme: dark` so native controls and scrollbars match.
@@ -444,7 +562,7 @@ Slide-overs are full-height and flush right, with radius 0.
 
 #### 5.2 Page header and next-action line (`PageChrome.tsx`)
 
-- `h1` in `fg-1`, with the next-action line 4px below it in `body-sm`.
+- `h1` in `fg-1`, with the next-action line 4px below it in `body`, capped at 72ch.
 - **Next-action line:** numbers in `fg-1` with `tabular-nums`, labels in `fg-3`, and
   separators as `·` in `fg-4` with 6px on each side. Example: **3** to triage · **12**
   to message · **2** to schedule. When everything is zero: "Nothing waiting" in
@@ -452,13 +570,18 @@ Slide-overs are full-height and flush right, with radius 0.
 - Actions on the right, 8px apart: at most **one primary** and one or two secondary
   buttons.
 - The Home `h1` is "Home". The line under it is the long date in `fg-3`.
+- **Ask Claude** sits in the Home header's actions as a quiet button (v1.1). It used to
+  float at the bottom right and covered whatever scrolled under it (the Sites "Add"
+  among them); a floating launcher has no place it is guaranteed not to cover. The
+  sheet it opens still docks to the bottom edge.
 
 #### 5.3 Tabs with count badges (`TabBar`)
 
-- **Container:** `surface`, 1px `line-2` border, `rounded-card`, 2px padding.
+- **Container:** `surface`, no border (4.3), `rounded-card`, 2px padding.
 - **Segment:** 28px high, `px-3`, `button` type, `rounded-control`. At rest it is
   `fg-3`, with `fg-2` on hover. **Active:** `lift` fill and `fg-1`. No shadow.
-- **Count:** `data-sm` with 6px gap, no border and no pill. At rest it is `fg-3`, and
+- **Count:** `meta` with `tabular-nums` (Archivo, not mono: it is inline, 3.1), 6px
+  gap, no border and no pill. At rest it is `fg-3`, and
   `fg-2` on the active tab. **A count of undecided work** (the Queue tab when it is
   above 0) is `rope`. That is the "needs you" signal. Other counts (Pipeline, People)
   stay neutral.
@@ -468,15 +591,21 @@ Slide-overs are full-height and flush right, with radius 0.
 | Kind | Rest | Hover | Press | Disabled |
 |---|---|---|---|---|
 | **Primary** (one per view) | `rope` fill, `on-rope` text, no border | `rope-hover` | `rope-press` | `lift` fill, `fg-4` text |
-| **Secondary** | `surface` fill, 1px `line-2`, `fg-1` text | `line-3` border, `lift` fill | `lift` fill | `fg-4` text, `line-1` border |
+| **Secondary** | `surface` fill, 1px `line-2`, `fg-1` text | `line-3` border, `lift` fill | `lift` fill | `fg-4` text, `line-2` border |
 | **Quiet** (inline: Cancel, Clear, Follow up, Undo) | transparent, `fg-2` | `fg-1` text, `lift` fill | `line-2` fill | `fg-4` |
 | **Destructive** (quiet variant) | transparent, `fg-3` | `alarm` text plus `Trash` glyph | — | — |
 
 - All buttons: `button` type, `rounded-control`, 32px (or 28px compact), 16px icon
   leading with 6px gap. Remove `hover:opacity-90` and the `ring-1` halo.
-- **Queue Accept and Pass** are secondary. On the card under the keyboard cursor,
-  Accept becomes primary. That means only one rope fill shows at a time, and it marks
-  where A will land.
+- **Queue Accept is secondary; Pass is quiet** (v1.1: Pass is the common verdict but
+  never the next move, and two bordered buttons per card doubled the chrome). Once the
+  keyboard cursor is showing (4.7), Accept (or Add, in the people queue) on the card
+  under it becomes primary, so the one rope fill marks where A will land. At rest
+  there is no cursor and no rope on any card.
+- **Verdict buttons keep one size in every state** (v1.2): 28px high and 88px wide
+  (`verdictWidth` in `lib/ui.ts`) at rest, under the cursor with a `kbd` hint, and
+  decided with a check. They sized to their content, so a click that swapped the hint
+  for a check made the pair jump.
 - Company colour never touches a button. The Save button in a panel is a primary
   button.
 
@@ -490,8 +619,8 @@ it is. Text contrast is computed on each fill:
 
 | Step | Fill | Text (contrast) | Applications | Network |
 |---|---|---|---|---|
-| 0 | none, 1px `line-input` border | `fg-2` | Applying | Identified |
-| 0 dashed | none, **1px dashed** `line-input` | `fg-2` | — | **Drafted** (written, not sent) |
+| 0 | none, 1px `line-2` border | `fg-3` (5.78 on `surface`, 4.72 on `lift`) | Applying | Identified |
+| 0 dashed | none, **1px dashed** `line-3` | `fg-2` | — | **Drafted** (written, not sent) |
 | 1 | `#2F3236` (`line-2`) | `fg-1` (11.07) | Applied | Sent |
 | 2 | `#4A4D52` (`line-3`) | `fg-1` (7.30) | Screen | Connected |
 | 3 | `#7D8086` `oklch(0.60 0.010 260)` | `canvas` (4.88) | Interviewing | Replied |
@@ -500,14 +629,31 @@ it is. Text contrast is computed on each fill:
 | 5 plus check | `fg-1` with a 12px `Check` glyph | `canvas` | Accepted | — |
 | End | none, no border | `fg-3` | Rejected, Withdrawn | No response |
 
+- *Why step 0 changed (v1.1):* it was a `line-input` border (3.2:1) with `fg-2` text,
+  which made "not started" the loudest outline in the ramp, louder than the faint
+  `line-2` fill of step 1. The ramp now rises in weight at every step: a faint
+  outline, a dashed brighter outline (Drafted sits between Identified and Sent), then
+  fills from `line-2` to `fg-1`.
 - A stage chip that is also the stage control (a `<select>`) keeps this look and adds
   a 12px `ChevronDown` in the chip's text colour. **In the contact panel, the chip is
-  this ramp, not the brand colour.**
-- **Tags** (relationship tags, queue tags): no fill, `fg-2` text, 1px `line-2`
-  border. Removable tags show a 12px `X` on hover.
-- **Filter toggles** (company filter row): 24px, 1px `line-2`, `fg-2`. **On:** `lift`
-  fill, `line-3` border, `fg-1`. An optional 6px brand dot before the name is allowed
-  (2.6). "Clear" is a quiet button.
+  this ramp, not the brand colour.** On the brand wash, a step whose text is `fg-3`
+  (0 and End) takes `fg-2` (2.6).
+- **In a list grouped by stage, rows carry no stage chip at rest** (v1.1): the group
+  name already says it, and thirty identical chips down a column is a column of
+  nothing. The stage control appears in that slot on row hover and on
+  `:focus-within`; at rest the slot holds the row's day count, **said in words**
+  (v1.2): "12d in Applied" on a pipeline row, "last touch 9d" (or "added 9d" for
+  someone never contacted) on a person, "Applied today" for a zero. The number is
+  `data`, the words `meta`, both `fg-3`, and a tooltip says what is counted. A bare
+  "12d" left the owner guessing what it measured. Tab still reaches the control, and
+  focusing it shows it.
+- **Tags** (relationship tags, queue tags): `lift` fill, `fg-2` text (7.55), **no
+  border** (v1.1). Removable tags show a 12px `X` on hover.
+- **Filter toggles** (company filter row): 24px, no border. **Off:** `fg-2` text,
+  `lift` fill on hover. **On:** `lift` fill, `fg-1`. An optional 6px brand dot before
+  the name is allowed (2.6). "Clear" is a quiet button. *Why (v1.1):* fifteen outlined
+  toggles in a row read as a fence; off is plain text you can click, on is a filled
+  key, and the difference between them is the one that matters.
 - **Tier badge:** 20px square, `data` type. S: `fg-1` fill with `canvas` text.
   A: 1px `fg-2` border with `fg-1` text. B: `line-input` border with `fg-2` text.
   C and D: `line-2` border with `fg-3` text. Untracked: dashed `line-2` border with a
@@ -517,60 +663,103 @@ it is. Text contrast is computed on each fill:
 
 **Role card (queue):**
 
-- `surface`, 1px `line-2`, `rounded-card`, 16px padding. Hover border `line-3`.
-  **Keyboard cursor:** 1px `rope` border and nothing else.
-- Row 1: 32px logo tile (company colour lives here), company in `h3` `fg-1`, role
-  title in `body-sm` `fg-2`. Score is right-aligned in `data` `fg-1` (no colour scale;
-  the queue is already sorted).
-- Row 2, the meta line: `meta` `fg-3`. Places are in Archivo. Numbers (`2d`, `4+ yrs`,
-  `$170–230k`) are in `data` mono. `·` separators in `fg-4`.
+- `surface`, no border, `rounded-card`, 16px padding (`queueCard()` in `lib/ui.ts`,
+  shared by both queues). **Keyboard cursor:** 1px `rope` border and nothing else, shown
+  only after J or K (4.7); the border is transparent otherwise, so the cursor moving
+  does not shift the card.
+- Row 1: 32px logo tile on the left (company colour lives here), then the company in
+  `h3` (16px semibold) `fg-1`, the largest text on the card (v1.2; at 14px it was the
+  size of the line under it), and the role title in `body` `fg-2` below it. Score is
+  right-aligned in `data`: the score in `fg-1` and `/10` in `fg-3` (`8/10`), so the
+  number reads as a mark out of something. No colour scale; the queue is already
+  sorted. **The score shows in every state**, decided included (v1.2: it covers
+  nothing, and a card that loses its number on a click looks like another card).
+- Row 2, the meta line: `meta` `fg-3`, all Archivo with `tabular-nums` (3.1). Pay is
+  normalised to one shape, `$169–303k`: one currency sign, en dash, lowercase k,
+  whole thousands (`formatComp()` in `lib/role-meta.ts`); a figure it cannot parse
+  is shown as written. `·` separators in `fg-4`.
 - Row 3: the headline in `body` `fg-1`, at most 2 lines.
-- Row 4: up to 5 tags. Then the action row: Open (quiet, `ExternalLink`), Pass
-  (secondary), Accept (secondary, or primary on the cursor card), with `kbd` hints.
+- Row 4: up to 5 tags. Then the action row: Pass (quiet), Accept (secondary, or
+  primary on the cursor card), with `kbd` hints on the cursor card.
 - After a decision, the lower half shows the "Why this one?" / "Why not?" input
   (5.9).
 
-**Person card (people queue):** the same frame and padding. A 32px logo, name in
-`h3`, then title · company in `body-sm` `fg-2`, the mutuals line in `meta` `fg-3` with
-a `Users` glyph, then the actions. No tags row.
+**Person card (people queue):** the role card's structure, sizes and spacing, row for
+row (v1.2): the same frame, padding, score and buttons (Pass quiet, Add secondary or
+primary on the cursor card). Row 1: a 32px logo on the left, the person's name in
+`h3` `fg-1` (the largest text), then **Company · Role** in `body` `fg-2`, matching the
+person panel's header. Row 2, the meta line: the mutual (`Users` glyph and name) and
+the batch note, `meta` `fg-3`, **on every card**. Row 3, in the headline's slot: the
+fit's one line of why, `body` `fg-1`, two lines at most. No tags row. (v1.1 said a
+mutual shared by every visible card once, above them, as "All via Nicole Willis"; it
+made the two queues two layouts, so v1.2 puts it back on each card.)
+- The `ExternalLink` after a name (person cards, People and Pipeline rows) shows on
+  hover and focus only (v1.1). At rest, a column of identical link icons was the
+  loudest pattern in the list.
 
-**Home signal tile:** `surface`, `line-2`, 12px padding, `label` eyebrow, `stat`
-number in `fg-1` (`fg-3` when 0). The whole tile links somewhere. Hover border
-`line-3`.
+**Home signal tile:** `surface`, no border, 12px padding, the tile's name in `meta`
+`fg-3` sentence case, `stat` number in `fg-1` (`fg-3` when 0). The whole tile links
+to where the thing lives (Upcoming interviews → Pipeline at `?stage=Interviewing`;
+Upcoming calls → People at `?stage=Scheduled`). Hover fill `lift`. **A zero is not a
+link** and has no hover: there is nothing behind it. Home has no Insights button;
+`/insights` is reachable by URL. The two halves are headed "Applications" and
+"Network" in `label` (they are side-by-side columns, 3.3); there is no "Overview"
+heading above them, since the two labels already say what the tiles are.
 
 #### 5.7 List rows (people list, pipeline, Coming up, history)
 
-- **One container per group, not one card per row:** `surface`, 1px `line-2`,
-  `rounded-card`, with rows divided by `line-1`. This replaces today's
-  `space-y-2` stack of bordered cards.
-- **Two-line row (44px):** 24px logo tile with `rounded-control`, then the name in
-  `h3` `fg-1` (truncate) and `company · title` in `body-sm` `fg-3`. The right-hand
-  cluster has 8px gaps: optional "no summary" (`meta` `fg-3`), day count (`data`,
-  `fg-3`, or `rope` with a `Clock` glyph when overdue), quiet compact actions, and the
-  stage chip last, right-aligned so the chips form a column.
+- **One container per group, not one card per row:** `surface`, no border,
+  `rounded-card`, with rows divided by `line-1`.
+- **Two-line row (56px, v1.2):** 32px logo tile with `rounded-card`, then the primary
+  name in `name` `fg-1` (truncate) and the secondary line in `meta` `fg-2`: the role
+  title on a pipeline row, `Company · Role` on a person. The name block takes 38% of
+  the row from `md` up.
+- **The middle says what is next** (v1.2; it was empty space): `meta`, from `md` up,
+  hidden on a phone. A pipeline row shows, in order, the next interview ("Interview Thu
+  9 Oct · Portfolio review", `fg-2`), the form's state on an Applying row ("Form opened
+  9d ago", `alarm` with its glyph from 7 days; "Form not opened yet" in `fg-3`), and who
+  is referring you (`Users` glyph, "Referred by …"). A person row shows how you met,
+  up to three relationship tags (warmth first, brighter) and the first mutual with
+  "+N". The posting's original age is **not** on a pipeline row: it is a reason to
+  accept, not a fact about an application, and the panel keeps it. Rows carry no "no
+  summary" cue: the panel already prompts for the summary.
+- **The right-hand cluster** has 8px gaps: quiet compact actions (Follow up), then the
+  fixed slot that holds the labelled day count at rest and the stage control on hover
+  or focus (5.5), right-aligned. Overdue on a person is `rope` with a `Clock` glyph.
 - Hover: `lift`. Selected (its panel is open): `rope-wash` with a 2px `rope` bar on
   the left inside edge.
-- **Group header (32px, sticky):** `label` stage name in `fg-3` plus a `data-sm` count
-  in `fg-3`, sitting on `canvas` above the container.
+- **Group header (32px, sticky):** `t-group` stage name plus a `meta` `tabular-nums`
+  count, both `fg-3`, sitting on `canvas` above the container.
 - **Log rows (36px):** a fixed **56px** date column first, in `data` `fg-3`
   (`06 Oct`, with the time in a second column for Coming up), then the entry in
-  `body-sm`. Pipeline history gaps show as `+12d` in `data` `fg-3`.
+  `body`. Pipeline history gaps show as `+12d` in `data` `fg-3`.
 
 #### 5.8 Slide-over panel (role workspace and contact panel)
 
 - Fixed right, full height, 640px wide, `raised` background, 1px `line-2` left border
   (**not** brand colour), `shadow-float`, and a scrim behind it. It slides in over
   200ms and out over 140ms.
-- **Header**, padding 16px top and bottom and 20px on the sides:
-  - the 3px brand band at the top edge, and the 16% brand gradient wash behind the
-    header (2.6);
-  - a 40px logo tile, then the name in `h2` `fg-1`, `title · company` in `body-sm`
+- **Header**, padding 16px top and bottom and 24px on the sides:
+  - the flat 22% brand band behind the whole header (2.6), with no fade and no top
+    strip;
+  - a 40px logo tile, then the name in `h2` `fg-1`, `title · company` in `body`
     `fg-2`, and the stage chip plus "How we met" in `meta` `fg-2`. **`fg-3` is not
-    allowed on the wash.**
+    allowed on the band.** The "28 of 34" position is `meta` `tabular-nums` `fg-2`.
   - the close `X` as a quiet icon button at the top right, `fg-2`.
-- **Body:** sections separated by 24px, each starting with a `label` eyebrow in
-  `fg-3` (not brand colour). Inner cards are `surface` on `raised`. Inputs are
-  `canvas`.
+- **Body:** 24px side padding, sections separated by 24px, each starting with a
+  `t-section` heading (16px, `fg-1`, sentence case; not brand colour). **A section's
+  add button names what it adds and sits beside its heading** (v1.2, `sectionHead` in
+  `lib/ui.ts`): a quiet compact button with a 14px `Plus`, 12px after the heading in one
+  28px row: "Add referral", "Add interview", "Add file", "Add note", "Add mutual", "Add
+  call". A bare "+ Add" at the far right edge, 590px from its heading, belonged to
+  nothing in particular.
+- **Referral** (role panel) works like Mutuals on a person: "Add referral" opens a
+  picker over the whole network, people at the company first, and a quiet link to note
+  a name for someone not in it. Entries are stored in `Application.referrerId` as a
+  JSON list of contact ids and noted names (`parseReferrers()` in `lib/role-meta.ts`);
+  a contact links to their Network panel, a noted name reads "· not in your network". Groups inside a
+  section, if any, take `t-group`. Inner cards are `surface` on `raised`, no border.
+  Inputs are `canvas`.
 - **Footer actions** (Save and similar) are primary or secondary buttons. **None take
   brand colour.**
 
@@ -578,28 +767,43 @@ number in `fg-1` (`fg-3` when 0). The whole tile links somewhere. Hover border
 
 - 32px, `canvas` fill (on `surface` or `raised`), 1px `line-input` border,
   `rounded-control`, `px-2.5`, `body` text in `fg-1`, placeholder in `fg-3`.
-- Hover: `fg-4` border. Focus: `rope` border plus the global focus ring. Error:
+- Hover: `fg-3` border (v1.1: `fg-4` was the same grey as `line-input`, so hover did
+  nothing). Focus: `rope` border plus the global focus ring. Error:
   `alarm` border, plus an `AlertTriangle` and message in `meta` `alarm` below.
 - Textareas use the same style and grow with `AutoResizeTextarea`. The paste box shows
   a character or limit counter in `data-sm` `fg-3` at the bottom right (`212/300`),
   which turns `alarm` with a glyph past the limit.
 - Selects use the same frame with a 14px `ChevronDown` in `fg-3`.
 - Inline label above a field: `meta` in `fg-2`. Field groups are 12px apart.
+- **Paste boxes are not wrapped in a bordered card.** The dashed field is the target;
+  a bordered card around a dashed box is two frames for one thing. The borderless form
+  frame below is tone, not a frame, so a dashed field may sit in it.
+- **Header-triggered forms share one frame** (v1.2, `FormFrame` in
+  `components/PageChrome.tsx`): Add role, Add people (and its manual variant) and Find
+  people. A `surface` card, no border, 16px padding; the title in `t-section` `fg-1`
+  with the close `X` (quiet icon button) at the top right in one 28px row; one hint
+  line in `meta` `fg-3`, capped at 72ch, 4px under it; the fields 12px below, 8px
+  apart; then a footer row 12px below with any quiet way sideways on the left (an
+  underlined `meta` link, `formLink`) and the form's verb on the right as a
+  **secondary** button (the header's button is the page's one rope fill). Errors and
+  results sit under the footer. Escape closes it. Find people opened in a card while
+  Add people opened bare, with a different title, footer and button placement, so the
+  two buttons beside each other in the header opened two different-looking things.
 
 #### 5.10 Empty states
 
-- One line in `body-sm` `fg-3`, plus at most one action (a secondary button or a quiet
+- One line in `body` `fg-3`, plus at most one action (a secondary button or a quiet
   link). Centred in the region, with 32px vertical padding. If the empty state sits
   where a list would be, it goes inside a `surface` container with a **dashed**
   `line-2` border.
 - No illustrations, no icons larger than 16px, no encouragement.
 - Formula: what is missing, then how it fills. For example: "No people yet. Add
-  someone from the queue, or use Add person."
+  someone from the queue, or use Add people."
 
 #### 5.11 Chat sheet and tooltips
 
 - **Chat sheet:** `raised`, `rounded-panel` at the top corners, `shadow-float`. The
-  title is "Ask Claude" in `h3`. Your messages sit on `lift`, Claude's on none. While
+  title is "Ask Claude" in `name`. Your messages sit on `lift`, Claude's on none. While
   waiting, "Writing…" in `meta` `fg-3`, not italic.
 - **Tooltips and popovers:** `raised`, 1px `line-2`, `rounded-card`, `shadow-float`,
   8px/10px padding, `meta` text.
@@ -611,21 +815,34 @@ number in `fg-1` (`fg-3` when 0). The whole tile links somewhere. Hover border
 
   | Level | Hex | OKLCH | vs `surface` |
   |---|---|---|---|
-  | `heat-0` (none) | `#232528` | `oklch(0.262 0.007 260)` | 1.18 |
-  | `heat-1` | `#3F4348` | `oklch(0.38 0.010 260)` | 1.82 |
-  | `heat-2` | `#656970` | `oklch(0.52 0.012 260)` | 3.29 |
-  | `heat-3` | `#9A9FA6` | `oklch(0.70 0.012 260)` | 6.81 |
-  | `heat-4` | `#E2E5E9` | `oklch(0.92 0.006 260)` | 14.35 |
+  | `heat-0` (none) | `#232528` | `oklch(0.262 0.007 260)` | 1.15 |
+  | `heat-1` | `#3F4348` | `oklch(0.38 0.010 260)` | 1.77 |
+  | `heat-2` | `#656970` | `oklch(0.52 0.012 260)` | 3.19 |
+  | `heat-3` | `#9A9FA6` | `oklch(0.70 0.012 260)` | 6.61 |
+  | `heat-4` | `#E2E5E9` | `oklch(0.92 0.006 260)` | 13.94 |
 
-  Neighbouring steps differ by 1.5–2.1:1, so each step reads at 11px.
-- 11px cells with a 2px gap and 2px radius. Cell borders are not used.
+  Neighbouring steps differ by 1.54–2.11:1, so each step reads at 11px. (`vs surface`
+  recomputed for the v1.1 `surface`; the ramp itself is unchanged, and `heat-0` stays
+  under the new `lift` on purpose, so an empty day never looks hovered.)
+- **The grid fills the panel's width.** Each week is a `1fr` column and each day a
+  square in it, with a 3px gap and 2px radius (about 19px cells at a 1440 window,
+  16px at 1280). Below a 10px cell the grid stops shrinking and scrolls sideways,
+  parked on the current week (phones). The legend keeps fixed 11px squares. Cell
+  borders are not used.
+- **Panel header:** the streak on the left (`meta` `fg-2`), the year select on the
+  right, inside the panel. The section heading "Progress" sits above the panel.
 - **Today:** a 1.5px inset `rope` ring. **Selected day:** a 1.5px inset `fg-1` ring.
-- **Day detail** (under the grid): the date in `data`, then two labelled groups,
+- **Day detail** (under the grid) **must not move** as the cursor sweeps the grid: the
+  Day and Year columns are fixed widths (3rem and 4rem) in tabular mono, and every row
+  is a fixed 28px. The date is Archivo `tabular-nums` and sits at the left edge with
+  nothing after it but "Today" (when it is), 8px on (v1.1: the date had a fixed 18ch
+  box, which stopped the jitter but left a hole before "Today"; with nothing to its
+  right that the date could push, the box was guarding nothing). The date, then two labelled groups,
   "Applying" (Roles triaged, Applications submitted, Interviews) and "People" (People
   identified, People messaged, Coffee chats), each with a count in `data` `fg-1` and a
   year total in `fg-3`. The side is shown by position and words, not hue.
-- Legend: "Less" plus five cells plus "More", in `meta` `fg-3`. Streak in `meta`
-  `fg-2`: "14-day streak" or "No streak".
+- Legend: "Less" plus five cells plus "More", in `meta` `fg-3`, right-aligned under
+  the grid. Streak in `meta` `fg-2`: "14-day streak" or "No streak".
 
 #### 5.13 Network graph
 
@@ -645,11 +862,11 @@ The only expressive surface in the app, and the portfolio and README hero.
     1.5px stroke in the node colour with a `canvas` fill. Sent onward is **filled**.
     No response is filled at 40% opacity.
 - **Edges (mutual links):** 1px `fg-3` at 28% opacity, non-scaling. When a node or
-  company is focused, the focused edges turn `rope` at 85% and 1.5px, and everything
-  else dims to 6%.
-- **Focus ring** on the selected or hovered node: a 1.5px `rope` ring with a 3px gap.
-  **Rope is the only highlight colour in the graph.** Replace the `ACCENT = "#8fcdfd"`
-  constant.
+  company is hovered or focused, the focused edges turn `fg-1` at 85% and 1.5px, and
+  everything else dims to 6%. (They were rope; hover is neutral, see 4.3.)
+- **Ring** on the hovered or focused node: a 1.5px ring with a 3px gap, `fg-1` on
+  hover and `rope` only under keyboard `:focus-visible` (the app's focus colour). The
+  old `ACCENT = "#8fcdfd"` constant is gone.
 - **Labels:** Archivo 11px (names are text, not data), `fg-2` with a 3px `canvas`
   halo. `fg-1` when focused. Shown on hover, on focus, and from 1.2× zoom. Never all at
   once.
@@ -799,7 +1016,9 @@ and the owner then redraws the result on the grid in 6.2.
    what is below it.
 4. **The owner's words, not the system's.** Scan, not ingest. People, not contacts.
    Role, not job. Pass, never reject, skip or dismiss.
-5. **One name per thing.** If the nav says Home, the page says Home.
+5. **One name per thing.** If the nav says Home, the page says Home. The two lists are
+   **Roles** (tabs: Queue, Active) and **People** (tabs: Queue, Network). Never
+   "pipeline", "applications" as a page, or "contacts" (v1.2).
 6. **Empty states say how the space fills.** One line, no encouragement.
 7. **When something fails, say where to look.** It's a local tool, so the fix is
    usually on this machine.
@@ -821,219 +1040,33 @@ and the owner then redraws the result on the grid in 6.2.
 | 6 | `app/page.tsx` `emptyHint` | Ask Claude what to prioritize today, who needs a follow-up, how this week is going. | What to do today, who is due a follow-up, how the week went. |
 | 7 | `components/ChatPanel.tsx:191` | Claude is thinking… | Writing… |
 | 8 | `app/applications/page.tsx:713` empty queue | All caught up. Nothing is waiting for a verdict. | Queue clear. Scan now to look for more. |
-| 9 | `app/networking/page.tsx:716` empty people list | Nobody here yet. Add someone from the queue and they land here. | No people yet. Add someone from the queue, or use Add person. |
+| 9 | `app/networking/page.tsx:716` empty people list | Nobody here yet. Add someone from the queue and they land here. | No people yet. Add someone from the queue, or use Add people. |
 | 10 | `app/networking/page.tsx:815` day-count tooltip | Time to reach out again / Days since your last touch | {n} days since last touch. Follow up. / {n} days since last touch |
 | 11 | `components/PeopleQueue.tsx:193` (and similar) | Could not reach the server. Try again. | Can't reach Belay on this machine. Is `npm run dev` running? |
 | 12 | `components/ContactPanel.tsx:899` placeholder | Paste their LinkedIn About section and current role. Call notes or a message thread work too. Belay writes a two or three sentence summary of who they are. | Paste their About section, call notes or a thread. Belay writes a 2–3 sentence summary. |
 | 13 | `components/PageChrome.tsx` next-action line, all zero | All caught up | Nothing waiting |
 
 Strings to keep as they are, because they are already right: "Pass. They will not be
-offered again (P)", "Why this one?" / "Why not?", "no summary", "You followed up;
-restart the count".
+offered again (P)", "Why this one?" / "Why not?", "You followed up; restart the
+count". ("no summary" left the people rows in v1.2.)
 
 ### 8. Implementation
 
-#### 8.1 `globals.css`: paste-ready
+#### 8.1 `globals.css`
 
-This replaces the current `@theme` and `:root` blocks. The `zinc` remap at the bottom
-is **temporary** (phase 1, see 8.3): it re-tints every existing `zinc-*` class with no
-component edits, and it is deleted in phase 4.
+The paste-ready block that stood here shipped in phase 1 and has since drifted from the
+live file twice. Two copies of the tokens is one too many, so it is gone (v1.1):
+**`app/globals.css` is the only copy**, and it must match the tables in 2 and 3.
+Change a value there and change the table here in the same commit, with the contrast
+figures recomputed by script.
 
-```css
-@import "tailwindcss";
-
-/* Fonts come from next/font in app/layout.tsx as CSS variables on <html>.
-   `inline` makes the utilities reference the variable directly. */
-@theme inline {
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
-}
-
-@theme {
-  /* Surfaces: elevation is lightness */
-  --color-canvas: #0d0e10;   /* oklch(0.165 0.004 260) */
-  --color-surface: #141618;  /* oklch(0.198 0.005 260) */
-  --color-raised: #1b1d1f;   /* oklch(0.228 0.006 260) */
-  --color-lift: #232528;     /* oklch(0.262 0.007 260) */
-
-  /* Lines */
-  --color-line-1: #232528;     /* oklch(0.262 0.007 260) */
-  --color-line-2: #2f3236;     /* oklch(0.315 0.008 260) */
-  --color-line-3: #4a4d52;     /* oklch(0.420 0.009 260) */
-  --color-line-input: #606368; /* oklch(0.500 0.009 260) 3.2:1 on canvas */
-
-  /* Text: fg-3 is the readable floor (>=5.0:1 on every surface) */
-  --color-fg-1: #eceef0; /* oklch(0.948 0.004 260) */
-  --color-fg-2: #b9bcc1; /* oklch(0.795 0.008 260) */
-  --color-fg-3: #90949a; /* oklch(0.665 0.010 260) */
-  --color-fg-4: #606369; /* oklch(0.500 0.010 260) disabled and separators only */
-
-  /* The one accent: your next move */
-  --color-rope: #f67f3d;       /* oklch(0.72 0.165 47) */
-  --color-rope-hover: #fd9c5d; /* oklch(0.78 0.140 52) */
-  --color-rope-press: #e06c34; /* oklch(0.66 0.160 44) */
-  --color-rope-wash: #412212;  /* oklch(0.29 0.055 47) */
-  --color-on-rope: #0d0e10;
-
-  /* Semantics: always with a glyph and a word or number */
-  --color-ok: #7fcc94;    /* oklch(0.78 0.110 152) */
-  --color-warn: #ecca6c;  /* oklch(0.85 0.120 90) */
-  --color-alarm: #f0626e; /* oklch(0.68 0.175 18) */
-
-  /* Stage ramp fills (steps 1-5); step 0 and end states are unfilled */
-  --color-stage-1: #2f3236;
-  --color-stage-2: #4a4d52;
-  --color-stage-3: #7d8086; /* text on it: canvas */
-  --color-stage-4: #b4b7bd; /* text on it: canvas */
-  --color-stage-5: #eceef0; /* text on it: canvas */
-
-  /* Heatmap */
-  --color-heat-0: #232528;
-  --color-heat-1: #3f4348;
-  --color-heat-2: #656970;
-  --color-heat-3: #9a9fa6;
-  --color-heat-4: #e2e5e9;
-
-  /* Graph */
-  --color-graph-neutral: #a1a5ab;
-
-  /* Radii */
-  --radius-control: 4px;
-  --radius-card: 6px;
-  --radius-panel: 10px;
-
-  /* Elevation, for floating layers only */
-  --shadow-float: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 0 0 1px #2f3236;
-
-  /* Motion */
-  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-
-  /* Type scale: text-display, text-h1 ... sets size, line height, tracking, weight */
-  --text-display: 28px;
-  --text-display--line-height: 32px;
-  --text-display--letter-spacing: -0.02em;
-  --text-display--font-weight: 600;
-  --text-stat: 28px;
-  --text-stat--line-height: 32px;
-  --text-stat--letter-spacing: -0.01em;
-  --text-stat--font-weight: 600;
-  --text-h1: 20px;
-  --text-h1--line-height: 28px;
-  --text-h1--letter-spacing: -0.012em;
-  --text-h1--font-weight: 600;
-  --text-h2: 16px;
-  --text-h2--line-height: 22px;
-  --text-h2--letter-spacing: -0.005em;
-  --text-h2--font-weight: 600;
-  --text-h3: 14px;
-  --text-h3--line-height: 20px;
-  --text-h3--font-weight: 600;
-  --text-body: 14px;
-  --text-body--line-height: 20px;
-  --text-body-sm: 13px;
-  --text-body-sm--line-height: 18px;
-  --text-meta: 12px;
-  --text-meta--line-height: 16px;
-  --text-meta--letter-spacing: 0.005em;
-  --text-button: 13px;
-  --text-button--line-height: 16px;
-  --text-button--font-weight: 500;
-  --text-chip: 12px;
-  --text-chip--line-height: 16px;
-  --text-chip--letter-spacing: 0.01em;
-  --text-chip--font-weight: 500;
-  --text-label: 11px;
-  --text-label--line-height: 16px;
-  --text-label--letter-spacing: 0.08em;
-  --text-label--font-weight: 600;
-  --text-data: 12px;
-  --text-data--line-height: 16px;
-  --text-data-sm: 11px;
-  --text-data-sm--line-height: 16px;
-  --text-kbd: 10px;
-  --text-kbd--line-height: 14px;
-
-  /* PHASE 1 ONLY: re-tint every existing zinc class. Delete in phase 4.
-     Lifts zinc-600 and zinc-500 to the readable floor so dim text passes AA. */
-  --color-zinc-50: #eceef0;
-  --color-zinc-100: #eceef0;
-  --color-zinc-200: #eceef0;
-  --color-zinc-300: #b9bcc1;
-  --color-zinc-400: #b9bcc1;
-  --color-zinc-500: #90949a;
-  --color-zinc-600: #90949a;
-  --color-zinc-700: #4a4d52;
-  --color-zinc-800: #2f3236;
-  --color-zinc-900: #141618;
-  --color-zinc-950: #0d0e10;
-}
-
-/* Composite styles that need more than size */
-@utility t-label {
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
-  letter-spacing: var(--text-label--letter-spacing);
-  font-weight: 600;
-  font-stretch: 80%;
-  text-transform: uppercase;
-  color: var(--color-fg-3);
-}
-@utility t-chip {
-  font-stretch: 87.5%;
-}
-@utility t-num {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-@utility wordmark {
-  font-size: 13px;
-  line-height: 16px;
-  font-weight: 700;
-  font-stretch: 75%;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-:root {
-  --dur-hover: 90ms;
-  --dur-quick: 140ms;
-  --dur-panel: 200ms;
-  --dur-panel-exit: 140ms;
-  color-scheme: dark;
-}
-
-html {
-  scrollbar-gutter: stable;
-}
-
-body {
-  background: var(--color-canvas);
-  color: var(--color-fg-1);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 20px;
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-rope);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    transition-duration: 80ms !important;
-    transition-property: opacity !important;
-    animation: none !important;
-  }
-}
-```
-
-Utility names this produces: `bg-canvas`, `bg-surface`, `bg-raised`, `bg-lift`,
-`border-line-2`, `text-fg-3`, `bg-rope`, `text-on-rope`, `bg-rope-wash`, `text-alarm`,
-`bg-stage-3`, `rounded-card`, `shadow-float`, `ease-enter`, `text-h1`, `text-label`,
-`text-data`, plus `t-label`, `t-num` and `wordmark`. For duration, use
-`duration-90`, `duration-140` and `duration-200`.
+Utility names it produces: `bg-canvas`, `bg-surface`, `bg-raised`, `bg-lift`,
+`bg-plate`, `border-line-2`, `text-fg-3`, `bg-rope`, `text-on-rope`, `bg-rope-wash`,
+`text-alarm`, `bg-stage-3`, `rounded-card`, `shadow-float`, `ease-enter`, `text-h1`,
+`text-name`, `text-label`, `text-data`, plus `t-section`, `t-group`, `t-label`,
+`t-chip`, `t-num` and `wordmark`. For duration, use `duration-90`, `duration-140` and
+`duration-200`. The control recipes (buttons, inputs, tags, toggles, cards) are in
+`lib/ui.ts`.
 
 #### 8.2 Mapping from today's classes
 
@@ -1097,7 +1130,7 @@ Each phase ships on its own and leaves the app consistent.
 - Build `StageChip` with the shared neutral ramp and the dashed Drafted step. Delete
   `STATUS_COLORS` and `CONTACT_STAGE_COLORS`.
 - Strip the brand `accent` from every control in the two panels. Brand stays in the
-  3px band and the 16% header wash. The left border goes to `line-2`.
+  header wash (16% at rollout, then 24%, 22% since v1.1; the 3px band was dropped in v1.1; see 2.6). The left border goes to `line-2`.
 - After this phase, company colour is the only hue inside a panel, which is the
   owner's favourite part, made safer.
 
@@ -1120,3 +1153,53 @@ Each phase ships on its own and leaves the app consistent.
 
 **Phase 6 (optional): light theme** from 2.7, as a `[data-theme="light"]` override
 of the same tokens.
+
+---
+
+## Part 3. Changes in v1.1 (6 October 2026)
+
+A design critique of the shipped rebrand, applied as one pass. Each line is the rule
+that changed and the reason. Where the critique conflicted with a principle in Part 2,
+the principle won, and the line says so.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | Cards, tiles, site rows, queue cards, list containers and the tab bar lose their border; tags become `lift` fill with no border; filter toggles are plain text off and a `lift` key on (4.3, 5.5) | A border that tone can replace is chrome the eye reads past. Hairlines stay for row dividers, inputs, floating layers, and secondary buttons (a control must look pressable) |
+| 2 | `surface` `#17191C`, `raised` `#1E2023`, `lift` `#282A2E`, `line-1` `#1E2023`, `line-input` `#63666B` (2.2) | Steps of 1.06–1.07 were too close for tone to separate anything; `line-1` equalled `lift`, so a hovered row merged with its dividers; `line-input` had to rise to keep 3:1 on the lighter surface |
+| 3 | In a list grouped by stage, the stage control shows only on row hover or focus, and its slot holds the day count at rest (5.5, 5.7) | The group header already names the stage |
+| 4 | Stage step 0 is a `line-2` outline with `fg-3` text; Drafted a dashed `line-3` (5.5) | Step 0 was the loudest outline in the ramp; the ramp now rises at every step |
+| 5 | New `plate` token `#E6E8EB` behind logos (2.2, 2.6) | Pure white was the brightest thing on every screen |
+| 6 | No brand band on panel tops; the wash drops from 24% to 22% (2.6) | The band read as rope on orange brands. The wash percentage is the critique's "keep 24%" overruled by the AA floor: on the lighter `raised`, 24% puts `fg-2` at 4.46 on a white brand |
+| 7 | Prose caps at 72ch (3.3) | Line length past ~75 characters loses the return sweep |
+| 9 | Queue score `8/10` with `/10` in `fg-3`; the first card holds the cursor at load; Pass is quiet; same on the people queue (4.7, 5.4, 5.6) | One rope Accept at rest, where A lands; one bordered button per card |
+| 10 | Mono only for numbers in columns and logs; inline numbers are Archivo `tabular-nums`; pay normalised to `$169–303k` (3.1, 5.6) | Inline mono read as code in a sentence; six spellings of a salary read as noise |
+| 11 | No "Overview" heading on Home; tile names `meta` `fg-3`; uppercase `label` only for column headers, at most one row per section, with group names in a new sentence-case `t-group` (3.3, 5.6) | Five uppercase tier labels down one section made capitals texture again |
+| 12 | Company tiles in an auto-fill grid at `minmax(88px, 1fr)`; stat tiles three across on a phone (4.4) | The critique suggested ~120px, but 8 tiles across the 804px company column at 1440 needs ≤93px; at 120 a tier of 8 would wrap 6 + 2 |
+| 13 | Row hover is `lift`, dividers `line-1`, one step apart (4.3) | Follows from 2 |
+| 14 | External-link icons after names show on hover and focus; a mutual shared by every visible person card is said once above them (5.6) | A column of identical icons or sentences is read once, then skipped |
+| 15 | Ask Claude docks into the Home header as a quiet button; rope buttons take an `fg-1` focus ring; paste boxes are not wrapped in a card (2.3, 5.2, 5.9) | The floating launcher covered content; a rope ring on rope does not show |
+| — | Type scale collapsed to 11, 12, 14, 16, 20, 24, 28 (13px `body-sm` removed, `button` 13 → 14, `kbd` 10 → 11, `h1` 20 → 24, `h2` 16 → 20, `h3` 14 → 16; new `name` and `t-group`; `t-section-panel` merged into `t-section`) (3.3) | Below 14, one-pixel steps produced two names for one size; above, ~1.2 steps you can see |
+| — | Slide-over side padding 24px (4.1, 5.8) | 20px was off the spacing scale |
+| — | Input hover border `fg-3` (5.9) | `fg-4` was the same grey as `line-input`, so hover did nothing |
+| — | Heatmap day detail: the date loses its fixed box; "Today" follows it (5.12) | The box stopped jitter that could not happen (nothing sits to the right of the date) and left a hole |
+| 8 | Not done: the logo mark | The owner is generating it |
+
+## Part 3b. Changes in v1.2 (6 October 2026)
+
+The owner's feedback after using v1.1, applied as one pass.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | The keyboard cursor (rope border, rope Accept/Add) appears only after J or K; nothing is orange at rest but the header's primary button (4.7, 5.4) | The v1.1 rule put a rope box round the first card at load, which read as a bug, a selection nobody made |
+| 2 | Verdict buttons fixed at 28 × 88px in every state (4.4, 5.4) | They sized to their content, so the hint-to-check swap on a click made them jump |
+| 3 | The queue score shows in every state (5.6) | Hiding it on a decision made the card look like a different card, and it covers nothing |
+| 4 | Both queue cards: logo left, primary name 16px (the largest text), then the second line; the person card's second line is Company · Role; the mutual is back on every person card and "All via …" is gone (5.6) | One layout for both queues; at 14px the name was the size of the line under it |
+| 5 | List rows 56px with a 32px logo; second line `fg-2` (4.4, 5.7) | 44px rows with 24px logos were too thin to read the marks |
+| 6 | List rows use the middle for what is next (interview, form state, referral; how you met, tags, mutual), label the day count ("12d in Applied", "last touch 9d"), drop the posting's age and "no summary" (5.5, 5.7) | The middle was empty, and a bare "12d" did not say what it counted |
+| 7 | The panel header is a flat 22% band, not a gradient; contrast re-measured on the flat band (2.6, 5.8) | The fade left most of the header at a few percent and read as too subtle; flat at the same strength keeps every ratio |
+| 8 | Section adds say what they add and sit beside their heading (5.8) | "+ Add" at the far right edge was ambiguous |
+| 9 | Referrals: pick anyone in the network or note a name (5.8) | The picker only offered exact company matches and hid its Add when there were none, so most roles could not take a referral |
+| 10 | One frame for Add role, Add people and Find people (5.9) | The three header forms opened three different ways |
+
+| 11 | Home: every block opens with a `t-section` heading, including Applications and Network; the day detail reads number-then-label with the year total beside it; the year selector resets the detail and totals are scoped to the selected year (3.3, 5.6, 5.11) | Two halves of Home sat under uppercase labels while every other block had a heading, and labels sat a column away from their numbers |
+| 12 | Names: the pages are **Roles** and **People**, parallel nouns for the two lists; the Roles tabs are **Queue** and **Active** (was Pipeline); the People tabs are **Queue** and **Network**. URLs are unchanged (/applications, /networking), and ?tab=active / ?tab=network work alongside the old values | "Applications" and "Network" named a process and a group, not the two kinds of thing listed; "pipeline" is sales jargon for "the ones in motion" |

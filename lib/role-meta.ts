@@ -59,9 +59,11 @@ export function daysAgo(iso: string | null | undefined): number | null {
  * the real queue, and twenty identical alarm badges per screen carry no information,
  * so the alarm only earns its colour at 30 days — where the req probably is dead.
  * Five of the fourteen roles passed with a written reason were a dead posting.
+ * MetaLine adds the alert glyph to an alarm token, because alarm and rope are too
+ * close in luminance to be told apart by hue alone.
  */
 export function ageTone(days: number): string {
-  return days >= 30 ? "text-alarm" : "text-zinc-600";
+  return days >= 30 ? "text-alarm" : "text-fg-3";
 }
 
 export type MetaToken = {
@@ -112,7 +114,7 @@ export function metaTokens(job: {
         : "Stated in the posting.",
       guessed: exp.inferred,
     });
-  if (job.compRange && job.compRange !== "Not disclosed") out.push({ text: job.compRange });
+  if (job.compRange && job.compRange !== "Not disclosed") out.push({ text: formatComp(job.compRange) });
   return out;
 }
 
@@ -145,4 +147,96 @@ export function cleanTags(raw: unknown): string[] {
     .filter((t) => t.length <= 28 && t.split(/\s+/).length <= 4)
     .filter((t) => !TAG_NOISE.some((re) => re.test(t)))
     .slice(0, 5);
+}
+
+/**
+ * Pay, written one way everywhere: "$169–303k". One currency sign, an en dash, a
+ * lowercase k, no thousands separators. The sources write the same range six ways
+ * ("$153,000 to $170,000", "$136K - $187K", "$160-200k base"), and in a column of
+ * cards the variety reads as noise rather than as different numbers.
+ *
+ * Only an amount with a currency mark is touched, so "3-5 yrs" and "15% bonus" pass
+ * through. Anything after the figure ("base (US)", "+ equity") is kept as written,
+ * and a string with no recognisable amount comes back unchanged.
+ */
+const CUR = String.raw`(?:[A-Z]{1,2}\$|[$£€]|(?:USD|CAD|EUR|GBP|AUD)\s?)`;
+const NUM = String.raw`(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)`;
+const AMOUNT = `(${CUR})?${NUM}\\s?([kK])?`;
+const RANGE_RE = new RegExp(`${AMOUNT}\\s*(?:-|–|—|to)\\s*${AMOUNT}(?![\\d%])`, "g");
+const SINGLE_RE = new RegExp(`(${CUR})${NUM}\\s?([kK])?(?![\\d,.%–-])`, "g");
+
+function thousands(raw: string, k: boolean): number | null {
+  const n = Number(raw.replace(/,/g, ""));
+  if (!Number.isFinite(n)) return null;
+  if (k) return n;
+  return n >= 1000 ? n / 1000 : null;
+}
+
+// Whole thousands: "$159.3k" is precision nobody negotiates on, and a decimal makes
+// one card's figure wider than its neighbours'.
+function kText(n: number): string {
+  return String(Math.round(n));
+}
+
+export function formatComp(raw: string): string {
+  const ranged = raw.replace(RANGE_RE, (whole, c1?: string, n1?: string, k1?: string, c2?: string, n2?: string, k2?: string) => {
+    const cur = (c1 || c2 || "").trim();
+    if (!cur || !n1 || !n2) return whole;
+    // "$160-200k": the k on the high end covers the low end too.
+    const lo = thousands(n1, !!k1 || (!!k2 && Number(n1.replace(/,/g, "")) < 1000));
+    const hi = thousands(n2, !!k2);
+    if (lo === null || hi === null || hi >= 10_000) return whole;
+    const sep = /[A-Z]$/.test(cur) ? " " : "";
+    return `${cur}${sep}${kText(lo)}–${kText(hi)}k`;
+  });
+  return ranged.replace(SINGLE_RE, (whole, c?: string, n?: string, k?: string) => {
+    if (!c || !n) return whole;
+    const v = thousands(n, !!k);
+    if (v === null || v >= 10_000) return whole;
+    const cur = c.trim();
+    const sep = /[A-Z]$/.test(cur) ? " " : "";
+    return `${cur}${sep}${kText(v)}k`;
+  });
+}
+
+/**
+ * Who is referring you on an application. Application.referrerId holds a JSON array
+ * (a bare id from before it was a list still reads). Each entry is either a Contact's
+ * id, when the referrer is someone in your network, or a name you noted, when they are
+ * not (yet): the same two ways a mutual is recorded on a person. A cuid is told from a
+ * name by its shape; a name has a space or a capital, a cuid never does.
+ */
+export function parseReferrers(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return (Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+  } catch {
+    return [raw];
+  }
+}
+
+export const isContactId = (entry: string) => /^[a-z0-9_]{20,}$/.test(entry);
+
+/** The names to show: a contact's name, a noted name as written, and nothing for an
+ * id whose contact has since been removed. */
+export function referrerNames(raw: string | null | undefined, contacts: { id: string; name: string }[]): string[] {
+  return parseReferrers(raw)
+    .map((e) => (isContactId(e) ? (contacts.find((c) => c.id === e)?.name ?? null) : e))
+    .filter((n): n is string => !!n);
+}
+
+/** The soonest interview still to come in an application's interviewList, or null. */
+export function nextInterview(raw: string | null | undefined): { label?: string; at: string } | null {
+  if (!raw) return null;
+  try {
+    const list = JSON.parse(raw) as { label?: string; at?: string }[];
+    const now = Date.now();
+    const upcoming = (Array.isArray(list) ? list : [])
+      .filter((iv): iv is { label?: string; at: string } => !!iv?.at && new Date(iv.at).getTime() >= now)
+      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+    return upcoming[0] ?? null;
+  } catch {
+    return null;
+  }
 }

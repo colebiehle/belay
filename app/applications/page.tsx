@@ -1,16 +1,18 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Check, ExternalLink, Plus, X, Search, Mail, Users } from "lucide-react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, Check, ExternalLink, Plus, Search, Users } from "lucide-react";
 import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
+import { RowStage, StageSelect } from "@/components/StageChip";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { STATUSES, OPEN_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
-import { cleanTags, daysAgo, displayCompany, metaTokens } from "@/lib/role-meta";
-import { PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
+import { cleanTags, daysAgo, displayCompany, metaTokens, nextInterview, referrerNames } from "@/lib/role-meta";
+import { FormFrame, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
+import { button, card, cardSub, cardTitle, emptyBox, input, kbd, queueCard, revealLink, tag, textarea, verdictWidth } from "@/lib/ui";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,27 +95,12 @@ type Application = {
 // at the bottom, which is where you look least often.
 const STATUS_ORDER = STATUSES;
 
-// Six of seven statuses used to share one identical blue, which made "Applying"
-// and "Offer" the same object on screen. Colour now tracks how far along the
-// application actually is, as one ramp.
-//
-// The ramp is pink, not blue. Blue is the networking side of the app, and an
-// application's own stage chip is the most application-side object there is — the
-// contact stage chip on /networking is the blue twin of this.
-const STATUS_COLORS: Record<string, string> = {
-  Applying: "bg-zinc-800 text-zinc-300",
-  Applied: "bg-accent-pink/15 text-accent-pink",
-  Screen: "bg-accent-pink/30 text-accent-pink",
-  Interviewing: "bg-accent-pink/50 text-black",
-  "Final round": "bg-accent-pink/75 text-black",
-  Offer: "bg-accent-pink text-black",
-  // Off the ramp on purpose: the search ended, and it ended well.
-  Accepted: "bg-accent-pink-light text-black",
-  // The two ways a role ends badly. Dim on purpose: they are the bottom of the list
-  // and the least-looked-at rows, but they are not failures to hide either.
-  Rejected: "bg-zinc-900 text-zinc-600",
-  Withdrawn: "bg-zinc-900 text-zinc-600",
-};
+/** The pipeline group's element id, the target of ?stage=. "Final round" -> stage-final-round. */
+const stageAnchor = (status: string) => `stage-${status.toLowerCase().replace(/\s+/g, "-")}`;
+
+// The status chip is the shared StageChip: one neutral ramp for both sides of the
+// app, graded by how far along the application is. It used to be a pink ramp here
+// and a blue twin on /networking, which spent a hue on "which side" twice.
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -135,9 +122,9 @@ export default function ApplicationsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
-    // ?tab=pipeline still arrives from older links and the dashboard.
-    // Old ?tab=applying and ?tab=applied links still land somewhere sensible.
-    if (t === "applying" || t === "applied" || t === "pipeline") setTab("pipeline");
+    // The tab is labelled Active; ?tab=active and the older ?tab=pipeline both land
+    // on it. Old ?tab=applying and ?tab=applied links still land somewhere sensible.
+    if (t === "applying" || t === "applied" || t === "pipeline" || t === "active") setTab("pipeline");
     else if (t === "passed") setTab("passed");
     const j = params.get("job");
     if (j) setHighlightJobId(j);
@@ -174,9 +161,11 @@ export default function ApplicationsPage() {
   // Keyboard cursor into filteredJobs. Triaging 40+ roles a day by mouse was the
   // single biggest cost in the loop.
   const [cursor, setCursor] = useState(0);
-  // The focus ring is the keyboard cursor, so it only shows while navigating by
-  // keyboard. Clicking a card used to light it and leave it lit, which read as a
-  // selection state the card does not have.
+  // The rope border is the keyboard cursor, and it only exists once you start using
+  // the keyboard: J or K turns it on, on the card you land on, and a click turns it
+  // off. It used to start on the first card, which put an orange box round one card
+  // at rest and read as a bug, a selection nobody made (STYLE_GUIDE 4.7). At rest the
+  // only rope on the page is the header's primary button.
   const [keyboardNav, setKeyboardNav] = useState(false);
   // Companies where a contact already exists, lowercased for matching.
   const [contactCompanies, setContactCompanies] = useState<Set<string>>(new Set());
@@ -227,6 +216,21 @@ export default function ApplicationsPage() {
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [highlightJobId, jobsLoading]);
+
+  // ?stage=<status> scrolls the pipeline to that stage's group, so Home's
+  // "Upcoming interviews" lands on the interviews rather than the top of the list.
+  // A stage with nothing in it falls through to the next one down that has rows.
+  // Once per visit: switching tabs and back later should not yank the list again.
+  const stageScrolled = useRef(false);
+  useEffect(() => {
+    const stage = new URLSearchParams(window.location.search).get("stage");
+    if (!stage || appsLoading || tab !== "pipeline" || stageScrolled.current) return;
+    stageScrolled.current = true;
+    const from = STATUS_ORDER.indexOf(stage);
+    if (from < 0) return;
+    const target = STATUS_ORDER.slice(from).find((s) => document.getElementById(stageAnchor(s)));
+    if (target) document.getElementById(stageAnchor(target))?.scrollIntoView({ block: "start" });
+  }, [appsLoading, tab]);
 
   useEffect(() => {
     fetch("/api/jobs?filter=pending")
@@ -453,14 +457,16 @@ export default function ApplicationsPage() {
       const clamp = (n: number) => Math.max(0, Math.min(list.length - 1, n));
       const job = list[clamp(cursor)];
       const key = e.key.toLowerCase();
+      // The first J or K only shows the cursor where it already is (the first card,
+      // or the last one clicked), so the first press never skips a card.
       if (key === "j") {
         e.preventDefault();
+        if (keyboardNav) setCursor((c) => clamp(c + 1));
         setKeyboardNav(true);
-        setCursor((c) => clamp(c + 1));
       } else if (key === "k") {
         e.preventDefault();
+        if (keyboardNav) setCursor((c) => clamp(c - 1));
         setKeyboardNav(true);
-        setCursor((c) => clamp(c - 1));
       } else if (key === "a" && keyboardNav && job) {
         // Gated on keyboardNav: without it, A on a fresh load accepted whatever
         // was at cursor 0 with no ring anywhere on screen. Not gated on being
@@ -488,7 +494,7 @@ export default function ApplicationsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, filteredJobs, cursor, decided]);
+  }, [tab, filteredJobs, cursor, decided, keyboardNav]);
 
   // Keep the focused card in view as the cursor walks the list.
   useEffect(() => {
@@ -560,7 +566,7 @@ export default function ApplicationsPage() {
         const failNote = failed.length
           ? ` · ${failed.length} unreadable: ${failed.slice(0, 4).map((f) => f.source).join(", ")}${failed.length > 4 ? "…" : ""}`
           : "";
-        setIngestMsg((data.summary || "Ingest complete.") + failNote);
+        setIngestMsg((data.summary || "Scan done.") + failNote);
         const refreshed = await fetch("/api/jobs?filter=pending").then((r) => r.json());
         setJobs(refreshed);
       } else {
@@ -584,7 +590,7 @@ export default function ApplicationsPage() {
           whose form has not gone in. The date that sat here told you nothing the
           menu bar does not. */}
       <PageHeader
-        title="Applications"
+        title="Roles"
         parts={
           jobsLoading || appsLoading
             ? null
@@ -596,81 +602,80 @@ export default function ApplicationsPage() {
         actions={
           <>
             {ingestMsg && (
-              <span className={`text-xs ${ingestMsg.startsWith("Failed") ? "text-accent-pink" : "text-zinc-400"}`}>
+              // A failed scan is alarm, and alarm always carries a glyph so it is never
+              // told from rope by hue alone.
+              <span className={`flex items-center gap-1 text-meta ${ingestMsg.startsWith("Failed") ? "text-alarm" : "text-fg-2"}`}>
+                {ingestMsg.startsWith("Failed") && <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth />}
                 {ingestMsg}
               </span>
             )}
             {/* One button, and it runs the same scan as the daily schedule, so
-                "ingest" means one thing wherever it starts. */}
+                "scan" means one thing wherever it starts. No Mail icon: the label
+                already says it, and Gmail is one source of many. */}
             <button
               onClick={() => runIngest()}
               disabled={ingesting}
               title="Scan every tracked company's board, plus LinkedIn, the VC boards and Gmail alerts"
-              className={headerButton("secondary", "pink")}
+              className={headerButton("secondary")}
             >
-              <Mail size={14} /> {ingesting ? "Scouring…" : "Run ingest"}
+              {ingesting ? "Scanning…" : "Scan now"}
             </button>
             <button
               onClick={() => {
                 if (tab !== "queue") setTab("queue");
                 setShowAddForm((s) => !s);
               }}
-              className={headerButton("primary", "pink")}
+              className={headerButton("primary")}
             >
-              <Plus size={14} /> Add role
+              <Plus size={16} strokeWidth={1.5} absoluteStrokeWidth /> Add role
             </button>
           </>
         }
       />
 
       <TabBar
-        tone="pink"
         active={tab === "passed" ? null : tab}
         onChange={setTab}
         tabs={[
-          { key: "queue", label: "Queue", count: pendingJobs.length },
-          { key: "pipeline", label: "Pipeline", count: activeCount },
+          { key: "queue", label: "Queue", count: pendingJobs.length, urgent: true },
+          { key: "pipeline", label: "Active", count: activeCount },
         ]}
       />
 
       {/* Queue view */}
       {tab === "queue" && (
         <div className="space-y-4">
-          {/* Add job form */}
+          {/* Add role, in the frame every header-triggered form shares (Add people
+              and Find people use the same one): title and close, one hint line, the
+              field, then the verb on the right of the footer. */}
           {showAddForm && (
-            <div className="bg-zinc-900 border border-accent-pink/30 rounded-lg p-5 shadow-lg shadow-accent-pink/10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-medium text-zinc-100">Add role</h2>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="text-zinc-500 hover:text-zinc-300 transition-colors duration-150"
-                >
-                  <X size={16} />
+            <FormFrame
+              title="Add role"
+              hint="Paste the posting URL. Claude reads the page, pulls out the company, role and details, scores the fit, and adds it to the queue."
+              onClose={() => setShowAddForm(false)}
+              status={
+                addError && (
+                  <p className="flex items-center gap-1 text-meta text-alarm">
+                    <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" /> {addError}
+                  </p>
+                )
+              }
+              footerEnd={
+                <button onClick={addJob} disabled={!addUrl || adding} className={button("secondary")}>
+                  {adding ? "Fetching…" : "Add to queue"}
                 </button>
-              </div>
-              <p className="text-xs text-zinc-500 mb-3">
-                Paste the posting URL. Claude reads the page, pulls out the company, role and details, scores the fit, and adds it to the queue.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={addUrl}
-                  onChange={(e) => setAddUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1 text-sm border border-zinc-700 rounded-md px-3 py-1.5 bg-zinc-800 text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-accent-pink focus:ring-1 focus:ring-accent-pink/30 transition-all duration-150"
-                  onKeyDown={(e) => e.key === "Enter" && addJob()}
-                />
-                <button
-                  onClick={addJob}
-                  disabled={!addUrl || adding}
-                  className="text-sm font-medium px-4 py-1.5 bg-accent-pink text-black rounded-md hover:opacity-90 disabled:opacity-40 transition-all duration-150 shrink-0"
-                >
-                  {adding ? "Fetching…" : "Add"}
-                </button>
-              </div>
-              {addError && (
-                <p className="text-xs text-accent-pink mt-2">{addError}</p>
-              )}
-            </div>
+              }
+            >
+              <input
+                value={addUrl}
+                onChange={(e) => setAddUrl(e.target.value)}
+                placeholder="https://..."
+                autoFocus
+                aria-label="Posting URL"
+                className={input()}
+                onKeyDown={(e) => e.key === "Enter" && addJob()}
+              />
+            </FormFrame>
           )}
 
           {/* Filter + Sort */}
@@ -678,18 +683,18 @@ export default function ApplicationsPage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                  <Search size={14} strokeWidth={1.5} absoluteStrokeWidth className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3 pointer-events-none" />
                   <input
                     value={queueFilter}
                     onChange={(e) => setQueueFilter(e.target.value)}
                     placeholder="Filter by company or role…"
-                    className="w-full text-sm pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-accent-pink/50 focus:ring-1 focus:ring-accent-pink/20 transition-all duration-150"
+                    className={`${input()} pl-8`}
                   />
                 </div>
                 <select
                   value={queueSort}
                   onChange={(e) => setQueueSort(e.target.value as typeof queueSort)}
-                  className="text-sm bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-zinc-300 focus:outline-none focus:border-accent-pink/50 focus:ring-1 focus:ring-accent-pink/20 transition-all duration-150"
+                  className={`${input("default", true)} pr-7`}
                 >
                   <option value="tier">Tier, then score</option>
                   <option value="score">Score</option>
@@ -707,24 +712,24 @@ export default function ApplicationsPage() {
           )}
 
           {jobsLoading ? (
-            <p className="text-zinc-500 text-sm">Loading…</p>
+            <p className="text-body text-fg-3">Loading…</p>
           ) : jobs.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-              <p className="text-zinc-500">All caught up. Nothing is waiting for a verdict.</p>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="mt-3 text-sm text-accent-pink hover:text-accent-pink/80 transition-colors duration-150"
-              >
-                Add a role by URL
+            // What is missing, then how it fills; one action, and it is the scan,
+            // because that is what refills a queue. Adding by URL is in the header.
+            <div className={emptyBox}>
+              <p>Queue clear. Scan now to look for more.</p>
+              <button onClick={() => runIngest()} disabled={ingesting} className={`${button("secondary")} mt-3`}>
+                {ingesting ? "Scanning…" : "Scan now"}
               </button>
             </div>
           ) : filteredJobs.length === 0 ? (
-            <p className="text-zinc-500 text-sm text-center py-8">No results for &quot;{queueFilter}&quot;</p>
+            <p className={emptyBox}>Nothing matches &quot;{queueFilter}&quot;.</p>
           ) : (
-            // Two per row. The raggedness that drove the single column came from
-            // variable-height cards, not from the grid — the cards are a fixed
-            // height now, so two up scans better and fits more on screen.
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5" onMouseDown={() => setKeyboardNav(false)}>
+            // Two per row from 1280px. The raggedness that drove the single column
+            // came from variable-height cards, not from the grid — the cards share
+            // one shape now (headline clamped to two lines, tags to one), so two up
+            // scans better and fits more on screen.
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-2" onMouseDown={() => setKeyboardNav(false)}>
               {filteredJobs.map((job, i) => (
                 <div key={job.id} id={`job-${job.id}`} className="h-full">
                   <JobCard
@@ -751,12 +756,12 @@ export default function ApplicationsPage() {
           {passedLoaded && passedJobs.length > 0 && (
             <div className="space-y-2">
               <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                <Search size={14} strokeWidth={1.5} absoluteStrokeWidth className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3 pointer-events-none" />
                 <input
                   value={passedFilter}
                   onChange={(e) => setPassedFilter(e.target.value)}
                   placeholder="Filter by company, role, or reason…"
-                  className="w-full text-sm pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-accent-pink/50 focus:ring-1 focus:ring-accent-pink/20 transition-all duration-150"
+                  className={`${input()} pl-8`}
                 />
               </div>
               <ChipFilterRow
@@ -769,15 +774,16 @@ export default function ApplicationsPage() {
           )}
 
           {!passedLoaded ? (
-            <p className="text-zinc-500 text-sm">Loading…</p>
+            <p className="text-body text-fg-3">Loading…</p>
           ) : passedJobs.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-              <p className="text-zinc-500">No passed roles yet.</p>
+            <div className={emptyBox}>
+              <p>No passed roles yet. Pass a role in the queue and it lands here with your reason.</p>
             </div>
           ) : filteredPassed.length === 0 ? (
-            <p className="text-zinc-500 text-sm text-center py-8">No results for &quot;{passedFilter}&quot;</p>
+            <p className={emptyBox}>Nothing matches &quot;{passedFilter}&quot;.</p>
           ) : (
-            <div className="space-y-2">
+            // One container, rows divided by hairlines, the same as every list.
+            <div className={`${card} divide-y divide-line-1 overflow-hidden`}>
               {filteredPassed.map((j) => (
                 <PassedRow key={j.id} job={j} />
               ))}
@@ -809,12 +815,12 @@ export default function ApplicationsPage() {
           {!appsLoading && apps.length > 0 && (
             <div className="space-y-2">
               <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                <Search size={14} strokeWidth={1.5} absoluteStrokeWidth className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3 pointer-events-none" />
                 <input
                   value={pipelineFilter}
                   onChange={(e) => setPipelineFilter(e.target.value)}
                   placeholder="Filter by company or role…"
-                  className="w-full text-sm pl-8 pr-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-accent-pink/50 focus:ring-1 focus:ring-accent-pink/20 transition-all duration-150"
+                  className={`${input()} pl-8`}
                 />
               </div>
               <ChipFilterRow
@@ -827,31 +833,38 @@ export default function ApplicationsPage() {
           )}
 
           {appsLoading ? (
-            <p className="text-zinc-500 text-sm">Loading…</p>
+            <p className="text-body text-fg-3">Loading…</p>
           ) : apps.length === 0 ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-12 text-center">
-              <p className="text-zinc-500">
-                Nothing here yet. Accept a role in the queue and it lands here.
-              </p>
+            <div className={emptyBox}>
+              <p>No applications yet. Accept a role in the queue and it lands here.</p>
             </div>
           ) : filteredApps.length === 0 ? (
-            <p className="text-zinc-500 text-sm text-center py-8">No results for &quot;{pipelineFilter}&quot;</p>
+            <p className={emptyBox}>Nothing matches &quot;{pipelineFilter}&quot;.</p>
           ) : (
-            <div className="space-y-5">
+            // One container per stage, 56px two-line rows divided by hairlines. It was a
+            // stack of separately bordered cards at about 80px each; then 44px rows,
+            // which were too thin to read a logo on. The group header sticks under the
+            // nav so a long Applied group still says which group you are in.
+            <div className="space-y-6">
               {STATUS_ORDER.map((status) => {
                 const group = filteredApps.filter((a) => a.status === status);
                 if (group.length === 0) return null;
                 return (
-                  <div key={status}>
-                    <div className="flex items-center gap-2 mb-2 px-1">
-                      <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
-                        {status}
-                      </h3>
-                      <span className="text-xs text-zinc-600">{group.length}</span>
+                  <div key={status} id={stageAnchor(status)} className="scroll-mt-14">
+                    <div className="sticky top-12 z-[5] bg-canvas flex items-center gap-2 h-8">
+                      <h3 className="t-group">{status}</h3>
+                      <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
                     </div>
-                    <div className="space-y-2">
+                    <div className={`${card} divide-y divide-line-1 overflow-hidden`}>
                       {group.map((app) => (
-                        <PipelineRow key={app.id} app={app} onUpdate={updateApp} onOpenWorkspace={setWorkspaceId} />
+                        <PipelineRow
+                          key={app.id}
+                          app={app}
+                          contacts={contacts}
+                          selected={app.id === workspaceId}
+                          onUpdate={updateApp}
+                          onOpenWorkspace={setWorkspaceId}
+                        />
                       ))}
                     </div>
                   </div>
@@ -958,41 +971,60 @@ function JobCard({
   // Company first, role second, both at the top, then the sub-line. The company is
   // the thing the tier ordering is about and the thing that decides whether the role
   // is worth a form at all, so it leads; it also never truncates, because "Appl…" is
-  // worse than no company at all.
+  // worse than no company at all. The 32px logo tile is where the company's colour
+  // lives on the card, and the only place.
   const head = (
-    <div className="flex items-start gap-2.5 pr-32">
+    <div className="flex items-start gap-3">
       <CompanyLogo
         company={job.company}
         jobUrl={job.jobUrl}
         domain={domainFromEnrichment(job.queueEnrichment)}
         logo={logoFromEnrichment(job.queueEnrichment)}
-        size={40}
+        size={32}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5 min-w-0">
-          <span className="shrink-0">{displayCompany(job.company)}</span>
-          {/* Blue, because knowing someone here is the networking side reaching into
-              this card. Whether you have a way in changes whether the role is worth a
-              cold form. */}
+        <p className={`${cardTitle} flex items-center gap-1.5 min-w-0`}>
+          <span className="truncate">{displayCompany(job.company)}</span>
+          {/* The mutuals glyph: knowing someone here changes whether the role is
+              worth a cold form. Neutral, with its meaning in the tooltip; it used to
+              be the networking side's blue. */}
           {hasContact && (
-            <span className="shrink-0" title="You already know someone here. Ask before applying cold.">
-              <Users size={11} className="text-accent-blue" />
+            <span className="shrink-0 text-fg-2" title="You already know someone here. Ask before applying cold.">
+              <Users size={14} strokeWidth={1.5} absoluteStrokeWidth />
             </span>
           )}
         </p>
-        <p className="text-xs text-zinc-300 leading-snug line-clamp-1">{job.roleTitle}</p>
-        <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1.5 min-w-0">
-          <MetaLine tokens={tokens} />
-        </p>
+        <p className={cardSub}>{job.roleTitle}</p>
       </div>
+      {/* The fit score, alone, in plain mono: no colour scale, because the queue is
+          already sorted by it. "/10" in the dim step says what it is out of, so the
+          number reads as a mark rather than a count. The posting's age used to sit
+          beside it and parsed as part of the same number; it belongs with the facts
+          on the meta line. It stays in every state: it covers nothing, and a card that
+          loses its number on a click looks like a different card. */}
+      {job.fitScore > 0 && (
+        <span
+          className="font-mono text-data text-fg-1 shrink-0"
+          title={`Fit ${job.fitScore}/10 for this role. Improves as you accept and pass.`}
+        >
+          {job.fitScore}
+          <span className="text-fg-3">/10</span>
+        </span>
+      )}
     </div>
+  );
+
+  const meta = (
+    <p className="mt-1 text-meta text-fg-3 flex items-center gap-1.5 min-w-0">
+      <MetaLine tokens={tokens} />
+    </p>
   );
 
   const lower = decided ? (
     // The reason, in the space the headline and tags had. Full size, because these
     // notes are the most valuable data in the database: they are what teaches the
-    // scorer and what became the intake rules. No Save button and no Skip — Enter
-    // saves, leaving the box saves, and walking away costs nothing.
+    // scorer and what became the intake rules. No Save button and no Skip — leaving
+    // the box saves, Done files the card, and walking away costs nothing.
     <div className="mt-2 flex-1 min-h-0 flex flex-col">
       <AutoResizeTextarea
         value={note}
@@ -1005,49 +1037,50 @@ function JobCard({
         // the global key handler bails on a focused TEXTAREA, so autofocusing it
         // meant the second A of a triage run typed the letter "a" into a note.
         placeholder={accepted ? "Why this one?" : "Why not?"}
-        className="flex-1 w-full text-xs bg-transparent text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none leading-relaxed"
+        className={`${textarea()} flex-1`}
       />
-      <div className="flex justify-end pt-1">
-        <button
-          onClick={file}
-          className="text-xs font-semibold text-zinc-400 hover:text-zinc-100 transition-colors duration-150"
-        >
-          Done
-        </button>
-      </div>
     </div>
   ) : (
-    <>
-      {headline && <p className="mt-2 text-xs text-zinc-400 leading-snug line-clamp-2">{headline}</p>}
-      {tags.length > 0 && (
-        <div className="mt-auto pt-2 pr-14 flex flex-wrap gap-1 overflow-hidden max-h-[46px]">
-          {tags.map((t, i) => (
-            <span
-              key={i}
-              className="text-[11px] leading-tight px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400"
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
-    </>
+    headline && <p className="mt-2 text-body text-fg-1 line-clamp-2">{headline}</p>
   );
+
+  // Accept is secondary on every card; once the keyboard cursor is showing (after J
+  // or K), the card under it turns Accept primary, so the orange marks exactly where A
+  // will land. At rest there is no cursor and no rope on any card. Pass is quiet: it
+  // is the common verdict but never the next move. A set verdict shows a check and a
+  // lift fill, and both buttons keep one width throughout (verdictWidth).
+  const verdictButton = (kind: "Apply" | "Pass") => {
+    const on = kind === "Apply" ? accepted : passed;
+    const other = kind === "Apply" ? passed : accepted;
+    const label = kind === "Apply" ? "Accept" : "Pass";
+    const key = kind === "Apply" ? "A" : "P";
+    const look =
+      kind === "Apply" && focused && !decided
+        ? button("primary", "compact")
+        : `${button(kind === "Apply" ? "secondary" : "quiet", "compact")} ${on ? "bg-lift text-fg-1" : ""} ${other ? "text-fg-3" : ""}`;
+    return (
+      <button
+        onClick={() => (on ? onClearVerdict() : onVerdict(job.id, kind, ""))}
+        title={on ? `${kind === "Apply" ? "Accepted" : "Passed"}. Click to undo (U)` : `${label} (${key})`}
+        className={`${look} ${verdictWidth}`}
+      >
+        {on && <Check size={14} strokeWidth={1.5} absoluteStrokeWidth />} {label}
+        {focused && !decided && <span className={`${kbd} ${kind === "Apply" ? "border-on-rope/30 text-on-rope" : ""}`}>{key}</span>}
+      </button>
+    );
+  };
 
   return (
     <div
       onClick={onFocus}
-      className={`relative h-[188px] flex flex-col bg-zinc-900 border rounded-lg transition-all duration-150 ${
-        focused
-          ? "border-accent-pink/70 ring-1 ring-accent-pink/30"
-          : accepted
-            ? "border-accent-pink/40"
-            : "border-zinc-800 hover:border-zinc-700"
-      }`}
+      // The frame both queues share (lib/ui queueCard): the rope border only under
+      // the keyboard cursor, a transparent one holding its place otherwise.
+      className={`${queueCard(focused)} min-h-40`}
     >
       {decided ? (
-        <div className="flex-1 min-h-0 p-3.5 flex flex-col">
+        <div className="flex-1 min-h-0 flex flex-col">
           {head}
+          {meta}
           {lower}
         </div>
       ) : (
@@ -1065,54 +1098,37 @@ function JobCard({
             e.preventDefault();
             openInBackgroundTab(job.jobUrl);
           }}
-          className="flex-1 min-h-0 p-3.5 flex flex-col"
+          className="flex-1 min-h-0 flex flex-col rounded-control"
           title="Open the posting in a background tab"
         >
           {head}
+          {meta}
           {lower}
         </a>
       )}
 
-      {/* Both verdicts, always, in the same place. A check marks the one that is
-          set; clicking it again clears it. */}
-      <div className="absolute top-3 right-3 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={() => (accepted ? onClearVerdict() : onVerdict(job.id, "Apply", ""))}
-          title={accepted ? "Accepted. Click to undo (U)" : "Accept (A)"}
-          className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded border transition-all duration-150 ${
-            accepted
-              ? "border-accent-pink bg-accent-pink text-black"
-              : `border-accent-pink/50 bg-transparent text-accent-pink hover:bg-accent-pink/10 ${passed ? "opacity-40" : ""}`
-          }`}
-        >
-          {accepted && <Check size={11} />} Accept
-        </button>
-        <button
-          onClick={() => (passed ? onClearVerdict() : onVerdict(job.id, "Pass", ""))}
-          title={passed ? "Passed. Click to undo (U)" : "Pass (P)"}
-          className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded border transition-all duration-150 ${
-            passed
-              ? "border-zinc-600 bg-zinc-700 text-zinc-100"
-              : `border-zinc-700 bg-transparent text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 ${accepted ? "opacity-40" : ""}`
-          }`}
-        >
-          {passed && <Check size={11} />} Pass
-        </button>
-      </div>
-
-      {/* The fit score, alone. The posting's age used to sit beside it and parsed as
-          part of the same number; it belongs with the facts, so it leads the sub-line
-          now. Tier is not here either: the ordering already carries it. */}
-      {/* Hidden once a verdict is in: the Done button lives in that corner now, and
-          the score has done its job the moment the decision is made. */}
-      {job.fitScore > 0 && !decided && (
-        <div
-          className="absolute bottom-2.5 right-3 text-xs font-bold tabular-nums text-accent-pink pointer-events-none"
-          title={`Fit ${job.fitScore}/10 for this role. Improves as you accept and pass.`}
-        >
-          {job.fitScore}
+      {/* The bottom row: the judgement compressed into at most five tags, then both
+          verdicts, always, in the same place. A check marks the one that is set;
+          clicking it again clears it. Once decided, Done takes the tags' place. */}
+      <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {decided ? (
+          <button onClick={file} className={`${button("quiet", "compact")} -ml-2.5`}>
+            Done
+          </button>
+        ) : (
+          <div className="flex flex-wrap gap-1 overflow-hidden max-h-5 min-w-0">
+            {tags.slice(0, 5).map((t, i) => (
+              <span key={i} className={tag}>
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {verdictButton("Pass")}
+          {verdictButton("Apply")}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1122,41 +1138,42 @@ function JobCard({
 
 function PassedRow({ job }: { job: Job }) {
   return (
-    <div className="px-3.5 py-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all duration-150">
-      <div className="flex items-start gap-3">
-        <CompanyLogo
-          company={job.company}
-          jobUrl={job.jobUrl}
-          domain={domainFromEnrichment(job.queueEnrichment)}
-          logo={logoFromEnrichment(job.queueEnrichment)}
-          size={40}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-zinc-100 leading-snug">{displayCompany(job.company)}</p>
-              <p className="text-xs text-zinc-300 leading-snug truncate">{job.roleTitle}</p>
-              <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1.5 min-w-0">
-                <MetaLine tokens={metaTokens(job)} />
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <TierBadge tier={job.companyTier} />
+    <div className="group/row flex items-start gap-3 px-3 py-3 hover:bg-lift transition-colors duration-90 ease-enter">
+      <CompanyLogo
+        company={job.company}
+        jobUrl={job.jobUrl}
+        domain={domainFromEnrichment(job.queueEnrichment)}
+        logo={logoFromEnrichment(job.queueEnrichment)}
+        size={24}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-name text-fg-1 flex items-center gap-1.5">
+              {displayCompany(job.company)}
               <a
                 href={job.jobUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-zinc-600 hover:text-accent-pink transition-colors duration-150"
+                className={revealLink}
                 title="Open the posting"
               >
-                <ExternalLink size={13} />
+                <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
               </a>
-            </div>
+            </p>
+            <p className="text-meta text-fg-3 truncate">
+              {job.roleTitle}
+              <span className="text-fg-4 mx-1">·</span>
+              <MetaLine tokens={metaTokens(job)} />
+            </p>
           </div>
-          {job.verdictNotes && !job.verdictNotes.startsWith("⚠️") && (
-            <p className="text-xs text-zinc-400 mt-1.5 italic leading-relaxed">{job.verdictNotes}</p>
-          )}
+          <TierBadge tier={job.companyTier} />
         </div>
+        {/* Your reason, in your words: body text, not italic, because it is the
+            most useful line on the row. */}
+        {job.verdictNotes && !job.verdictNotes.startsWith("⚠️") && (
+          <p className="text-body text-fg-2 mt-1">{job.verdictNotes}</p>
+        )}
       </div>
     </div>
   );
@@ -1166,55 +1183,119 @@ function PassedRow({ job }: { job: Job }) {
 // Pipeline: Application row
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Applying: an accepted role that has not been sent yet
-// ---------------------------------------------------------------------------
+/** "Thu 9 Oct": the pipeline row's interview date, inline, so Archivo with tabular figures. */
+function rowDate(d: Date): string {
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
 
 function PipelineRow({
   app,
+  contacts,
+  selected = false,
   onUpdate,
   onOpenWorkspace,
 }: {
   app: Application;
+  contacts: { id: string; name: string }[];
+  selected?: boolean;
   onUpdate: (id: string, patch: Partial<Application>) => void;
   onOpenWorkspace: (id: string) => void;
 }) {
-  const statusColor = STATUS_COLORS[app.status] ?? "bg-zinc-800 text-zinc-500";
-  const tokens = metaTokens(app.job);
   const applying = app.status === "Applying";
   // The gap this closes: accepting a role created a row at "Applying" and nothing
   // ever moved it. All three Applying rows in the database were archived rather than
-  // sent, one of them after 63 days. The only exit was a nine-option select, which is
-  // a disclosure control, not a verb.
-  //
-  // Two signals, no new screen. Opening the form stamps applyStartedAt, so "opened
-  // 9 days ago, never sent" becomes a thing the row can say. Marking it sent is one
-  // button; the PATCH route already stamps dateApplied when the status becomes
-  // Applied, so nothing else has to be recorded.
+  // sent, one of them after 63 days. Opening the form stamps applyStartedAt, so
+  // "form opened 9d ago, not sent" becomes a thing the row can say.
   const openedAge = applying ? daysAgo(app.applyStartedAt) : null;
+  // Days since the role reached its current stage, from the last history entry for
+  // it; an Applying row with no history counts from when it was accepted. Display
+  // only; nothing is recorded.
+  const stageAge = (() => {
+    try {
+      const h = JSON.parse(app.statusHistory ?? "[]") as { status?: string; at?: string }[];
+      const last = Array.isArray(h) ? [...h].reverse().find((e) => e?.status === app.status) : undefined;
+      return daysAgo(last?.at ?? (applying ? app.createdAt : null));
+    } catch {
+      return null;
+    }
+  })();
+  // The next interview still to come, if one is booked.
+  const upcoming = nextInterview(app.interviewList);
+  // Who is putting your name in: a contact's id, or a name noted without a row
+  // behind it (see the role panel's Referral section).
+  const referrers = referrerNames(app.referrerId, contacts);
+
+  // The middle of the row: what happens next, in the order it matters. An interview
+  // on the calendar, a form opened and not sent, who is referring you. Each is a fact
+  // the panel holds but the list could not show, so a row said only "Applied, 12d".
+  const next: ReactNode[] = [];
+  if (upcoming) {
+    const at = new Date(upcoming.at);
+    next.push(
+      <span key="iv" className="text-fg-2" title={`Interview ${at.toLocaleString()}`}>
+        Interview {rowDate(at)}
+        {upcoming.label && <span className="text-fg-3"> · {upcoming.label}</span>}
+      </span>,
+    );
+  }
+  if (openedAge !== null) {
+    // Seven days opened and not sent is the stall this row exists to catch: alarm,
+    // with the glyph as well as the words, never the hue alone.
+    next.push(
+      <span
+        key="form"
+        className={`flex items-center gap-1 ${openedAge >= 7 ? "text-alarm" : "text-fg-3"}`}
+        title="You opened the form from Belay and have not marked it sent."
+      >
+        {openedAge >= 7 && <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth />}
+        Form opened {openedAge === 0 ? "today" : `${openedAge}d ago`}
+      </span>,
+    );
+  } else if (applying) {
+    next.push(
+      <span key="form" className="text-fg-3">
+        Form not opened yet
+      </span>,
+    );
+  }
+  if (referrers.length > 0) {
+    next.push(
+      <span key="ref" className="flex items-center gap-1 text-fg-2 min-w-0">
+        <Users size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 text-fg-3" />
+        <span className="truncate">Referred by {referrers.join(", ")}</span>
+      </span>,
+    );
+  }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all duration-150">
-      {/* Collapsed row: glanceable only, and the same top block as the queue card.
-          The two used to invert each other — the card led with the role, the row led
-          with the company — so the same role read differently on adjacent tabs.
-          "accepted 3d ago" / "sent 12d ago" is gone with it: the row is for finding a
-          role, and the dates it was actually asking about are in the panel's history,
-          where they sit against the stage they belong to. */}
-      <div className="flex items-center gap-3 px-3.5 py-3">
-        <CompanyLogo
-          company={app.job.company}
-          jobUrl={app.job.jobUrl}
-          domain={domainFromEnrichment(app.job.queueEnrichment)}
-          logo={logoFromEnrichment(app.job.queueEnrichment)}
-          size={40}
-        />
-        <button
-          onClick={() => onOpenWorkspace(app.id)}
-          className="flex-1 min-w-0 text-left"
-          title="Open the workspace for this role"
-        >
-          <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
+    // The row is selected while its panel is open: rope-wash with a 2px rope bar on
+    // the inside left edge, so the row you are working on is findable behind the
+    // scrim.
+    <div
+      className={`group/row relative flex items-center gap-3 h-14 px-3 transition-colors duration-90 ease-enter ${
+        selected ? "bg-rope-wash" : "hover:bg-lift"
+      }`}
+    >
+      {selected && <span className="absolute left-0 inset-y-0 w-0.5 bg-rope" />}
+      {/* Two lines at 56px with a 32px logo: the company, then the role. At 44px
+          with a 24px logo the marks were too small to tell apart, and the pay and
+          location crammed after the role were the queue's facts, not the pipeline's.
+          The posting's age is gone from here too: it is a reason to accept, not a
+          fact about an application, and the panel still shows it. */}
+      <CompanyLogo
+        company={app.job.company}
+        jobUrl={app.job.jobUrl}
+        domain={domainFromEnrichment(app.job.queueEnrichment)}
+        logo={logoFromEnrichment(app.job.queueEnrichment)}
+        size={32}
+      />
+      <button
+        onClick={() => onOpenWorkspace(app.id)}
+        className="flex-1 min-w-0 flex items-center gap-6 text-left rounded-control"
+        title="Open the workspace for this role"
+      >
+        <span className="block min-w-0 flex-1 md:flex-none md:w-[38%]">
+          <span className="text-name text-fg-1 flex items-center gap-1.5 min-w-0">
             <span className="truncate">{displayCompany(app.job.company)}</span>
             {/* The link out follows the primary name, here and in the panel and on
                 the contact rows. On an Applying row it is also the "I have started
@@ -1229,47 +1310,54 @@ function PipelineRow({
                   onUpdate(app.id, { applyStartedAt: new Date().toISOString() } as Partial<Application>);
                 }
               }}
-              className="shrink-0 text-zinc-500 hover:text-accent-pink transition-colors duration-150"
+              className={revealLink}
               title={app.portalUrl ? "Open the application portal" : "Open the posting"}
             >
-              <ExternalLink size={13} />
+              <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
             </a>
-          </p>
-          <p className="text-xs text-zinc-300 leading-snug truncate">{app.job.roleTitle}</p>
-          <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-1.5 min-w-0">
-            <MetaLine tokens={tokens} />
-            {openedAge !== null && (
-              <>
-                <span className="text-zinc-700 shrink-0">·</span>
-                <span className={`shrink-0 ${openedAge >= 7 ? "text-alarm" : "text-zinc-600"}`}>
-                  {openedAge === 0 ? "form opened today" : `form opened ${openedAge}d ago`}
-                </span>
-              </>
-            )}
-          </p>
-        </button>
+          </span>
+          <span className="block text-meta text-fg-2 truncate">{app.job.roleTitle}</span>
+        </span>
+        {/* What happens next. Hidden on a phone, where the two lines and the count
+            already fill the row. */}
+        <span className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 text-meta tabular-nums overflow-hidden whitespace-nowrap">
+          {next.map((n, i) => (
+            <Fragment key={i}>
+              {i > 0 && <span className="text-fg-4">·</span>}
+              {n}
+            </Fragment>
+          ))}
+        </span>
+      </button>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* One control for the whole progression, so moving a role forward is
-              the same gesture at every stage. */}
-          <select
+      {/* The last slot: how long it has sat at this stage, said in words, and the
+          stage control in its place on hover or focus (STYLE_GUIDE 5.5). */}
+      <RowStage
+        rest={
+          stageAge !== null && (
+            <span
+              className="flex items-baseline gap-1 text-meta text-fg-3 whitespace-nowrap"
+              title={`${stageAge === 1 ? "1 day" : `${stageAge} days`} since this role moved to ${app.status}. Counts from the stage change in its history.`}
+            >
+              {/* A same-day count says "today": "0d in Applied" read as a glitch. */}
+              {stageAge === 0 ? (
+                <>{app.status} today</>
+              ) : (
+                <>
+                  <span className="font-mono text-data">{stageAge}d</span> in {app.status}
+                </>
+              )}
+            </span>
+          )
+        }
+        control={
+          <StageSelect
             value={app.status}
-            onChange={(e) => onUpdate(app.id, { status: e.target.value } as Partial<Application>)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer outline-none text-center min-w-[6.5rem] ${statusColor}`}
-            style={{ appearance: "none" }}
-          >
-            {STATUSES.map((st) => (
-              <option key={st} value={st}>{st}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* The row used to expand inline to hold the resume, the questions and the
-          notes. All of that moved into RoleWorkspace, which opens on the title:
-          the work needs a tall surface and a chat beside it, and duplicating it
-          here meant two places to keep in step. The row is now glanceable only. */}
+            options={STATUSES}
+            onChange={(next) => onUpdate(app.id, { status: next } as Partial<Application>)}
+          />
+        }
+      />
     </div>
   );
 }
-

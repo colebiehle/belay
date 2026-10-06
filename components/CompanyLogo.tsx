@@ -126,7 +126,7 @@ export function CompanyLogo({
   if (attempt >= sources.length) {
     return (
       <div
-        className="rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-500 shrink-0"
+        className={`${size <= 24 ? "rounded-control" : "rounded-card"} bg-lift flex items-center justify-center text-meta font-semibold text-fg-3 shrink-0`}
         style={{ width: px, height: px }}
       >
         {company[0]?.toUpperCase() ?? "?"}
@@ -141,7 +141,11 @@ export function CompanyLogo({
     <img
       src={src}
       alt={company}
-      className={`rounded-lg object-contain bg-white shrink-0 ${isSourceLogo ? "" : "p-1"}`}
+      // 4px radius at 24px and under, 6px from 32px up, so the corner reads the same
+      // proportion at every size.
+      className={`${size <= 24 ? "rounded-control" : "rounded-card"} object-contain bg-plate shrink-0 ${
+        isSourceLogo ? "" : size <= 24 ? "p-0.5" : "p-1"
+      }`}
       style={{ width: px, height: px }}
       onError={() => setAttempt((a) => a + 1)}
       // Google's favicon service answers an unknown domain with its generic 16px

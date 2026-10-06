@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Trash2 } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
+import { card, iconButton, textarea } from "@/lib/ui";
 
 type Answer = {
   id: string;
@@ -164,14 +165,16 @@ export function AnswerBank() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
+        {/* Counts in the bright step and words in the dim one, the same as the
+            next-action line on Applications and Network. */}
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Profile</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {allRows.length} question{allRows.length === 1 ? "" : "s"}
+          <h1 className="text-h1 text-fg-1">Profile</h1>
+          <p className="text-body text-fg-3 mt-1">
+            <span className="text-fg-1 tabular-nums">{allRows.length}</span> question{allRows.length === 1 ? "" : "s"}
             {blanks > 0 && (
               <>
-                {" · "}
-                <span className="text-zinc-400">{blanks} still blank</span>
+                <span className="text-fg-4 mx-1.5">·</span>
+                <span className="text-fg-1 tabular-nums">{blanks}</span> still blank
               </>
             )}
           </p>
@@ -179,47 +182,60 @@ export function AnswerBank() {
       </div>
 
 
+      {/* One readable column: answers cap at 72ch, and from lg the question moves
+          into a left rail beside its answer instead of above it. Full-width answer
+          fields ran 160 characters to a line, past where the eye can find the next
+          one (STYLE_GUIDE 3.3). */}
+      <div className="space-y-6 max-w-[calc(16rem+72ch+3rem)]">
       {GROUPS.map((g) => {
         const items = allRows.filter((a) => groupOf(a.tags) === g.tag);
         if (items.length === 0) return null;
         return (
           <section key={g.tag}>
-            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{g.label}</h2>
-            <p className="text-xs text-zinc-600 mt-0.5 mb-2">{g.blurb}</p>
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg divide-y divide-zinc-800">
+            <h2 className="t-section">{g.label}</h2>
+            <p className="text-meta text-fg-3 mt-0.5 mb-2">{g.blurb}</p>
+            <div className={`${card} divide-y divide-line-1`}>
               {items.map((a) => {
                 const value = drafts[a.id] ?? a.answer;
                 const isBlank = !value;
                 return (
-                  <div key={a.id} className="p-3 group">
-                    <div className="flex items-start justify-between gap-3">
-                      <label htmlFor={`ans-${a.id}`} className="text-xs text-zinc-400 leading-snug">
+                  <div key={a.id} className="p-3 group lg:grid lg:grid-cols-[16rem_minmax(0,1fr)] lg:gap-6 lg:items-start">
+                    <div className="flex items-start justify-between gap-3 lg:pt-1.5">
+                      <label htmlFor={`ans-${a.id}`} className="text-meta text-fg-2">
                         {a.question}
-                        {isBlank && <span className="ml-2 text-zinc-600">blank</span>}
+                        {isBlank && <span className="ml-2 text-fg-3">blank</span>}
                         {a.useCount > 0 && (
-                          <span className="ml-2 text-zinc-600">
-                            used {a.useCount}×
+                          <span className="ml-2 text-fg-3">
+                            used <span className="tabular-nums">{a.useCount}×</span>
                           </span>
                         )}
                       </label>
-                      <div className="flex items-center gap-1 shrink-0">
+                      {/* 28px hit targets, pulled into the label's line with a
+                          negative margin so the row does not grow to fit them. */}
+                      <div className="flex items-center gap-1 shrink-0 -my-1">
                         {a.id.startsWith("cell:") ? null : (
                         <button
                           onClick={() => copy(a)}
                           disabled={isBlank}
                           title={isBlank ? "Nothing to copy yet" : "Copy to clipboard"}
-                          className="text-zinc-600 hover:text-zinc-100 disabled:opacity-30 disabled:hover:text-zinc-600 transition-colors duration-150"
+                          aria-label="Copy to clipboard"
+                          className={iconButton("quiet", "compact")}
                         >
-                          {copiedId === a.id ? <Check size={13} className="text-zinc-100" /> : <Copy size={13} />}
+                          {copiedId === a.id ? (
+                            <Check size={14} strokeWidth={1.5} absoluteStrokeWidth className="text-fg-1" />
+                          ) : (
+                            <Copy size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                          )}
                         </button>
                         )}
                         {a.id.startsWith("cell:") ? null : (
                         <button
                           onClick={() => remove(a.id)}
                           title="Remove this question"
-                          className="text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150"
+                          aria-label="Remove this question"
+                          className={`opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${iconButton("destructive", "compact")}`}
                         >
-                          <Trash2 size={13} />
+                          <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth />
                         </button>
                         )}
                       </div>
@@ -230,9 +246,13 @@ export function AnswerBank() {
                       onChange={(e) => setDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
                       onBlur={() => save(a.id)}
                       placeholder="—"
-                      className={`w-full mt-1 text-sm bg-transparent border-0 border-b border-transparent px-0 py-0.5 resize-none focus:outline-none focus:border-zinc-500 transition-colors duration-150 ${
-                        isBlank ? "text-zinc-600 placeholder-zinc-700" : "text-zinc-100"
-                      }`}
+                      rows={1}
+                      // A real field now, canvas on the card with the input border,
+                      // rather than bare text with an underline that only showed on
+                      // focus: thirty rows of borderless text did not say which
+                      // parts you could type into. A blank one reads as blank by its
+                      // dash placeholder and the "blank" word in the label.
+                      className={`${textarea()} mt-2 lg:mt-0`}
                     />
                   </div>
                 );
@@ -241,6 +261,7 @@ export function AnswerBank() {
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

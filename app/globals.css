@@ -1,23 +1,194 @@
 @import "tailwindcss";
 
+/* The brand docs quote old class names (zinc-600, accent-pink) while explaining what
+   replaced them; scanning them would ship those utilities for nothing. */
+@source not "../docs";
+
+/* Fonts come from next/font in app/layout.tsx as CSS variables on <html>.
+   `inline` makes the utilities reference the variable directly, so `font-sans` is
+   Archivo and `font-mono` is Plex Mono everywhere without a class on every node. */
+@theme inline {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+/* The tokens from docs/brand/STYLE_GUIDE.md, part 2. Every contrast figure quoted
+   here was computed there, not estimated; change a value and the guide is wrong. */
 @theme {
-  --color-accent-pink: #ff8de3;
-  --color-accent-pink-light: #ffb3ed;
-  --color-accent-blue: #8fcdfd;
-  /* The one alarm hue. Pink and blue both already mean "this side of the app", so
-     neither can also mean "this has gone stale" — a one-off amber in the pipeline
-     row and a one-off rose in the queue were the symptom of that gap. Declared
-     once here so there is a single answer. */
-  --color-alarm: #f6a6a0;
-  /* A day where both halves of the search happened. Literally between the two
-     accents, because that is what it means, and distinguishable from either at the
-     12px the activity grid draws. */
-  --color-accent-both: #c6a4f3;
+  /* Surfaces: elevation is lightness. Each step closer to you is a little lighter,
+     so a card, a panel and a hovered row separate without a shadow. */
+  --color-canvas: #0d0e10;   /* oklch(0.165 0.004 260) */
+  --color-surface: #17191c;  /* oklch(0.213 0.007 258) */
+  --color-raised: #1e2023;   /* oklch(0.243 0.006 258) */
+  --color-lift: #282a2e;     /* oklch(0.285 0.008 264) */
+
+  /* Lines. Tone separates cards from the page now (the steps above are 1.10, 1.08
+     and 1.14 apart), so a hairline is only for row dividers, inputs and floating
+     layers. line-1 sits a step under lift, so a hovered row never merges with the
+     dividers around it. */
+  --color-line-1: #1e2023;     /* oklch(0.243 0.006 258) dividers inside a container */
+  --color-line-2: #2f3236;     /* oklch(0.315 0.008 260) floating edges, panel rules */
+  --color-line-3: #4a4d52;     /* oklch(0.420 0.009 260) hover border, dashed Drafted */
+  --color-line-input: #63666b; /* oklch(0.509 0.009 261) 3.35:1 on canvas, 3.06 on surface */
+
+  /* The plate behind a company logo: a step under fg-1, because pure white was the
+     brightest thing on every screen. */
+  --color-plate: #e6e8eb; /* oklch(0.930 0.005 258) */
+
+  /* Text: fg-3 is the readable floor (>=5.0:1 on every surface, hover included).
+     fg-4 fails AA on purpose: it is for disabled controls and `·` only. */
+  --color-fg-1: #eceef0; /* oklch(0.948 0.004 260) */
+  --color-fg-2: #b9bcc1; /* oklch(0.795 0.008 260) */
+  --color-fg-3: #90949a; /* oklch(0.665 0.010 260) */
+  --color-fg-4: #606369; /* oklch(0.500 0.010 260) disabled and separators only */
+
+  /* The one accent: your next move, or where you are. If more than about 3% of a
+     screen is orange, something is wrong. White on rope is 2.6:1, so text on a rope
+     fill is always on-rope. */
+  --color-rope: #f67f3d;       /* oklch(0.72 0.165 47) */
+  --color-rope-hover: #fd9c5d; /* oklch(0.78 0.140 52) */
+  --color-rope-press: #e06c34; /* oklch(0.66 0.160 44) */
+  --color-rope-wash: #412212;  /* oklch(0.29 0.055 47) */
+  --color-on-rope: #0d0e10;
+
+  /* Semantics: always with a glyph and a word or number. Alarm and rope are only
+     1.2:1 apart in luminance, so colour alone never tells them apart. */
+  --color-ok: #7fcc94;    /* oklch(0.78 0.110 152) */
+  --color-warn: #ecca6c;  /* oklch(0.85 0.120 90) */
+  --color-alarm: #f0626e; /* oklch(0.68 0.175 18) */
+
+  /* Stage ramp fills (steps 1-5); step 0 and end states are unfilled. One ramp for
+     both sides of the app: how full the chip is says how far along it is. */
+  --color-stage-1: #2f3236;
+  --color-stage-2: #4a4d52;
+  --color-stage-3: #7d8086; /* text on it: canvas */
+  --color-stage-4: #b4b7bd; /* text on it: canvas */
+  --color-stage-5: #eceef0; /* text on it: canvas */
+
+  /* Heatmap: one neutral ramp by total actions; neighbouring steps 1.5-2.1:1 apart */
+  --color-heat-0: #232528;
+  --color-heat-1: #3f4348;
+  --color-heat-2: #656970;
+  --color-heat-3: #9a9fa6;
+  --color-heat-4: #e2e5e9;
+
+  /* Graph */
+  --color-graph-neutral: #a1a5ab;
+
+  /* Radii */
+  --radius-control: 4px;
+  --radius-card: 6px;
+  --radius-panel: 10px;
+
+  /* Elevation, for floating layers only */
+  --shadow-float: 0 12px 32px -8px rgb(0 0 0 / 0.6), 0 0 0 1px #2f3236;
+
+  /* Motion */
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Type scale: seven sizes, 11 12 14 16 20 24 28 (STYLE_GUIDE 3.3). No 13px: below
+     14 one-pixel steps gave two names to one size. */
+  --text-display: 28px;
+  --text-display--line-height: 32px;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 600;
+  --text-stat: 28px;
+  --text-stat--line-height: 32px;
+  --text-stat--letter-spacing: -0.01em;
+  --text-stat--font-weight: 600;
+  --text-h1: 24px;
+  --text-h1--line-height: 32px;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h1--font-weight: 600;
+  --text-h2: 20px;
+  --text-h2--line-height: 28px;
+  --text-h2--letter-spacing: -0.01em;
+  --text-h2--font-weight: 600;
+  --text-h3: 16px;
+  --text-h3--line-height: 22px;
+  --text-h3--letter-spacing: -0.005em;
+  --text-h3--font-weight: 600;
+  /* A name in a row or card: the body size at 600. */
+  --text-name: 14px;
+  --text-name--line-height: 20px;
+  --text-name--font-weight: 600;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-meta--letter-spacing: 0.005em;
+  --text-button: 14px;
+  --text-button--line-height: 20px;
+  --text-button--font-weight: 500;
+  --text-chip: 12px;
+  --text-chip--line-height: 16px;
+  --text-chip--letter-spacing: 0.01em;
+  --text-chip--font-weight: 500;
+  --text-label: 11px;
+  --text-label--line-height: 16px;
+  --text-label--letter-spacing: 0.08em;
+  --text-label--font-weight: 600;
+  --text-data: 12px;
+  --text-data--line-height: 16px;
+  --text-data-sm: 11px;
+  --text-data-sm--line-height: 16px;
+  --text-kbd: 11px;
+  --text-kbd--line-height: 14px;
+}
+
+/* Composite styles that need more than size.
+
+   The heading ladder (STYLE_GUIDE 3.3): page title (text-h1, 24px; 20px in a
+   slide-over) > section heading (t-section, 16px chalk, sentence case, the same in a
+   slide-over) > group name (t-group, 12px dim, sentence case) > body. Uppercase
+   (t-label) is only for column headers, at most one row of them per section: five
+   uppercase tier labels down one section had made capitals texture again. */
+@utility t-section {
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  letter-spacing: var(--text-h3--letter-spacing);
+  font-weight: 600;
+  color: var(--color-fg-1);
+}
+@utility t-group {
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: 0.01em;
+  font-weight: 600;
+  color: var(--color-fg-3);
+}
+@utility t-label {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  letter-spacing: var(--text-label--letter-spacing);
+  font-weight: 600;
+  font-stretch: 80%;
+  text-transform: uppercase;
+  color: var(--color-fg-3);
+}
+@utility t-chip {
+  font-stretch: 87.5%;
+}
+@utility t-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+@utility wordmark {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  font-stretch: 75%;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 :root {
-  --background: #09090b;
-  --foreground: #f4f4f5;
+  --dur-hover: 90ms;
+  --dur-quick: 140ms;
+  --dur-panel: 200ms;
+  --dur-panel-exit: 140ms;
+  color-scheme: dark;
 }
 
 /* Reserve the scrollbar gutter so fixed-position elements (like the floating
@@ -27,9 +198,32 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* No dot grid here: it lives only on the network graph canvas, where it is a
+   surface you pan across rather than a texture behind reading. */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-fg-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
 }
 
+/* One focus style for the whole app. The 2px offset shows canvas behind the ring,
+   so it stays 7.4:1 even beside a logo plate. A rope fill takes a chalk ring instead
+   (the .bg-rope rule): rope around rope is one colour twice and does not read as
+   focus. */
+:focus-visible {
+  outline: 2px solid var(--color-rope);
+  outline-offset: 2px;
+}
+.bg-rope:focus-visible {
+  outline-color: var(--color-fg-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 80ms !important;
+    transition-property: opacity !important;
+    animation: none !important;
+  }
+}

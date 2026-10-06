@@ -62,22 +62,35 @@ export async function GET(req: NextRequest) {
   const yearParam = Number(qs.get("year"));
   const isYear = Number.isInteger(yearParam) && yearParam > 2000;
   const daysParam = Number(qs.get("days") ?? 91);
-  const days = isYear ? 366 : Math.min(Math.max(daysParam, 14), 365);
 
-  const today = new Date();
-  today.setHours(23, 59, 59, 999);
-  const start = new Date(today);
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // The window the response covers: the selected calendar year (1 Jan to 31 Dec,
+  // exactly, so 2025 no longer runs into 1 Jan 2026 and draws a 54th week with a
+  // stray "Jan" label past the grid's right edge), or the last N days.
+  let windowStart: Date;
+  let windowEnd: Date;
   if (isYear) {
-    start.setFullYear(yearParam, 0, 1);
+    windowStart = new Date(yearParam, 0, 1);
+    windowEnd = new Date(yearParam, 11, 31);
   } else {
-    start.setDate(start.getDate() - (days - 1));
+    const n = Math.min(Math.max(daysParam, 14), 365);
+    windowStart = new Date(todayStart);
+    windowStart.setDate(windowStart.getDate() - (n - 1));
+    windowEnd = new Date(todayStart);
   }
-  start.setHours(0, 0, 0, 0);
+
+  // Buckets cover the window and the run-up to today, so the streak is always the
+  // current streak whichever year is on screen, and one that crosses 1 Jan is not
+  // cut off at the year boundary. 400 days is longer than any streak this can show.
+  const streakFrom = new Date(todayStart);
+  streakFrom.setDate(streakFrom.getDate() - 400);
+  const start = windowStart < streakFrom ? windowStart : streakFrom;
+  const end = windowEnd > todayStart ? windowEnd : todayStart;
 
   const buckets = new Map<string, DayBucket>();
-  for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const key = dateKey(d)!;
     buckets.set(key, emptyBucket(key));
   }
@@ -179,78 +192,47 @@ export async function GET(req: NextRequest) {
     b.weighted = weighted;
   }
 
-  const dayList = Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
+  const allDays = Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
 
-  // Today by key, not by position. With a calendar-year window the last element is
-  // 31 December, so this counted the streak backwards from an empty future day and
-  // always returned 0.
-  const todayIdx = dayList.findIndex((b) => b.date === dateKey(new Date()));
-  const todayBucket = todayIdx >= 0 ? dayList[todayIdx] : undefined;
-  const todayHasActivity = !!todayBucket && todayBucket.total > 0;
-  // If today has no activity yet, count the streak through yesterday so a fresh
-  // day doesn't immediately zero out the user's streak. Today is "in-flight".
-  const anchor = todayIdx >= 0 ? todayIdx : dayList.length - 1;
-  const startIdx = todayHasActivity ? anchor : anchor - 1;
+  // The streak runs back from today across every bucket, not just the selected year.
+  // If today has no activity yet, count through yesterday so a fresh day doesn't
+  // zero the streak: today is in flight.
+  const todayKey = dateKey(now)!;
+  const todayIdx = allDays.findIndex((b) => b.date === todayKey);
+  const todayBucket = allDays[todayIdx] ?? emptyBucket(todayKey);
+  const todayCounts = todayBucket.total > 0;
   let streak = 0;
-  for (let i = startIdx; i >= 0; i--) {
-    if (dayList[i].total > 0) streak += 1;
+  for (let i = todayCounts ? todayIdx : todayIdx - 1; i >= 0; i--) {
+    if (allDays[i].total > 0) streak += 1;
     else break;
   }
-  const todayCounts = todayHasActivity;
 
-  const todayKey = dateKey(new Date())!;
-  const today_b = buckets.get(todayKey) ?? emptyBucket(todayKey);
+  const fromKey = dateKey(windowStart)!;
+  const toKey = dateKey(windowEnd)!;
+  const dayList = allDays.filter((b) => b.date >= fromKey && b.date <= toKey);
 
-  // Totals for the selected year. The counts that come from a Prisma count()
-  // rather than the day buckets are all-time, which is the same thing here: nothing
-  // in the database predates this year's search.
-  const [allReviewed, allApps] = await Promise.all([
-    // Matches the day buckets, which count only real verdicts. This used to be
-    // `verdictAt: { not: null }`, which includes every bulk-archived row — 127
-    // against 20 actual decisions, two definitions of one metric side by side.
-    prisma.job.count({ where: { verdict: { in: ["Apply", "Pass"] } } }),
-    prisma.application.findMany({ select: { statusHistory: true, interviewList: true } }),
-  ]);
-  let allApplied = 0;
-  let allInterview = 0;
-  for (const a of allApps) {
-    if (!a.statusHistory) continue;
-    let history: { status: string }[] = [];
-    try { history = JSON.parse(a.statusHistory); } catch { /* skip */ }
-    for (let i = 1; i < history.length; i++) {
-      if (history[i].status === "Applied") allApplied += 1;
-    }
-  }
-  // Interviews all-time, from the scheduled dates rather than a renamed status.
-  for (const a of allApps) {
-    if (!a.interviewList) continue;
-    try {
-      const ivs = JSON.parse(a.interviewList);
-      if (Array.isArray(ivs)) allInterview += ivs.filter((iv) => iv?.at).length;
-    } catch {
-      /* skip */
-    }
-  }
-  // yearTotals, not allTime: the column sits beside a year-scoped grid and a year
-  // picker, so "all time" was the one number on screen that meant something else.
-  let allCoffee = 0;
-  let yearAdded = 0;
-  let yearSent = 0;
-  for (const b of dayList) {
-    allCoffee += b.coffeeChats;
-    yearAdded += b.contactsAdded;
-    yearSent += b.outreachSent;
-  }
+  // Every total is the sum of the days on screen. Triaged, applied and interviews
+  // used to be all-time counts from separate queries (and applied counted archived
+  // applications the grid leaves out), so picking 2025 showed 51 roles triaged and
+  // 17 applications in a year with no activity at all.
   const yearTotals = {
-    jobsReviewed: allReviewed,
-    applied: allApplied,
-    interviewScheduled: allInterview,
-    // From the day buckets, like coffee chats. The old counts left out everyone
-    // moved to Sent on the Network page, so the year read lower than its own days.
-    contactsAdded: yearAdded,
-    outreachSent: yearSent,
-    coffeeChats: allCoffee,
+    jobsReviewed: 0,
+    applied: 0,
+    interviewScheduled: 0,
+    contactsAdded: 0,
+    outreachSent: 0,
+    coffeeChats: 0,
   };
+  for (const b of dayList) {
+    for (const k of Object.keys(yearTotals) as (keyof typeof yearTotals)[]) yearTotals[k] += b[k];
+  }
 
-  return NextResponse.json({ days: dayList, streak, todayCounts, today: today_b, yearTotals });
+  return NextResponse.json({
+    year: isYear ? yearParam : null,
+    days: dayList,
+    streak,
+    todayCounts,
+    today: todayBucket,
+    yearTotals,
+  });
 }

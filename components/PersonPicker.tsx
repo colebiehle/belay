@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { button, input } from "@/lib/ui";
 
 export type PickerPerson = { id: string; name: string; subtitle?: string | null };
 
@@ -11,11 +12,12 @@ export type PickerPerson = { id: string; name: string; subtitle?: string | null 
  * hundred, which is where a working search ends up. It also auto-committed on
  * change, so the referral list was the one place in either panel where a thing got
  * saved without you saying so. This matches the shape every other add in the panels
- * uses: open it, fill it in, then Save or Cancel.
+ * uses: open it, fill it in, then Save or Cancel. Neutral chrome: it used to take
+ * the panel's brand colour for its border and Save, which is content colour on a
+ * control.
  */
 export function PersonPicker({
   options,
-  accent,
   placeholder = "Type a name…",
   // Standalone, picking is a two-step so a stray click cannot commit. Nested inside a
   // form that already has its own Save and Cancel, it is one step: two pairs of
@@ -25,7 +27,6 @@ export function PersonPicker({
   onCancel,
 }: {
   options: PickerPerson[];
-  accent: string;
   placeholder?: string;
   confirm?: boolean;
   onSave: (id: string) => void;
@@ -44,14 +45,14 @@ export function PersonPicker({
   return (
     <div className="space-y-1.5">
       {picked ? (
-        <div className="flex items-center justify-between gap-2 border rounded px-2 py-1" style={{ borderColor: accent }}>
-          <p className="text-xs text-zinc-200 truncate">
+        <div className="flex items-center justify-between gap-2 h-7 bg-canvas border border-line-input rounded-control px-2.5">
+          <p className="text-body text-fg-1 truncate">
             {picked.name}
-            {picked.subtitle && <span className="text-zinc-600"> · {picked.subtitle}</span>}
+            {picked.subtitle && <span className="text-fg-3"> · {picked.subtitle}</span>}
           </p>
           <button
             onClick={() => setPicked(null)}
-            className="text-xs text-zinc-600 hover:text-zinc-300 shrink-0"
+            className="text-fg-3 hover:text-fg-1 shrink-0 transition-colors duration-90"
             title="Pick someone else"
           >
             ×
@@ -70,19 +71,18 @@ export function PersonPicker({
             }}
             placeholder={placeholder}
             autoFocus
-            className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none"
-            style={{ borderColor: accent }}
+            className={input("compact")}
           />
           <div className="max-h-36 overflow-y-auto space-y-0.5">
-            {matches.length === 0 && <p className="text-xs text-zinc-700 px-1">Nobody matches that.</p>}
+            {matches.length === 0 && <p className="text-body text-fg-3 px-1">Nobody matches that.</p>}
             {matches.slice(0, 20).map((o) => (
               <button
                 key={o.id}
                 onClick={() => choose(o)}
-                className="w-full text-left text-xs px-2 py-1 rounded text-zinc-300 hover:bg-zinc-800 transition-colors duration-150 truncate"
+                className="w-full text-left text-body px-2 py-1 rounded-control text-fg-2 hover:bg-lift hover:text-fg-1 transition-colors duration-90 ease-enter truncate"
               >
                 {o.name}
-                {o.subtitle && <span className="text-zinc-600"> · {o.subtitle}</span>}
+                {o.subtitle && <span className="text-fg-3"> · {o.subtitle}</span>}
               </button>
             ))}
           </div>
@@ -90,21 +90,20 @@ export function PersonPicker({
       )}
 
       {confirm ? (
-        <div className="flex items-center justify-end gap-3">
-          <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300">
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={onCancel} className={button("quiet", "compact")}>
             Cancel
           </button>
           <button
             onClick={() => picked && onSave(picked.id)}
             disabled={!picked}
-            className="text-xs font-semibold disabled:opacity-30 hover:opacity-80 transition-opacity duration-150"
-            style={{ color: accent }}
+            className={button("primary", "compact")}
           >
             Save
           </button>
         </div>
       ) : (
-        <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300">
+        <button onClick={onCancel} className={button("quiet", "compact")}>
           Cancel
         </button>
       )}

@@ -22,22 +22,22 @@ Add a role the scan missed by pasting its URL.
 
 ![The queue](docs/queue.png)
 
-## The pipeline
+## Active roles
 
-Every accepted role, grouped by stage. Move the chip to move the role.
+Every accepted role, grouped by stage. Change the stage to move the role.
 
-![The pipeline, with a role open](docs/panel.png)
+![Active roles, with a role open](docs/panel.png)
 
 Each role opens a panel holding its history with the gap in days between stages, who
 could refer you, scheduled interviews, the files you sent, your notes, and a chat that
 already knows the posting, your profile and your past verdicts.
 
-## The network
+## People
 
-The same shape, for people. Find designers at a company you track, record them, and
-move them from identified through connected, replied and chatted. The chat drafts the
-connect note, the follow-up, the scheduling message and the referral ask, with the
-roles you are applying to already in context.
+The same shape, for people. Paste any LinkedIn page of people (or one profile link) into the
+queue, add the ones worth knowing, and move them from identified through connected, replied
+and chatted. The chat drafts the connect note, the follow-up, the scheduling message and
+the referral ask, with the roles you are applying to already in context.
 
 ![The network queue](docs/network.png)
 
@@ -64,7 +64,7 @@ npm run dev                 # http://localhost:3001
 ```
 
 Open `/profile` and answer what you can. Then add the companies you care about on the
-dashboard, and press **Run ingest** on the Applications page to fill the queue.
+dashboard, and press **Scan now** on the Roles page to fill the queue.
 
 To run the same scan every day at noon on macOS, run `bash scripts/daily-ingest.sh --install`.
 It starts the dev server if it isn't running, and logs to `private/logs/`.

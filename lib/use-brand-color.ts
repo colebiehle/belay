@@ -11,10 +11,10 @@ const cache = new Map<string, string | null>();
  * The company's brand colour: the hand-checked table first, then the dominant
  * colour of its logo, read through /api/logo so the canvas can see the pixels.
  * The table covered about thirty companies, so every other one, Snap and every
- * startup included, took the theme accent instead.
+ * startup included, had no colour at all.
  *
- * Null when neither gives a colour (a black or grey logo), and the caller keeps
- * its theme accent.
+ * Null when neither gives a colour (a black or grey logo), and the panel header
+ * stays plain: there is no theme hue to fall back to.
  */
 export function useBrandColor(domain: string, logo?: string | null): string | null {
   const known = brandColor(domain);

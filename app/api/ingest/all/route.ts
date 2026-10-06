@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    summary: parts.join(" · ") || "Ingest complete.",
+    summary: parts.join(" · ") || "Scan done.",
     results,
   });
 }

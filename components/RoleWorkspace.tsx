@@ -1,13 +1,16 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
-import { readableOn, usableAccent } from "@/lib/brand-colors";
+import { usableAccent } from "@/lib/brand-colors";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf } from "@/lib/ui";
+import { StageSelect } from "@/components/StageChip";
 import { MetaLine } from "@/components/MetaLine";
-import { cleanTags, displayCompany, metaTokens } from "@/lib/role-meta";
+import { cleanTags, displayCompany, isContactId, metaTokens, parseReferrers } from "@/lib/role-meta";
+import { formLink } from "@/components/PageChrome";
 import { PersonPicker } from "@/components/PersonPicker";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { restrictionLine } from "@/lib/portal-limits";
@@ -118,6 +121,11 @@ const SCOPES_LATE: { key: string; label: string; hint: string; from: string[] }[
 
 
 
+/** "06 Oct": the log rows' fixed date column. */
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
   try {
@@ -219,9 +227,11 @@ export function RoleWorkspace({
   // a mail client works, because a panel of expanded note bodies is unreadable
   // once there are more than two.
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
-  // Whether the referral picker is showing. A plus that reveals a picker reads as
-  // "add one or more"; a permanent dropdown reads as "choose exactly one".
-  const [adding, setAdding] = useState(false);
+  // The referral adder: closed, picking someone from the network, or noting a name
+  // for someone who is not in it. A plus that reveals a picker reads as "add one or
+  // more"; a permanent dropdown reads as "choose exactly one".
+  const [adding, setAdding] = useState<false | "pick" | "name">(false);
+  const [referrerDraft, setReferrerDraft] = useState("");
   const [noteQuery, setNoteQuery] = useState("");
   // A save from the chat is staged rather than immediate: a new note gets titled
   // first, an append shows where the text is going, and either way you confirms.
@@ -243,12 +253,10 @@ export function RoleWorkspace({
     domainFromEnrichment(app.job.queueEnrichment),
   );
   const brand = useBrandColor(logoDomain, logoFromEnrichment(app.job.queueEnrichment));
-  const accentHex = brand ? usableAccent(brand) : null;
-  const accent = accentHex ?? "rgb(255 141 227)";
-  // Black on the lighter brands, white on the near-black ones. Notion, IDEO, Nike,
-  // Uber and Epic are all within a few points of #000, so a hard-coded black label
-  // on a brand-coloured chip was invisible for five companies on the list.
-  const accentInk = accentHex ? readableOn(accentHex) : "#000000";
+  // The company's colour, for the header band and wash only. Every control in the
+  // panel used to take it (Save, links, input borders, the stage chip, the left
+  // border), which made each company's panel a different app.
+  const brandHex = brand ? usableAccent(brand) : null;
 
   const enrichment = parseJson<{
     headline?: string;
@@ -458,21 +466,37 @@ export function RoleWorkspace({
   const atCompany = contacts.filter(
     (c) => c.company.trim().toLowerCase() === app.job.company.trim().toLowerCase(),
   );
-  // Stored in referrerId as JSON so more than one person can be credited without
-  // another column. A bare id from before the change still reads correctly.
-  const referrerIds: string[] = (() => {
-    const raw = app.referrerId;
-    if (!raw) return [];
-    try {
-      const v = JSON.parse(raw);
-      return Array.isArray(v) ? v : [String(v)];
-    } catch {
-      return [raw];
-    }
-  })();
+  // Stored in referrerId as a JSON list so more than one person can be credited
+  // without another column. Each entry is a contact's id, or a name noted for someone
+  // not in the network (lib/role-meta parseReferrers). A bare id from before the list
+  // still reads.
+  const referrerIds = parseReferrers(app.referrerId);
   const setReferrerIds = (ids: string[]) =>
     onUpdate(app.id, { referrerId: ids.length ? JSON.stringify(ids) : null });
-  const referrers = contacts.filter((c) => referrerIds.includes(c.id));
+  // Anyone in the network can refer you, not only people whose company field matches
+  // this role's: the picker used to offer only exact company matches and hid its Add
+  // when there were none, which is why a referral could not be added on most roles.
+  // People here come first, then everyone else.
+  const referrerOptions = [
+    ...atCompany,
+    ...contacts.filter((c) => !atCompany.includes(c)),
+  ]
+    .filter((c) => !referrerIds.includes(c.id))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      subtitle: atCompany.includes(c) ? c.title : [c.company, c.title].filter(Boolean).join(" · "),
+    }));
+  const addReferrerName = () => {
+    const name = referrerDraft.trim();
+    if (!name) return;
+    // A name that is someone in the network is recorded as them.
+    const match = contacts.find((c) => c.name.trim().toLowerCase() === name.toLowerCase());
+    const entry = match ? match.id : name;
+    if (!referrerIds.includes(entry)) setReferrerIds([...referrerIds, entry]);
+    setReferrerDraft("");
+    setAdding(false);
+  };
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
   // Oldest first, so it reads as a path rather than a feed, with the gap between
   // stages shown — how long a recruiter sat on it is the useful part.
@@ -494,26 +518,28 @@ export function RoleWorkspace({
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-200 ${
-          shown ? "opacity-100" : "opacity-0"
+        className={`fixed inset-0 bg-canvas/60 z-40 transition-opacity ${
+          shown ? "opacity-100 duration-200 ease-enter" : "opacity-0 duration-140 ease-exit"
         }`}
         onClick={close}
         aria-hidden
       />
       <aside
-        className={`fixed right-0 top-0 h-full w-full max-w-2xl z-50 flex flex-col bg-zinc-950 transition-transform duration-200 ease-out ${
-          shown ? "translate-x-0" : "translate-x-full"
+        className={`fixed right-0 top-0 h-full w-full max-w-[640px] z-50 flex flex-col bg-raised border-l border-line-2 shadow-float transition-transform ${
+          shown ? "translate-x-0 duration-200 ease-enter" : "translate-x-full duration-140 ease-exit"
         }`}
-        style={{ borderLeft: `2px solid ${accent}` }}
       >
-        {/* Header */}
-        <div className="relative shrink-0 overflow-hidden border-b border-zinc-800">
-          <div className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
-          <div
-            className="absolute -top-16 -left-10 w-64 h-40 rounded-full opacity-20 blur-3xl pointer-events-none"
-            style={{ backgroundColor: accent }}
-          />
-          <div className="relative flex items-start gap-3 px-5 py-4">
+        {/* Header. The company's colour lives here and nowhere else in the panel: a
+            flat 22% tint across the whole header block, down to its bottom border
+            (STYLE_GUIDE 2.6). It was a gradient fading to the panel colour, which
+            read as too faint below its top row. Only fg-1 and fg-2 sit on it (7.64:1
+            and 4.67:1 at worst, a white brand); fg-3 drops under 3:1, so nothing on
+            the band uses it. */}
+        <div
+          className="relative shrink-0 border-b border-line-2"
+          style={brandHex ? { background: washOf(brandHex) } : undefined}
+        >
+          <div className="relative flex items-start gap-3 px-6 py-4">
             {/* The same mark the queue card shows: the logo saved from the posting's
                 source first, then the domain's favicon. A favicon of a domain guessed
                 from the name put someone else's icon on startups like Effective AI. */}
@@ -526,7 +552,7 @@ export function RoleWorkspace({
             />
             {editingHeader ? (
               <div
-                className="min-w-0 flex-1 space-y-1.5"
+                className="min-w-0 flex-1 space-y-2"
                 onKeyDown={(e) => {
                   // Enter saves; Escape backs out of the edit without closing the panel.
                   if (e.key === "Enter") {
@@ -545,14 +571,13 @@ export function RoleWorkspace({
                   onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
                   placeholder="Company"
                   autoFocus
-                  className="w-full text-sm font-semibold bg-zinc-900 border rounded px-2 py-1 text-zinc-100 placeholder-zinc-700 focus:outline-none"
-                  style={{ borderColor: accent }}
+                  className={`${field("compact")} font-semibold`}
                 />
                 <input
                   value={headerDraft.roleTitle}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, roleTitle: e.target.value })}
                   placeholder="Role title"
-                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                  className={field("compact")}
                 />
                 <input
                   value={headerDraft.jobUrl}
@@ -561,11 +586,15 @@ export function RoleWorkspace({
                     setHeaderError(null);
                   }}
                   placeholder="Posting URL"
-                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                  className={`${field("compact")} ${headerError ? "border-alarm" : ""}`}
                 />
-                <div className="flex items-center justify-end gap-3 pt-0.5">
-                  {headerError && <p className="mr-auto text-xs text-accent-pink">{headerError}</p>}
-                  <button onClick={() => setEditingHeader(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                <div className="flex items-center justify-end gap-2">
+                  {headerError && (
+                    <p className="mr-auto flex items-center gap-1 text-meta text-alarm">
+                      <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" /> {headerError}
+                    </p>
+                  )}
+                  <button onClick={() => setEditingHeader(false)} className={button("quiet", "compact")}>
                     Cancel
                   </button>
                   <button
@@ -574,8 +603,7 @@ export function RoleWorkspace({
                       !headerDraft.company.trim() || !headerDraft.roleTitle.trim() || !headerDraft.jobUrl.trim() || headerSaving
                     }
                     title="Save (↵)"
-                    className="text-xs font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity duration-150"
-                    style={{ color: accent }}
+                    className={button("primary", "compact")}
                   >
                     Save
                   </button>
@@ -585,11 +613,11 @@ export function RoleWorkspace({
             /* Company, then role. Same order as the queue card, the pipeline row and
                 the passed row, so the thing you clicked is the thing that opens. */
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
+              <p className="text-h2 text-fg-1 flex items-center gap-1.5">
                 {/* The company is the edit control, as the name is on a person. */}
                 <button
                   onClick={startHeaderEdit}
-                  className="truncate text-left cursor-text hover:text-white decoration-zinc-600 decoration-dotted underline-offset-4 hover:underline"
+                  className="truncate text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
                   title="Click to edit company, role title and posting URL"
                 >
                   {displayCompany(app.job.company)}
@@ -605,32 +633,48 @@ export function RoleWorkspace({
                       onUpdate(app.id, { applyStartedAt: new Date().toISOString() });
                     }
                   }}
-                  className="shrink-0 hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className="shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90"
                   title={app.portalUrl ? "Open the application form" : "Open the posting"}
                 >
-                  <ExternalLink size={13} />
+                  <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
                 </a>
               </p>
-              <p className="text-xs text-zinc-300 leading-snug">{app.job.roleTitle}</p>
+              <p className="text-body text-fg-2">{app.job.roleTitle}</p>
+              {/* Editable here: the panel is where they are working when the stage
+                  actually changes, and reaching back to the row for it was a trip out
+                  of the surface they were in. The shared neutral ramp, not the
+                  company's colour: a brand-filled chip said nothing about the stage. */}
+              <div className="mt-2">
+                <StageSelect
+                  value={app.status}
+                  options={STATUSES}
+                  onChange={(next) => onUpdate(app.id, { status: next })}
+                  onWash
+                />
+              </div>
             </div>
             )}
-            <button onClick={close} className="text-zinc-600 hover:text-zinc-300 shrink-0" title="Close (Esc)">
-              <X size={16} />
+            <button
+              onClick={close}
+              className={`${iconButton("quiet", "compact")} text-fg-2 shrink-0`}
+              title="Close (Esc)"
+              aria-label="Close"
+            >
+              <X size={16} strokeWidth={1.5} absoluteStrokeWidth />
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="shrink-0 px-5 pt-3 flex gap-4 border-b border-zinc-800">
+        {/* Tabs. The active underline is fg-1: not the company's colour, and not
+            rope, which is kept for the next move. */}
+        <div className="shrink-0 px-6 pt-3 flex gap-4 border-b border-line-2">
           {(["details", "chat"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`text-xs pb-2 -mb-px border-b-2 transition-all duration-150 ${
-                tab === t ? "text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-300"
+              className={`text-button pb-2 -mb-px border-b-2 transition-colors duration-140 ease-enter ${
+                tab === t ? "text-fg-1 border-fg-1" : "border-transparent text-fg-3 hover:text-fg-2"
               }`}
-              style={tab === t ? { borderBottomColor: accent } : undefined}
             >
               {t === "details" ? "Details" : "Chat"}
             </button>
@@ -641,7 +685,7 @@ export function RoleWorkspace({
                 await fetch(`/api/applications/${app.id}/chat`, { method: "DELETE" });
                 setMessages([]);
               }}
-              className="ml-auto text-xs text-zinc-600 hover:text-zinc-200 transition-colors duration-150 pb-2"
+              className="ml-auto text-button text-fg-3 hover:text-fg-1 transition-colors duration-90 pb-2"
               title="Clear this conversation. Anything saved to a note stays."
             >
               Clear
@@ -666,18 +710,9 @@ export function RoleWorkspace({
             off-screen, and the current mode was invisible once the transcript
             scrolled. Up here it is both reachable and legible as state. */}
         {tab === "chat" && !openNote && (
-          <div className="shrink-0 px-5 py-2.5 border-b border-zinc-800 flex flex-wrap gap-1.5">
+          <div className="shrink-0 px-6 py-2 border-b border-line-2 flex flex-wrap gap-1">
             {scopes.map((sc) => (
-              <button
-                key={sc.key ?? "none"}
-                onClick={() => switchScope(sc.key)}
-                className={`text-xs px-2 py-1 rounded border transition-all duration-150 ${
-                  scope === sc.key
-                    ? "text-zinc-100"
-                    : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-                }`}
-                style={scope === sc.key ? { borderColor: accent, backgroundColor: `${accent}22` } : undefined}
-              >
+              <button key={sc.key ?? "none"} onClick={() => switchScope(sc.key)} className={toggle(scope === sc.key)}>
                 {sc.label}
               </button>
             ))}
@@ -685,14 +720,15 @@ export function RoleWorkspace({
         )}
 
         {openNote ? (
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => setOpenNoteId(null)}
-                className="text-zinc-500 hover:text-zinc-200 transition-colors duration-150"
+                className={iconButton("quiet", "compact")}
                 title="Back to notes"
+                aria-label="Back to notes"
               >
-                <ArrowLeft size={14} />
+                <ArrowLeft size={16} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
               <input
                 value={openNote.title}
@@ -701,17 +737,18 @@ export function RoleWorkspace({
                 }
                 onBlur={() => persistNotes(notes)}
                 placeholder="Title"
-                className="flex-1 text-sm font-semibold bg-transparent text-zinc-100 placeholder-zinc-700 focus:outline-none"
+                className="flex-1 text-name bg-transparent text-fg-1 placeholder:text-fg-3 rounded-control"
               />
               <button
                 onClick={() => {
                   persistNotes(notes.filter((x) => x.id !== openNote.id));
                   setOpenNoteId(null);
                 }}
-                className="text-zinc-700 hover:text-zinc-300 transition-colors duration-150"
+                className={iconButton("destructive", "compact")}
                 title="Delete this note"
+                aria-label="Delete this note"
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
             </div>
             <AutoResizeTextarea
@@ -721,29 +758,17 @@ export function RoleWorkspace({
               }
               onBlur={() => persistNotes(notes)}
               placeholder="…"
-              className="w-full text-sm bg-transparent text-zinc-300 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
+              className="w-full text-body bg-transparent text-fg-2 placeholder:text-fg-3 resize-none rounded-control"
             />
           </div>
         ) : tab === "details" ? (
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
             {/* The role, as briefly as it goes. */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                {/* Editable here: the panel is where they are working when the stage
-                    actually changes, and reaching back to the row for it was a
-                    trip out of the surface they were in. */}
-                <select
-                  value={app.status}
-                  onChange={(e) => onUpdate(app.id, { status: e.target.value })}
-                  className="text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer outline-none text-center min-w-[6.5rem]"
-                  style={{ backgroundColor: accent, color: accentInk, appearance: "none" }}
-                >
-                  {STATUSES.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
+                <p className="text-meta text-fg-3 flex items-center gap-1.5 min-w-0 flex-1">
+                  <MetaLine tokens={tokens} />
+                </p>
                 {/* Everything else in this block is generated or scraped. This is the
                     one place they write their own line about the role, which is also
                     the only part of it the chat prompt cannot infer from the posting. */}
@@ -754,10 +779,11 @@ export function RoleWorkspace({
                       setPortalDraft(app.portalUrl ?? "");
                       setEditingTldr(true);
                     }}
-                    className="ml-auto text-zinc-700 hover:text-zinc-300 transition-colors duration-150"
+                    className={`${iconButton("quiet", "compact")} shrink-0`}
                     title="Your note on this role, and where the form lives"
+                    aria-label="Edit your note on this role"
                   >
-                    <Pencil size={12} />
+                    <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </button>
                 )}
               </div>
@@ -769,7 +795,7 @@ export function RoleWorkspace({
                 // it used to, from the textarea, and from the link field it did
                 // nothing but close.
                 <div
-                  className="space-y-1.5"
+                  className="space-y-2"
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.stopPropagation();
@@ -785,52 +811,35 @@ export function RoleWorkspace({
                     onChange={(e) => setTldrDraft(e.target.value)}
                     autoFocus
                     placeholder="Anything about this role worth keeping at the top."
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1.5 text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
-                    style={{ borderColor: accent }}
+                    className={textarea()}
                   />
                   <input
                     value={portalDraft}
                     onChange={(e) => setPortalDraft(e.target.value)}
                     placeholder="Application form link, if it is not the posting"
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none"
-                    style={{ borderColor: accent }}
+                    className={field("compact")}
                   />
-                  <div className="flex items-center justify-end gap-3">
-                    <button onClick={() => setEditingTldr(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => setEditingTldr(false)} className={button("quiet", "compact")}>
                       Cancel
                     </button>
-                    <button
-                      onClick={saveTldr}
-                      title="Save (⌘↵)"
-                      className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                      style={{ color: accent }}
-                    >
+                    <button onClick={saveTldr} title="Save (⌘↵)" className={button("primary", "compact")}>
                       Save
                     </button>
                   </div>
                 </div>
               ) : (
                 app.notes && (
-                  <p
-                    className="text-xs text-zinc-200 leading-relaxed whitespace-pre-wrap border-l-2 pl-2.5"
-                    style={{ borderLeftColor: accent }}
-                  >
-                    {app.notes}
-                  </p>
+                  <p className="text-body text-fg-1 whitespace-pre-wrap border-l-2 border-line-3 pl-3">{app.notes}</p>
                 )
               )}
-              <p className="text-xs text-zinc-500 flex items-center gap-1.5 min-w-0">
-                <MetaLine tokens={tokens} />
-              </p>
-              {/* text-xs like every other line in the panel. At text-sm it was the one
-                  larger thing on the surface and read as a styling mistake. */}
-              {enrichment.headline && (
-                <p className="text-xs text-zinc-300 leading-relaxed">{enrichment.headline}</p>
-              )}
+              {/* Body size, like the person panel's summary: the headline is the
+                  reading, the meta line above it is the scanning. */}
+              {enrichment.headline && <p className="text-body text-fg-2">{enrichment.headline}</p>}
               {cleanTags(enrichment.tags).length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {cleanTags(enrichment.tags).map((t, i) => (
-                    <span key={i} className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400">
+                    <span key={i} className={tagClass}>
                       {t}
                     </span>
                   ))}
@@ -842,32 +851,32 @@ export function RoleWorkspace({
                   on purpose: a checklist is one more manual step that stops getting
                   done. */}
               {(enrichment.applicationNeeds ?? []).length > 0 && (
-                <p className="text-xs text-zinc-500">
-                  <span className="text-zinc-600">Needs · </span>
+                <p className="text-meta text-fg-2">
+                  <span className="text-fg-3">Needs · </span>
                   {(enrichment.applicationNeeds ?? []).join(" · ")}
                 </p>
               )}
               {limit && (
-                <p className="text-xs text-zinc-500">
-                  <span className="text-zinc-600">Limit · </span>
+                <p className="text-meta text-fg-2">
+                  <span className="text-fg-3">Limit · </span>
                   {limit}
                 </p>
               )}
               {/* Who they know here is a fact about the role, so it reads with the
                   rest of them. It was sitting under the Referral heading, which
-                  implied these people had agreed to something. */}
+                  implied these people had agreed to something. A neutral underlined
+                  link: a way through, not the next move. */}
               <a
                 href={
                   atCompany.length > 0
                     ? `/networking?company=${encodeURIComponent(app.job.company)}`
                     : `/networking?discover=${encodeURIComponent(app.job.company)}`
                 }
-                className="block text-xs hover:opacity-80 transition-opacity duration-150"
-                style={{ color: accent }}
+                className="block w-fit text-body text-fg-1 underline decoration-line-3 underline-offset-4 hover:decoration-fg-1 transition-colors duration-90"
               >
                 {atCompany.length > 0
-                  ? `${atCompany.length} contact${atCompany.length === 1 ? "" : "s"} at ${app.job.company} →`
-                  : `Discover contacts at ${app.job.company} →`}
+                  ? `${atCompany.length} ${atCompany.length === 1 ? "person" : "people"} at ${app.job.company} →`
+                  : `Find people at ${app.job.company} →`}
               </a>
             </div>
 
@@ -876,100 +885,153 @@ export function RoleWorkspace({
                 with a timestamp by the PATCH route, and it was being recorded
                 faithfully and shown nowhere since the inline row expansion was removed.
                 It also replaced the "sent 30 Sep" chip at the top: the date belongs
-                against the stage it describes, not floating beside the current one. */}
+                against the stage it describes, not floating beside the current one.
+                A log row: mono date column, the stage, then the gap as +12d. */}
             {history.length > 0 && (
-              <div className="space-y-1 pt-1 border-t border-zinc-800">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">History</p>
-                {history.map((h, i) => (
-                  <div key={i} className="flex items-baseline gap-2 group">
-                    <span className="text-xs text-zinc-600 tabular-nums shrink-0 w-14">
-                      {new Date(h.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                    <span className="text-xs text-zinc-400">{h.status}</span>
-                    {i > 0 && (
-                      <span className="text-xs text-zinc-700">
-                        {Math.max(
-                          0,
-                          Math.round(
-                            (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
-                          ),
-                        )}
-                        d
-                      </span>
-                    )}
-                    {/* A misclick on the stage dropdown writes an entry that was
-                        otherwise permanent, and the history is read by the chat
-                        prompt, so a wrong one misinforms more than the display. */}
-                    <button
-                      onClick={() =>
-                        onUpdate(app.id, {
-                          statusHistory: JSON.stringify(history.filter((_, j) => j !== i)),
-                        })
-                      }
-                      className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
-                      title="Remove this entry"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                <h3 className="t-section">History</h3>
+                <div>
+                  {history.map((h, i) => (
+                    <div key={i} className="flex items-center gap-2 h-7 group">
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(h.at)}</span>
+                      <span className="text-body text-fg-2">{h.status}</span>
+                      {i > 0 && (
+                        <span className="font-mono text-data text-fg-3">
+                          +
+                          {Math.max(
+                            0,
+                            Math.round(
+                              (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
+                            ),
+                          )}
+                          d
+                        </span>
+                      )}
+                      {/* A misclick on the stage dropdown writes an entry that was
+                          otherwise permanent, and the history is read by the chat
+                          prompt, so a wrong one misinforms more than the display. */}
+                      <button
+                        onClick={() =>
+                          onUpdate(app.id, {
+                            statusHistory: JSON.stringify(history.filter((_, j) => j !== i)),
+                          })
+                        }
+                        className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
+                        title="Remove this entry"
+                        aria-label="Remove this entry"
+                      >
+                        <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Referral is only the people who are actually putting their name in,
                 which is a different and stronger fact than knowing someone there.
-                Shaped like Files: a heading, an Add on the right, and a list. */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Referral</p>
-                {/* Stays put as long as there is anybody left to add, so a second
-                    and third referral is the same gesture as the first. */}
-                {!adding && atCompany.some((c) => !referrerIds.includes(c.id)) && (
-                  <button
-                    onClick={() => setAdding(true)}
-                    className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
-                  >
-                    + Add
+                Shaped like Mutuals on a person: a heading with its add, a list, and a
+                picker over the whole network, or a name noted for someone not in it. */}
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Referral</h3>
+                {!adding && (
+                  <button onClick={() => setAdding("pick")} className={button("quiet", "compact")}>
+                    <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add referral
                   </button>
-                )}
-                {!adding && atCompany.length > 0 && !atCompany.some((c) => !referrerIds.includes(c.id)) && (
-                  <span className="text-xs text-zinc-700">everyone you know here</span>
                 )}
               </div>
 
-              {referrers.map((r) => (
-                <div key={r.id} className="flex items-center gap-1.5 group">
-                  <p className="text-xs text-zinc-200">
-                    {r.name}
-                    {r.title && <span className="text-zinc-600"> · {r.title}</span>}
-                  </p>
-                  <button
-                    onClick={() => setReferrerIds(referrerIds.filter((x) => x !== r.id))}
-                    className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              {referrerIds.map((entry) => {
+                const person = isContactId(entry) ? contacts.find((c) => c.id === entry) : null;
+                // An id whose contact has since been removed shows nothing.
+                if (isContactId(entry) && !person) return null;
+                return (
+                  <div key={entry} className="flex items-center gap-1.5 group">
+                    {person ? (
+                      <a
+                        href={`/networking?contact=${person.id}`}
+                        className="text-body text-fg-1 hover:underline decoration-line-3 underline-offset-4"
+                        title="Open them on the Network page"
+                      >
+                        {person.name}
+                        {(person.title || person.company) && (
+                          <span className="text-fg-3"> · {person.title || person.company}</span>
+                        )}
+                      </a>
+                    ) : (
+                      <p className="text-body text-fg-1">
+                        {entry}
+                        <span className="text-fg-3"> · not in your network</span>
+                      </p>
+                    )}
+                    <button
+                      onClick={() => setReferrerIds(referrerIds.filter((x) => x !== entry))}
+                      className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
+                      title="Remove"
+                      aria-label={`Remove ${person?.name ?? entry}`}
+                    >
+                      <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                    </button>
+                  </div>
+                );
+              })}
 
-              {adding && (
-                <PersonPicker
-                  accent={accent}
-                  options={atCompany
-                    .filter((c) => !referrerIds.includes(c.id))
-                    .map((c) => ({ id: c.id, name: c.name, subtitle: c.title }))}
-                  onSave={(id) => {
-                    setReferrerIds([...referrerIds, id]);
-                    setAdding(false);
+              {adding === "pick" && (
+                <>
+                  <PersonPicker
+                    options={referrerOptions}
+                    placeholder={contacts.length ? "Who is referring you?" : "Nobody in your network yet"}
+                    onSave={(id) => {
+                      setReferrerIds([...referrerIds, id]);
+                      setAdding(false);
+                    }}
+                    onCancel={() => setAdding(false)}
+                  />
+                  <button onClick={() => setAdding("name")} className={formLink}>
+                    Not in your network? Note their name
+                  </button>
+                </>
+              )}
+              {adding === "name" && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    addReferrerName();
                   }}
-                  onCancel={() => setAdding(false)}
-                />
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setAdding(false);
+                    }
+                  }}
+                  className="space-y-1.5"
+                >
+                  <input
+                    value={referrerDraft}
+                    onChange={(e) => setReferrerDraft(e.target.value)}
+                    placeholder="Their name"
+                    autoFocus
+                    className={field("compact")}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => setAdding("pick")} className={formLink}>
+                      Pick from your network instead
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setAdding(false)} className={button("quiet", "compact")}>
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={!referrerDraft.trim()} className={button("primary", "compact")}>
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </form>
               )}
             </div>
 
-            {/* Interviews. Same shape as Referral and Files: a heading, an Add, a
+            {/* Interviews. Same shape as Referral and Files: a heading, its add, a
                 list. It exists because nothing anywhere held a date — the activity
                 recap counted interviews off a renamed status and read 0 while an
                 application sat at final round.
@@ -978,16 +1040,12 @@ export function RoleWorkspace({
                 place to book an interview only appeared once there was already one
                 booked, and a section that comes and goes is a section you forget
                 exists. */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Interviews</p>
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Interviews</h3>
                 {!addingInterview && (
-                  <button
-                    onClick={() => setAddingInterview(true)}
-                    className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
-                  >
-                    + Add
+                  <button onClick={() => setAddingInterview(true)} className={button("quiet", "compact")}>
+                    <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add interview
                   </button>
                 )}
               </div>
@@ -996,23 +1054,19 @@ export function RoleWorkspace({
                 const when = new Date(iv.at);
                 const past = when.getTime() < Date.now();
                 return (
-                  <div key={iv.id} className="flex items-center gap-1.5 group">
-                    <p className={`text-xs ${past ? "text-zinc-600" : "text-zinc-200"}`}>
-                      {when.toLocaleString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                      {iv.label && <span className="text-zinc-600"> · {iv.label}</span>}
-                    </p>
+                  <div key={iv.id} className="flex items-center gap-2 h-7 group">
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(iv.at)}</span>
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-16">
+                      {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                    <span className={`text-body truncate ${past ? "text-fg-3" : "text-fg-1"}`}>{iv.label}</span>
                     <button
                       onClick={() => persistInterviews(interviews.filter((x) => x.id !== iv.id))}
-                      className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
+                      className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
                       title="Remove"
+                      aria-label="Remove this interview"
                     >
-                      ×
+                      <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     </button>
                   </div>
                 );
@@ -1035,35 +1089,19 @@ export function RoleWorkspace({
                     ]);
                     setAddingInterview(false);
                   }}
-                  className="space-y-1.5"
+                  className="space-y-2"
                 >
-                  <input
-                    name="at"
-                    type="datetime-local"
-                    required
-                    autoFocus
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-300 focus:outline-none"
-                    style={{ borderColor: accent }}
-                  />
-                  <input
-                    name="label"
-                    placeholder="Recruiter screen, portfolio review…"
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none"
-                    style={{ borderColor: accent }}
-                  />
-                  <div className="flex items-center justify-end gap-3">
+                  <input name="at" type="datetime-local" required autoFocus className={field("compact")} />
+                  <input name="label" placeholder="Recruiter screen, portfolio review…" className={field("compact")} />
+                  <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setAddingInterview(false)}
-                      className="text-xs text-zinc-500 hover:text-zinc-300"
+                      className={button("quiet", "compact")}
                     >
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                      style={{ color: accent }}
-                    >
+                    <button type="submit" className={button("primary", "compact")}>
                       Save
                     </button>
                   </div>
@@ -1072,52 +1110,45 @@ export function RoleWorkspace({
             </div>
 
             {/* Files */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Files</p>
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
-                >
-                  + Add
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Files</h3>
+                <button onClick={() => fileRef.current?.click()} className={button("quiet", "compact")}>
+                  <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add file
                 </button>
               </div>
-              {saved.map((v, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between gap-2 border border-zinc-800 rounded-md px-2.5 py-1.5"
-                  >
+              {saved.length > 0 && (
+                <div className={`${cardClass} divide-y divide-line-1 overflow-hidden`}>
+                  {saved.map((v, i) => (
                     <a
+                      key={i}
                       href={v.dataUrl ?? "#"}
                       download={v.fileName}
-                      className="text-xs text-zinc-300 hover:opacity-80 truncate"
+                      className="flex items-center gap-2 h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
                     >
-                      {v.label}
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(v.savedAt)}</span>
+                      <span className="text-body text-fg-1 truncate">{v.label}</span>
                     </a>
-                    <span className="text-xs text-zinc-700 shrink-0">
-                      {new Date(v.savedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                  </div>
-              ))}
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Notes: titles only. One opens as its own view with a back arrow,
                 the way a mail client does it — a panel of expanded bodies is
                 unreadable past the second note. */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Notes</p>
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Notes</h3>
                 <button
                   onClick={() => {
                     const n = { id: `n${Date.now()}`, title: "Untitled", body: "", createdAt: new Date().toISOString() };
                     persistNotes([...notes, n]);
                     setOpenNoteId(n.id);
                   }}
-                  className="flex items-center gap-1 text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className={button("quiet", "compact")}
                 >
-                  <Plus size={11} /> New note
+                  <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add note
                 </button>
               </div>
               {/* Under the Notes heading because the note is the one thing every
@@ -1125,7 +1156,6 @@ export function RoleWorkspace({
                   are shown in its preview before anything is written. */}
               <PasteAnything
                 endpoint={`/api/applications/${app.id}/paste`}
-                accent={accent}
                 label="Add from email or notes"
                 placeholder="Paste a recruiter email, interview notes or an offer. Belay picks out dates, stage and pay, and adds a summary note."
                 describe={describePaste}
@@ -1139,75 +1169,71 @@ export function RoleWorkspace({
                   value={noteQuery}
                   onChange={(e) => setNoteQuery(e.target.value)}
                   placeholder="Search notes"
-                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-zinc-700"
+                  className={field("compact")}
                 />
               )}
               {visibleNotes.length === 0 && notes.length > 0 && (
-                <p className="text-xs text-zinc-700">Nothing matches that.</p>
+                <p className="text-body text-fg-3">Nothing matches that.</p>
               )}
-              {visibleNotes.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => setOpenNoteId(n.id)}
-                  className="w-full flex items-center gap-2 text-left border border-zinc-800 rounded-md px-2.5 py-1.5 hover:border-zinc-700 transition-all duration-150"
-                >
-                  <FileText size={12} className="text-zinc-600 shrink-0" />
-                  <span className="text-xs text-zinc-300 truncate flex-1">{n.title || "Untitled"}</span>
-                  <span className="text-xs text-zinc-700 shrink-0">
-                    {new Date(n.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                  </span>
-                </button>
-              ))}
+              {visibleNotes.length > 0 && (
+                <div className={`${cardClass} divide-y divide-line-1 overflow-hidden`}>
+                  {visibleNotes.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => setOpenNoteId(n.id)}
+                      className="w-full flex items-center gap-2 text-left h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
+                    >
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(n.createdAt)}</span>
+                      <span className="text-body text-fg-1 truncate flex-1">{n.title || "Untitled"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (
           <div
             ref={scrollRef}
             onMouseUp={onTranscriptMouseUp}
-            className="relative flex-1 overflow-y-auto px-5 py-4 space-y-4"
+            className="relative flex-1 overflow-y-auto px-6 py-4 space-y-4"
           >
-            {messages.length === 0 && (
-              <p className="text-sm text-zinc-600 leading-relaxed">{active.hint}</p>
-            )}
+            {messages.length === 0 && <p className="text-body text-fg-3">{active.hint}</p>}
             {messages.map((m, i) => (
               <Fragment key={m.id}>
                 {/* Switching action drops a rule here, so one transcript still
                     reads as sections of work rather than a flat log. */}
                 {markers[i] && (
                   <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-zinc-800" />
-                    <span className="text-[11px] uppercase tracking-widest" style={{ color: accent }}>
-                      {markers[i]}
-                    </span>
-                    <div className="h-px flex-1 bg-zinc-800" />
+                    <div className="h-px flex-1 bg-line-2" />
+                    <span className="t-group">{markers[i]}</span>
+                    <div className="h-px flex-1 bg-line-2" />
                   </div>
                 )}
+                {/* Your messages sit on lift, Claude's on nothing. */}
                 {m.role === "user" ? (
-                  <p
-                    className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap border-l-2 pl-3"
-                    style={{ borderLeftColor: accent }}
-                  >
-                    {m.content}
-                  </p>
+                  <p className="text-body text-fg-1 whitespace-pre-wrap bg-lift rounded-card px-3 py-2">{m.content}</p>
                 ) : (
-                  <p className="text-sm text-zinc-400 leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                  <p className="text-body text-fg-2 whitespace-pre-wrap">{m.content}</p>
                 )}
               </Fragment>
             ))}
-            {sending && <p className="text-sm text-zinc-600">Thinking…</p>}
-            {error && <p className="text-sm text-accent-pink">{error}</p>}
+            {sending && <p className="text-meta text-fg-3">Writing…</p>}
+            {error && (
+              <p className="flex items-center gap-1 text-meta text-alarm">
+                <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" /> {error}
+              </p>
+            )}
 
             {/* Appears against the selection rather than in a toolbar, so the
                 gesture is highlight-then-click. */}
             {pick && !staged && (
               <div
-                className="absolute right-3 z-10 flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 shadow-lg"
+                className="absolute right-3 z-10 flex items-center gap-1 rounded-card bg-raised p-1 shadow-float"
                 style={{ top: Math.max(0, pick.top - 6) }}
               >
                 <button
                   onClick={() => setStaged({ text: pick.text, target: null, title: active.key === null ? "" : active.label })}
-                  className="text-xs font-semibold px-1.5 hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className={button("quiet", "compact")}
                 >
                   New note
                 </button>
@@ -1217,7 +1243,7 @@ export function RoleWorkspace({
                     onChange={(e) =>
                       e.target.value && setStaged({ text: pick.text, target: e.target.value, title: "" })
                     }
-                    className="text-xs bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-zinc-400 focus:outline-none max-w-[9rem]"
+                    className={`${field("compact")} w-auto max-w-[9rem]`}
                   >
                     <option value="">add to…</option>
                     {notes.map((n) => (
@@ -1232,15 +1258,13 @@ export function RoleWorkspace({
 
             {/* Staged: confirm before anything is written. */}
             {staged && (
-              <div className="sticky bottom-0 -mx-5 px-5 py-3 bg-zinc-900 border-t border-zinc-800 space-y-2">
-                <p className="text-xs text-zinc-500">
+              <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-surface border-t border-line-2 space-y-2">
+                <p className="text-meta text-fg-3">
                   {staged.target
                     ? `Appending to "${notes.find((n) => n.id === staged.target)?.title || "Untitled"}"`
                     : "Saving as a new note"}
                 </p>
-                <p className="text-xs text-zinc-400 line-clamp-3 leading-snug border-l-2 pl-2" style={{ borderLeftColor: accent }}>
-                  {staged.text}
-                </p>
+                <p className="text-body text-fg-2 line-clamp-3 border-l-2 border-line-3 pl-2">{staged.text}</p>
                 {!staged.target && (
                   <input
                     value={staged.title}
@@ -1250,21 +1274,14 @@ export function RoleWorkspace({
                     }}
                     autoFocus
                     placeholder="Title this note"
-                    className="w-full text-xs bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-700"
+                    className={field("compact")}
                   />
                 )}
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    onClick={() => setStaged(null)}
-                    className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-150"
-                  >
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={() => setStaged(null)} className={button("quiet", "compact")}>
                     Cancel
                   </button>
-                  <button
-                    onClick={commitStaged}
-                    className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
-                  >
+                  <button onClick={commitStaged} className={button("primary", "compact")}>
                     {staged.target ? "Append" : "Save"}
                   </button>
                 </div>
@@ -1274,10 +1291,8 @@ export function RoleWorkspace({
         )}
 
         {tab === "chat" && !openNote && (
-          <div className="shrink-0 border-t border-zinc-800">
-            {/* A select, not chips: only one context applies at a time, and nine
-                chips wrapping over two lines read as filters rather than a mode. */}
-            <div className="flex items-end gap-2 px-5 py-3">
+          <div className="shrink-0 border-t border-line-2">
+            <div className="flex items-end gap-2 px-6 py-3">
               <AutoResizeTextarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -1291,15 +1306,16 @@ export function RoleWorkspace({
                 // button above, and the hint for it sits in the empty transcript, so
                 // repeating either here was the same words three times.
                 placeholder="Write something…"
-                className="flex-1 text-sm bg-transparent text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed max-h-40"
+                className={`${textarea()} max-h-40`}
               />
               <button
                 onClick={send}
                 disabled={!input.trim() || sending}
-                className="disabled:opacity-25 transition-opacity duration-150 pb-1.5 hover:opacity-80"
-                style={{ color: accent }}
+                className={iconButton("primary")}
+                title="Send (↵)"
+                aria-label="Send"
               >
-                <Send size={14} />
+                <Send size={16} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
             </div>
           </div>

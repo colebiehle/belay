@@ -1,12 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
-import { readableOn, usableAccent } from "@/lib/brand-colors";
+import { usableAccent } from "@/lib/brand-colors";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf } from "@/lib/ui";
+import { StageSelect } from "@/components/StageChip";
 import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, RELATIONSHIP_TAGS, WARMTH_LEVELS, orderTags } from "@/lib/contact-stages";
@@ -131,6 +133,11 @@ function metLine(howMet: string): string {
   return `Met at ${v}`;
 }
 
+/** "06 Oct": the log rows' fixed date column, so the dates line up without a table. */
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
 export function ContactPanel({
   contact,
   allContacts,
@@ -244,11 +251,10 @@ export function ContactPanel({
   const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
   const logoDomain = getLogoDomain(contact.company, contact.linkedinUrl ?? "");
   const brand = useBrandColor(logoDomain);
-  const accentHex = brand ? usableAccent(brand) : null;
-  const accent = accentHex ?? "rgb(143 205 253)";
-  // Black on the lighter brands, white on the near-black ones, so the stage chip's
-  // label survives a company whose colour is #000000.
-  const accentInk = accentHex ? readableOn(accentHex) : "#000000";
+  // The company's colour, for the header band and wash only. Null (a black or grey
+  // logo) means no band and no wash: the header is plain raised, and nothing falls
+  // back to a theme hue, because there is no theme hue any more.
+  const brandHex = brand ? usableAccent(brand) : null;
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
   const tags = parseJson<string[]>(contact.relationship, []);
   const history = parseJson<{ stage: string; at: string; nudge?: boolean }[]>(contact.stageHistory, []);
@@ -445,34 +451,36 @@ export function ContactPanel({
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-200 ${
-          backdropShown ? "opacity-100" : "opacity-0"
+        className={`fixed inset-0 bg-canvas/60 z-40 transition-opacity ${
+          backdropShown ? "opacity-100 duration-200 ease-enter" : "opacity-0 duration-140 ease-exit"
         }`}
         onClick={close}
         aria-hidden
       />
       <aside
-        className={`fixed right-0 top-0 h-full w-full max-w-2xl z-50 flex flex-col bg-zinc-950 transition-transform duration-200 ease-out ${
-          shown ? "translate-x-0" : "translate-x-full"
+        className={`fixed right-0 top-0 h-full w-full max-w-[640px] z-50 flex flex-col bg-raised border-l border-line-2 shadow-float transition-transform ${
+          shown ? "translate-x-0 duration-200 ease-enter" : "translate-x-full duration-140 ease-exit"
         }`}
-        style={{ borderLeft: `2px solid ${accent}` }}
       >
-        {/* Header */}
-        <div className="relative shrink-0 overflow-hidden border-b border-zinc-800">
-          <div className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
-          <div
-            className="absolute -top-16 -left-10 w-64 h-40 rounded-full opacity-20 blur-3xl pointer-events-none"
-            style={{ backgroundColor: accent }}
-          />
-          <div className="relative flex items-start gap-3 px-5 py-4">
+        {/* Header. The company's colour lives here and nowhere else in the panel: a
+            flat 22% tint across the whole header block, down to its bottom border
+            (STYLE_GUIDE 2.6). It was a gradient fading to the panel colour, which
+            read as too faint below its top row. Only fg-1 and fg-2 sit on it (7.64:1
+            and 4.67:1 at worst, a white brand); fg-3 drops under 3:1, so nothing on
+            the band uses it. */}
+        <div
+          className="relative shrink-0 border-b border-line-2"
+          style={brandHex ? { background: washOf(brandHex) } : undefined}
+        >
+          <div className="relative flex items-start gap-3 px-6 py-4">
             <img
               src={logoUrl(logoDomain)}
               alt={contact.company}
-              className="w-10 h-10 rounded-md object-contain bg-white p-1 shrink-0"
+              className="w-10 h-10 rounded-card object-contain bg-plate p-1 shrink-0"
             />
             {editingHeader ? (
               <div
-                className="min-w-0 flex-1 space-y-1.5"
+                className="min-w-0 flex-1 space-y-2"
                 onKeyDown={(e) => {
                   // Enter saves; Escape backs out of the edit without closing the panel.
                   if (e.key === "Enter") {
@@ -490,39 +498,37 @@ export function ContactPanel({
                   onChange={(e) => setHeaderDraft({ ...headerDraft, name: e.target.value })}
                   placeholder="Name"
                   autoFocus
-                  className="w-full text-sm font-semibold bg-zinc-900 border rounded px-2 py-1 text-zinc-100 placeholder-zinc-700 focus:outline-none"
-                  style={{ borderColor: accent }}
+                  className={`${field("compact")} font-semibold`}
                 />
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   <input
                     value={headerDraft.company}
                     onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
                     placeholder="Company"
-                    className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                    className={field("compact")}
                   />
                   <input
                     value={headerDraft.title}
                     onChange={(e) => setHeaderDraft({ ...headerDraft, title: e.target.value })}
                     placeholder="Title"
-                    className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                    className={field("compact")}
                   />
                 </div>
                 <input
                   value={headerDraft.linkedinUrl}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, linkedinUrl: e.target.value })}
                   placeholder="LinkedIn URL"
-                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-600"
+                  className={field("compact")}
                 />
-                <div className="flex items-center justify-end gap-3 pt-0.5">
-                  <button onClick={() => setEditingHeader(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={() => setEditingHeader(false)} className={button("quiet", "compact")}>
                     Cancel
                   </button>
                   <button
                     onClick={saveHeader}
                     disabled={!headerDraft.name.trim()}
                     title="Save (↵)"
-                    className="text-xs font-semibold hover:opacity-80 disabled:opacity-40 transition-opacity duration-150"
-                    style={{ color: accent }}
+                    className={button("primary", "compact")}
                   >
                     Save
                   </button>
@@ -530,12 +536,12 @@ export function ContactPanel({
               </div>
             ) : (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-zinc-100 leading-snug flex items-center gap-1.5">
+              <p className="text-h2 text-fg-1 flex items-center gap-1.5">
                 {/* The name is the edit control. A pencil beside it sat next to the
                     LinkedIn link and read as a second link. */}
                 <button
                   onClick={startHeaderEdit}
-                  className="truncate text-left cursor-text hover:text-white decoration-zinc-600 decoration-dotted underline-offset-4 hover:underline"
+                  className="truncate text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
                   title="Click to edit name, company, title and LinkedIn"
                 >
                   {contact.name}
@@ -547,61 +553,72 @@ export function ContactPanel({
                     href={contact.linkedinUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
+                    className="shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90"
                     title="Open their LinkedIn"
                   >
-                    <ExternalLink size={13} />
+                    <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </a>
                 )}
               </p>
-              <p className="text-xs text-zinc-300 leading-snug truncate">
+              <p className="text-body text-fg-2 truncate">
                 {contact.company}
-                {(contact.title || contact.role) && (
-                  <span className="text-zinc-500"> · {contact.title || contact.role}</span>
-                )}
+                {(contact.title || contact.role) && <> · {contact.title || contact.role}</>}
               </p>
+              {/* The stage chip is the stage control, in the shared neutral ramp: it
+                  used to be filled with the company's colour, which made every
+                  person's stage look different for no reason to do with the stage. */}
+              <div className="flex items-center gap-2 mt-2 min-w-0">
+                <StageSelect value={stage} options={CONTACT_STAGES} onChange={setStage} onWash />
+                {contact.howMet && <span className="text-meta text-fg-2 truncate">{metLine(contact.howMet)}</span>}
+              </div>
             </div>
             )}
             {/* Previous and next, beside close: the panel's own controls stay together
                 in the corner. Up and down, because J/K walk a vertical list. */}
             {(prevId || nextId) && (
-              <div className="flex items-center gap-0.5 shrink-0">
-                {position && <span className="text-[11px] text-zinc-600 tabular-nums mr-1.5">{position}</span>}
+              <div className="flex items-center shrink-0">
+                {position && <span className="text-meta tabular-nums text-fg-2 mr-1.5">{position}</span>}
                 <button
                   onClick={() => prevId && switchTo(prevId)}
                   disabled={!prevId}
-                  className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:text-zinc-800 disabled:cursor-default transition-colors duration-150"
+                  className={`${iconButton("quiet", "compact")} text-fg-2`}
                   title="Previous person (K)"
+                  aria-label="Previous person"
                 >
-                  <ChevronUp size={16} />
+                  <ChevronUp size={16} strokeWidth={1.5} absoluteStrokeWidth />
                 </button>
                 <button
                   onClick={() => nextId && switchTo(nextId)}
                   disabled={!nextId}
-                  className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:text-zinc-800 disabled:cursor-default transition-colors duration-150"
+                  className={`${iconButton("quiet", "compact")} text-fg-2`}
                   title="Next person (J)"
+                  aria-label="Next person"
                 >
-                  <ChevronDown size={16} />
+                  <ChevronDown size={16} strokeWidth={1.5} absoluteStrokeWidth />
                 </button>
               </div>
             )}
-            <button onClick={close} className="text-zinc-600 hover:text-zinc-300 shrink-0" title="Close (Esc)">
-              <X size={16} />
+            <button
+              onClick={close}
+              className={`${iconButton("quiet", "compact")} text-fg-2 shrink-0`}
+              title="Close (Esc)"
+              aria-label="Close"
+            >
+              <X size={16} strokeWidth={1.5} absoluteStrokeWidth />
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="shrink-0 px-5 pt-3 flex gap-4 border-b border-zinc-800">
+        {/* Tabs. The active underline is fg-1, not the company's colour and not rope:
+            rope is kept for the next move, and which tab is open is not one. */}
+        <div className="shrink-0 px-6 pt-3 flex gap-4 border-b border-line-2">
           {(["details", "chat"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`text-xs pb-2 -mb-px border-b-2 transition-all duration-150 ${
-                tab === t ? "text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-300"
+              className={`text-button pb-2 -mb-px border-b-2 transition-colors duration-140 ease-enter ${
+                tab === t ? "text-fg-1 border-fg-1" : "border-transparent text-fg-3 hover:text-fg-2"
               }`}
-              style={tab === t ? { borderBottomColor: accent } : undefined}
             >
               {t === "details" ? "Details" : "Chat"}
             </button>
@@ -612,7 +629,7 @@ export function ContactPanel({
                 await fetch(`/api/contacts/${contact.id}/chat`, { method: "DELETE" });
                 setMessages([]);
               }}
-              className="ml-auto text-xs text-zinc-600 hover:text-zinc-200 transition-colors duration-150 pb-2"
+              className="ml-auto text-button text-fg-3 hover:text-fg-1 transition-colors duration-90 pb-2"
               title="Clear this conversation. Anything saved to a note stays."
             >
               Clear
@@ -622,18 +639,9 @@ export function ContactPanel({
 
         {/* The action row */}
         {tab === "chat" && !openNote && (
-          <div className="shrink-0 px-5 py-2.5 border-b border-zinc-800 flex flex-wrap gap-1.5">
+          <div className="shrink-0 px-6 py-2 border-b border-line-2 flex flex-wrap gap-1">
             {scopes.map((sc) => (
-              <button
-                key={sc.key ?? "none"}
-                onClick={() => switchScope(sc.key)}
-                className={`text-xs px-2 py-1 rounded border transition-all duration-150 ${
-                  scope === sc.key
-                    ? "text-zinc-100"
-                    : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-                }`}
-                style={scope === sc.key ? { borderColor: accent, backgroundColor: `${accent}22` } : undefined}
-              >
+              <button key={sc.key ?? "none"} onClick={() => switchScope(sc.key)} className={toggle(scope === sc.key)}>
                 {sc.label}
               </button>
             ))}
@@ -641,14 +649,15 @@ export function ContactPanel({
         )}
 
         {openNote ? (
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => setOpenNoteId(null)}
-                className="text-zinc-500 hover:text-zinc-200 transition-colors duration-150"
+                className={iconButton("quiet", "compact")}
                 title="Back to notes"
+                aria-label="Back to notes"
               >
-                <ArrowLeft size={14} />
+                <ArrowLeft size={16} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
               <input
                 value={openNote.title}
@@ -657,17 +666,18 @@ export function ContactPanel({
                 }
                 onBlur={() => persistNotes(notes)}
                 placeholder="Title"
-                className="flex-1 text-sm font-semibold bg-transparent text-zinc-100 placeholder-zinc-700 focus:outline-none"
+                className="flex-1 text-name bg-transparent text-fg-1 placeholder:text-fg-3 rounded-control"
               />
               <button
                 onClick={() => {
                   persistNotes(notes.filter((x) => x.id !== openNote.id));
                   setOpenNoteId(null);
                 }}
-                className="text-zinc-700 hover:text-zinc-300 transition-colors duration-150"
+                className={iconButton("destructive", "compact")}
                 title="Delete this note"
+                aria-label="Delete this note"
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
             </div>
             <AutoResizeTextarea
@@ -677,29 +687,28 @@ export function ContactPanel({
               }
               onBlur={() => persistNotes(notes)}
               placeholder="…"
-              className="w-full text-sm bg-transparent text-zinc-300 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
+              className="w-full text-body bg-transparent text-fg-2 placeholder:text-fg-3 resize-none rounded-control"
             />
           </div>
         ) : tab === "details" ? (
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-            {/* Stage and the facts */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {/* The relationship and the facts */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <select
-                  value={stage}
-                  onChange={(e) => setStage(e.target.value)}
-                  className="text-xs font-medium px-2.5 py-1 rounded-full border-0 cursor-pointer outline-none text-center min-w-[6.5rem]"
-                  style={{ backgroundColor: accent, color: accentInk, appearance: "none" }}
-                >
-                  {CONTACT_STAGES.map((st) => (
-                    <option key={st} value={st}>
-                      {st}
-                    </option>
-                  ))}
-                </select>
-                {/* The one line here that is their own: how they know them, what the
-                    ask is, anything a draft should carry that no profile states. */}
-                {!editingTldr && (
+              {/* The one line here that is their own: how they know them, what the
+                  ask is, anything a draft should carry that no profile states. */}
+              {!editingTldr && (
+                <div className="flex items-center gap-2">
+                  {/* Quiet on purpose: tags for what they are to you, and nothing at
+                      all until one is set. Warmth is the brighter tag because it
+                      decides what you can ask. */}
+                  <div className="flex flex-wrap gap-1 min-w-0">
+                    {contact.warmth && <span className={`${tagClass} text-fg-1`}>{contact.warmth}</span>}
+                    {tags.map((t) => (
+                      <span key={t} className={tagClass}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                   <button
                     onClick={() => {
                       setTldrDraft(contact.notes ?? "");
@@ -708,20 +717,21 @@ export function ContactPanel({
                       setWarmthDraft(contact.warmth);
                       setEditingTldr(true);
                     }}
-                    className="ml-auto text-zinc-700 hover:text-zinc-300 transition-colors duration-150"
+                    className={`${iconButton("quiet", "compact")} ml-auto shrink-0`}
                     title="How you know them, and your note on this person"
+                    aria-label="Edit how you know them and your note"
                   >
-                    <Pencil size={12} />
+                    <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </button>
-                )}
-              </div>
+                </div>
+              )}
 
               {editingTldr ? (
                 // Escape cancels and Cmd+Enter saves from anywhere in the form, chips
                 // included. Escape stops here so the panel's own Escape (close) does
                 // not also fire and throw the panel away with the edit.
                 <div
-                  className="space-y-1.5"
+                  className="space-y-2"
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.stopPropagation();
@@ -739,33 +749,26 @@ export function ContactPanel({
                   <div className="flex items-center gap-2">
                     {/* The label stays inside the field so "Config" still reads as
                         where you met once the placeholder is gone. */}
-                    <label className="flex-1 min-w-0 flex items-baseline gap-2 text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 focus-within:border-zinc-700 transition-colors duration-150">
-                      <span className="shrink-0 text-zinc-600">How we met</span>
+                    <label className="flex-1 min-w-0 flex items-center gap-2 h-7 text-body bg-canvas border border-line-input rounded-control px-2.5 hover:border-fg-3 focus-within:border-rope transition-colors duration-90">
+                      <span className="shrink-0 text-fg-3">How we met</span>
                       <input
                         value={howMetDraft}
                         onChange={(e) => setHowMetDraft(e.target.value)}
                         placeholder="Config 2026, CMU alum, cold outreach"
-                        className="flex-1 min-w-0 bg-transparent text-zinc-200 placeholder-zinc-700 focus:outline-none"
+                        className="flex-1 min-w-0 bg-transparent text-fg-1 placeholder:text-fg-3 outline-none"
                       />
                     </label>
-                    {/* Click the lit one again to clear it: not knowing is a state. */}
-                    <div className="flex shrink-0 rounded border border-zinc-800 overflow-hidden">
+                    {/* Click the lit one again to clear it: not knowing is a state.
+                        Lit is a lift fill, the same as an active tab segment. */}
+                    <div className="flex shrink-0 h-7 p-0.5 gap-0.5 rounded-control bg-surface">
                       {WARMTH_LEVELS.map((w) => (
                         <button
                           key={w}
                           onClick={() => setWarmthDraft(warmthDraft === w ? null : w)}
                           aria-pressed={warmthDraft === w}
-                          className={`text-[11px] px-2 py-1 transition-colors duration-150 ${
-                            warmthDraft === w ? "font-medium" : "text-zinc-500 hover:text-zinc-300"
+                          className={`text-chip t-chip px-2 rounded-control transition-colors duration-140 ease-enter ${
+                            warmthDraft === w ? "bg-lift text-fg-1" : "text-fg-3 hover:text-fg-2"
                           }`}
-                          // Lit the way the warmth chip reads at rest (accent on an
-                          // accent tint), so the choice and the result look the same.
-                          // A plain tint on its own was too faint to tell apart.
-                          style={
-                            warmthDraft === w
-                              ? { color: accent, backgroundColor: `color-mix(in srgb, ${accent} 22%, transparent)` }
-                              : undefined
-                          }
                         >
                           {w}
                         </button>
@@ -782,14 +785,7 @@ export function ContactPanel({
                             setTagsDraft(on ? tagsDraft.filter((x) => x !== t) : orderTags([...tagsDraft, t]))
                           }
                           aria-pressed={on}
-                          className={`text-[11px] px-1.5 py-0.5 rounded border transition-all duration-150 ${
-                            on ? "text-zinc-100" : "border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-                          }`}
-                          style={
-                            on
-                              ? { borderColor: accent, backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }
-                              : undefined
-                          }
+                          className={toggle(on)}
                         >
                           {t}
                         </button>
@@ -798,9 +794,9 @@ export function ContactPanel({
                     {newTag === null ? (
                       <button
                         onClick={() => setNewTag("")}
-                        className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300 transition-all duration-150"
+                        className="inline-flex items-center gap-1 h-6 px-2 rounded-control border border-dashed border-line-2 text-chip t-chip text-fg-3 hover:border-line-3 hover:text-fg-1 transition-colors duration-90"
                       >
-                        + tag
+                        <Plus size={12} strokeWidth={1.5} absoluteStrokeWidth /> tag
                       </button>
                     ) : (
                       <input
@@ -823,8 +819,7 @@ export function ContactPanel({
                         autoFocus
                         maxLength={28}
                         placeholder="new tag"
-                        className="text-[11px] w-28 px-1.5 py-0.5 rounded border bg-transparent text-zinc-200 placeholder-zinc-700 focus:outline-none"
-                        style={{ borderColor: accent }}
+                        className="text-chip t-chip w-28 h-6 px-2 rounded-control border border-line-input bg-canvas text-fg-1 placeholder:text-fg-3 focus:border-rope"
                       />
                     )}
                   </div>
@@ -833,70 +828,36 @@ export function ContactPanel({
                     onChange={(e) => setTldrDraft(e.target.value)}
                     autoFocus
                     placeholder="How you know them, what the ask is, anything a draft should carry."
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1.5 text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed"
-                    style={{ borderColor: accent }}
+                    className={textarea()}
                   />
-                  <div className="flex items-center justify-end gap-3">
-                    <button onClick={() => setEditingTldr(false)} className="text-xs text-zinc-500 hover:text-zinc-300">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => setEditingTldr(false)} className={button("quiet", "compact")}>
                       Cancel
                     </button>
-                    <button
-                      onClick={saveSummary}
-                      title="Save (⌘↵)"
-                      className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                      style={{ color: accent }}
-                    >
+                    <button onClick={saveSummary} title="Save (⌘↵)" className={button("primary", "compact")}>
                       Save
                     </button>
                   </div>
                 </div>
               ) : (
-                <>
-                  {/* Quiet on purpose: chips for what they are to you, one dim line
-                      for where you met, and nothing at all until either is set. */}
-                  {(contact.warmth || tags.length > 0) && (
-                    <div className="flex flex-wrap gap-1">
-                      {contact.warmth && (
-                        <span
-                          className="text-[11px] px-1.5 py-0.5 rounded"
-                          style={{ color: accent, backgroundColor: `color-mix(in srgb, ${accent} 15%, transparent)` }}
-                        >
-                          {contact.warmth}
-                        </span>
-                      )}
-                      {tags.map((t) => (
-                        <span key={t} className="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800/80 text-zinc-400">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {contact.howMet && <p className="text-xs text-zinc-600">{metLine(contact.howMet)}</p>}
-                  {contact.notes && (
-                    <p
-                      className="text-xs text-zinc-200 leading-relaxed whitespace-pre-wrap border-l-2 pl-2.5"
-                      style={{ borderLeftColor: accent }}
-                    >
-                      {contact.notes}
-                    </p>
-                  )}
-                </>
+                contact.notes && (
+                  <p className="text-body text-fg-1 whitespace-pre-wrap border-l-2 border-line-3 pl-3">
+                    {contact.notes}
+                  </p>
+                )
               )}
 
               {/* Who they are, the person-side twin of a role's headline: it stays in
                   view while you edit your note above it, the way the role panel's
                   headline does. */}
-              {contact.profileText && (
-                <p className="text-xs text-zinc-300 leading-relaxed">{contact.profileText}</p>
-              )}
+              {contact.profileText && <p className="text-body text-fg-2">{contact.profileText}</p>}
               {/* Shown until there is a summary; after that it only appears while
                   editing, as a way to redo it. */}
               {(!contact.profileText || editingTldr) && (
                 <PasteAnything
                   endpoint={`/api/contacts/${contact.id}/paste`}
-                  accent={accent}
                   label={contact.profileText ? "Replace summary" : "Add summary"}
-                  placeholder="Paste their LinkedIn About section and current role. Call notes or a message thread work too. Belay writes a two or three sentence summary of who they are."
+                  placeholder="Paste their About section, call notes or a thread. Belay writes a 2–3 sentence summary."
                   describe={describePaste}
                   onApplied={applyPaste}
                 />
@@ -905,78 +866,76 @@ export function ContactPanel({
                   side, which is usually the reason you opened a person at all: you
                   are looking at someone and you want the roles at their company.
                   "Find mutuals" pointed outward at LinkedIn and did not survive the
-                  question of what it was for. */}
+                  question of what it was for. A neutral link, underlined: it is a
+                  way through, not the next move. */}
               {rolesAtCompany > 0 && (
                 <a
                   href={`/applications?company=${encodeURIComponent(contact.company)}`}
-                  className="block text-xs hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className="block w-fit text-body text-fg-1 underline decoration-line-3 underline-offset-4 hover:decoration-fg-1 transition-colors duration-90"
                 >
-                  {rolesAtCompany} role{rolesAtCompany === 1 ? "" : "s"} at {contact.company} →
+                  <span className="tabular-nums">{rolesAtCompany}</span> role{rolesAtCompany === 1 ? "" : "s"} at {contact.company} →
                 </a>
               )}
-
             </div>
 
             {/* How this got here, and how long each step took. The gap matters more
                 here than on an application: a nudge is worth sending at eight days and
-                not at two, and the number is the thing that tells you which. */}
+                not at two, and the number is the thing that tells you which. A log
+                row: mono date column first, then the entry, then the gap. */}
             {history.length > 0 && (
-              <div className="space-y-1 pt-1 border-t border-zinc-800">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">History</p>
-                {history.map((h, i) => (
-                  <div key={i} className="flex items-baseline gap-2 group">
-                    <span className="text-xs text-zinc-600 tabular-nums shrink-0 w-14">
-                      {new Date(h.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                    <span className="text-xs text-zinc-400">{h.nudge ? "Nudged" : h.stage}</span>
-                    {i > 0 && (
-                      <span className="text-xs text-zinc-700">
-                        {Math.max(
-                          0,
-                          Math.round(
-                            (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
-                          ),
-                        )}
-                        d
-                      </span>
-                    )}
-                    <button
-                      onClick={() =>
-                        onUpdate(contact.id, {
-                          stageHistory: JSON.stringify(history.filter((_, j) => j !== i)),
-                        })
-                      }
-                      className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
-                      title="Remove this entry"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                <h3 className="t-section">History</h3>
+                <div>
+                  {history.map((h, i) => (
+                    <div key={i} className="flex items-center gap-2 h-7 group">
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(h.at)}</span>
+                      <span className="text-body text-fg-2">{h.nudge ? "Nudged" : h.stage}</span>
+                      {i > 0 && (
+                        <span className="font-mono text-data text-fg-3">
+                          +
+                          {Math.max(
+                            0,
+                            Math.round(
+                              (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
+                            ),
+                          )}
+                          d
+                        </span>
+                      )}
+                      <button
+                        onClick={() =>
+                          onUpdate(contact.id, {
+                            stageHistory: JSON.stringify(history.filter((_, j) => j !== i)),
+                          })
+                        }
+                        className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
+                        title="Remove this entry"
+                        aria-label="Remove this entry"
+                      >
+                        <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
             {/* Mutuals, shaped exactly like Referral on the applications side: a
-                heading, an Add, a list you can add to. It was a single read-only "Via"
+                heading with its add beside it, a list you can add to. It was a single read-only "Via"
                 line showing one name, with no way to record a second person and no way
                 to get from the name to the person. Each one opens their own panel now,
                 because "who else do I know here" is a question you answer by walking
                 between people. */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Mutuals</p>
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Mutuals</h3>
                 {/* No "find" link. A mutual is a person, so they come in through the
                     same door everyone else does: add them on the Network page, then
                     pick them here. Two ways to create a contact is how you end up with
                     a name that has no row behind it. */}
                 {!addingMutual && (
-                  <button
-                    onClick={() => setAddingMutual(true)}
-                    className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
-                  >
-                    + Add
+                  <button onClick={() => setAddingMutual(true)} className={button("quiet", "compact")}>
+                    <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add mutual
                   </button>
                 )}
               </div>
@@ -990,21 +949,22 @@ export function ContactPanel({
                     {person ? (
                       <button
                         onClick={() => switchTo(person.id)}
-                        className="text-xs text-zinc-200 hover:opacity-80 transition-opacity duration-150 text-left"
+                        className="text-body text-fg-1 hover:underline decoration-line-3 underline-offset-4 text-left"
                         title="Open their panel"
                       >
                         {name}
-                        {person.company && <span className="text-zinc-600"> · {person.company}</span>}
+                        {person.company && <span className="text-fg-3"> · {person.company}</span>}
                       </button>
                     ) : (
-                      <span className="text-xs text-zinc-200">{name}</span>
+                      <span className="text-body text-fg-1">{name}</span>
                     )}
                     <button
                       onClick={() => setMutuals(mutuals.filter((m) => m !== name))}
-                      className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
+                      className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
                       title="Remove"
+                      aria-label={`Remove ${name}`}
                     >
-                      ×
+                      <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     </button>
                   </div>
                 );
@@ -1012,7 +972,6 @@ export function ContactPanel({
 
               {addingMutual && (
                 <PersonPicker
-                  accent={accent}
                   options={allContacts
                     .filter((c) => c.id !== contact.id && !mutuals.includes(c.name))
                     .map((c) => ({ id: c.id, name: c.name, subtitle: c.company }))}
@@ -1026,17 +985,13 @@ export function ContactPanel({
               )}
             </div>
 
-            {/* Calls and chats */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Calls</p>
+            {/* Calls and chats, as log rows: date, time, then what it was. */}
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Calls</h3>
                 {!addingEvent && (
-                  <button
-                    onClick={() => setAddingEvent(true)}
-                    className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                    style={{ color: accent }}
-                  >
-                    + Add
+                  <button onClick={() => setAddingEvent(true)} className={button("quiet", "compact")}>
+                    <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add call
                   </button>
                 )}
               </div>
@@ -1044,23 +999,19 @@ export function ContactPanel({
                 const when = new Date(ev.at);
                 const past = when.getTime() < Date.now();
                 return (
-                  <div key={ev.id} className="flex items-center gap-1.5 group">
-                    <p className={`text-xs ${past ? "text-zinc-600" : "text-zinc-200"}`}>
-                      {when.toLocaleString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                      {ev.label && <span className="text-zinc-600"> · {ev.label}</span>}
-                    </p>
+                  <div key={ev.id} className="flex items-center gap-2 h-7 group">
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(ev.at)}</span>
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-16">
+                      {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                    <span className={`text-body truncate ${past ? "text-fg-3" : "text-fg-1"}`}>{ev.label}</span>
                     <button
                       onClick={() => persistEvents(events.filter((x) => x.id !== ev.id))}
-                      className="text-xs text-zinc-700 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-all duration-150 px-1"
+                      className={`${iconButton("destructive", "compact")} h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100`}
                       title="Remove"
+                      aria-label="Remove this call"
                     >
-                      ×
+                      <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
                     </button>
                   </div>
                 );
@@ -1078,35 +1029,15 @@ export function ContactPanel({
                     ]);
                     setAddingEvent(false);
                   }}
-                  className="space-y-1.5"
+                  className="space-y-2"
                 >
-                  <input
-                    name="at"
-                    type="datetime-local"
-                    required
-                    autoFocus
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-300 focus:outline-none"
-                    style={{ borderColor: accent }}
-                  />
-                  <input
-                    name="label"
-                    placeholder="Coffee chat, intro call…"
-                    className="w-full text-xs bg-zinc-900 border rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none"
-                    style={{ borderColor: accent }}
-                  />
-                  <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setAddingEvent(false)}
-                      className="text-xs text-zinc-500 hover:text-zinc-300"
-                    >
+                  <input name="at" type="datetime-local" required autoFocus className={field("compact")} />
+                  <input name="label" placeholder="Coffee chat, intro call…" className={field("compact")} />
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" onClick={() => setAddingEvent(false)} className={button("quiet", "compact")}>
                       Cancel
                     </button>
-                    <button
-                      type="submit"
-                      className="text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                      style={{ color: accent }}
-                    >
+                    <button type="submit" className={button("primary", "compact")}>
                       Save
                     </button>
                   </div>
@@ -1115,19 +1046,18 @@ export function ContactPanel({
             </div>
 
             {/* Notes */}
-            <div className="space-y-1.5 pt-1 border-t border-zinc-800">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">Notes</p>
+            <div className="space-y-2">
+              <div className={sectionHead}>
+                <h3 className="t-section">Notes</h3>
                 <button
                   onClick={() => {
                     const n = { id: `n${Date.now()}`, title: "Untitled", body: "", createdAt: new Date().toISOString() };
                     persistNotes([...notes, n]);
                     setOpenNoteId(n.id);
                   }}
-                  className="flex items-center gap-1 text-xs font-semibold hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className={button("quiet", "compact")}
                 >
-                  <Plus size={11} /> New note
+                  <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add note
                 </button>
               </div>
               {/* Search once there are enough notes for it to matter, matching the body
@@ -1138,37 +1068,38 @@ export function ContactPanel({
                   value={noteQuery}
                   onChange={(e) => setNoteQuery(e.target.value)}
                   placeholder="Search notes"
-                  className="w-full text-xs bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-zinc-300 placeholder-zinc-700 focus:outline-none focus:border-zinc-700"
+                  className={field("compact")}
                 />
               )}
               {visibleNotes.length === 0 && notes.length > 0 && (
-                <p className="text-xs text-zinc-700">Nothing matches that.</p>
+                <p className="text-body text-fg-3">Nothing matches that.</p>
               )}
-              {visibleNotes.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => setOpenNoteId(n.id)}
-                    className="w-full flex items-center gap-2 text-left border border-zinc-800 rounded-md px-2.5 py-1.5 hover:border-zinc-700 transition-all duration-150"
-                  >
-                    <FileText size={12} className="text-zinc-600 shrink-0" />
-                    <span className="text-xs text-zinc-300 truncate flex-1">{n.title || "Untitled"}</span>
-                    <span className="text-xs text-zinc-700 shrink-0">
-                      {new Date(n.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                    </span>
-                  </button>
-              ))}
+              {visibleNotes.length > 0 && (
+                <div className={`${cardClass} divide-y divide-line-1 overflow-hidden`}>
+                  {visibleNotes.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => setOpenNoteId(n.id)}
+                      className="w-full flex items-center gap-2 text-left h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
+                    >
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(n.createdAt)}</span>
+                      <span className="text-body text-fg-1 truncate flex-1">{n.title || "Untitled"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {onDelete && (
-              <div className="pt-1 border-t border-zinc-800">
+              <div className="pt-4 border-t border-line-1">
                 <button
                   onClick={() => {
                     if (confirm(`Remove ${contact.name} from your network? Their notes and history go with them.`))
                       onDelete(contact.id);
                   }}
-                  className="text-xs text-zinc-700 hover:text-alarm transition-colors duration-150"
+                  className={`${button("destructive", "compact")} -ml-2.5`}
                 >
-                  Remove this person
+                  <Trash2 size={14} strokeWidth={1.5} absoluteStrokeWidth /> Remove this person
                 </button>
               </div>
             )}
@@ -1177,46 +1108,44 @@ export function ContactPanel({
           <div
             ref={scrollRef}
             onMouseUp={onTranscriptMouseUp}
-            className="relative flex-1 overflow-y-auto px-5 py-4 space-y-4"
+            className="relative flex-1 overflow-y-auto px-6 py-4 space-y-4"
           >
-            {messages.length === 0 && <p className="text-sm text-zinc-600 leading-relaxed">{active.hint}</p>}
+            {messages.length === 0 && <p className="text-body text-fg-3">{active.hint}</p>}
             {messages.map((m, i) => (
               <Fragment key={m.id}>
                 {markers[i] && (
                   <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-zinc-800" />
-                    <span className="text-[11px] uppercase tracking-widest" style={{ color: accent }}>
-                      {markers[i]}
-                    </span>
-                    <div className="h-px flex-1 bg-zinc-800" />
+                    <div className="h-px flex-1 bg-line-2" />
+                    <span className="t-group">{markers[i]}</span>
+                    <div className="h-px flex-1 bg-line-2" />
                   </div>
                 )}
+                {/* Your messages sit on lift, Claude's on nothing: who said it is
+                    told by the surface, not a brand-coloured rule. */}
                 {m.role === "user" ? (
-                  <p
-                    className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap border-l-2 pl-3"
-                    style={{ borderLeftColor: accent }}
-                  >
-                    {m.content}
-                  </p>
+                  <p className="text-body text-fg-1 whitespace-pre-wrap bg-lift rounded-card px-3 py-2">{m.content}</p>
                 ) : (
-                  <p className="text-sm text-zinc-400 leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                  <p className="text-body text-fg-2 whitespace-pre-wrap">{m.content}</p>
                 )}
               </Fragment>
             ))}
-            {sending && <p className="text-sm text-zinc-600">Thinking…</p>}
-            {error && <p className="text-sm text-accent-pink">{error}</p>}
+            {sending && <p className="text-meta text-fg-3">Writing…</p>}
+            {error && (
+              <p className="flex items-center gap-1 text-meta text-alarm">
+                <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" /> {error}
+              </p>
+            )}
 
             {pick && !staged && (
               <div
-                className="absolute right-3 z-10 flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 shadow-lg"
+                className="absolute right-3 z-10 flex items-center gap-1 rounded-card bg-raised p-1 shadow-float"
                 style={{ top: Math.max(0, pick.top - 6) }}
               >
                 <button
                   onClick={() =>
                     setStaged({ text: pick.text, target: null, title: active.label === "No context set" ? "" : active.label })
                   }
-                  className="text-xs font-semibold px-1.5 hover:opacity-80 transition-opacity duration-150"
-                  style={{ color: accent }}
+                  className={button("quiet", "compact")}
                 >
                   New note
                 </button>
@@ -1224,7 +1153,7 @@ export function ContactPanel({
                   <select
                     defaultValue=""
                     onChange={(e) => e.target.value && setStaged({ text: pick.text, target: e.target.value, title: "" })}
-                    className="text-xs bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-zinc-400 focus:outline-none max-w-[9rem]"
+                    className={`${field("compact")} w-auto max-w-[9rem]`}
                   >
                     <option value="">add to…</option>
                     {notes.map((n) => (
@@ -1238,18 +1167,13 @@ export function ContactPanel({
             )}
 
             {staged && (
-              <div className="sticky bottom-0 -mx-5 px-5 py-3 bg-zinc-900 border-t border-zinc-800 space-y-2">
-                <p className="text-xs text-zinc-500">
+              <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-surface border-t border-line-2 space-y-2">
+                <p className="text-meta text-fg-3">
                   {staged.target
                     ? `Appending to "${notes.find((n) => n.id === staged.target)?.title || "Untitled"}"`
                     : "Saving as a new note"}
                 </p>
-                <p
-                  className="text-xs text-zinc-400 line-clamp-3 leading-snug border-l-2 pl-2"
-                  style={{ borderLeftColor: accent }}
-                >
-                  {staged.text}
-                </p>
+                <p className="text-body text-fg-2 line-clamp-3 border-l-2 border-line-3 pl-2">{staged.text}</p>
                 {!staged.target && (
                   <input
                     value={staged.title}
@@ -1259,14 +1183,14 @@ export function ContactPanel({
                     }}
                     autoFocus
                     placeholder="Title this note"
-                    className="w-full text-xs bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 placeholder-zinc-700 focus:outline-none focus:border-zinc-700"
+                    className={field("compact")}
                   />
                 )}
-                <div className="flex items-center justify-end gap-3">
-                  <button onClick={() => setStaged(null)} className="text-xs text-zinc-600 hover:text-zinc-300">
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={() => setStaged(null)} className={button("quiet", "compact")}>
                     Cancel
                   </button>
-                  <button onClick={commitStaged} className="text-xs font-semibold" style={{ color: accent }}>
+                  <button onClick={commitStaged} className={button("primary", "compact")}>
                     {staged.target ? "Append" : "Save"}
                   </button>
                 </div>
@@ -1276,7 +1200,7 @@ export function ContactPanel({
         )}
 
         {tab === "chat" && !openNote && (
-          <div className="shrink-0 border-t border-zinc-800 px-5 py-3">
+          <div className="shrink-0 border-t border-line-2 px-6 py-3">
             <div className="flex items-end gap-2">
               <AutoResizeTextarea
                 value={input}
@@ -1288,15 +1212,16 @@ export function ContactPanel({
                   }
                 }}
                 placeholder="Write something…"
-                className="flex-1 text-sm bg-transparent text-zinc-200 placeholder-zinc-700 resize-none focus:outline-none leading-relaxed max-h-40"
+                className={`${textarea()} max-h-40`}
               />
               <button
                 onClick={send}
                 disabled={!input.trim() || sending}
-                className="disabled:opacity-25 transition-opacity duration-150 pb-1.5 hover:opacity-80"
-                style={{ color: accent }}
+                className={iconButton("primary")}
+                title="Send (↵)"
+                aria-label="Send"
               >
-                <Send size={14} />
+                <Send size={16} strokeWidth={1.5} absoluteStrokeWidth />
               </button>
             </div>
           </div>
