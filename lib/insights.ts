@@ -2,7 +2,15 @@ import { prisma } from "@/lib/prisma";
 import { OPEN_STATUSES } from "@/lib/statuses";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
 import { canonicalCompany } from "@/lib/role-filter";
-import { DEFAULT_STAGE, FOLLOW_UP_STAGES, NUDGE_AFTER_DAYS, WARMTH_LEVELS, orderTags } from "@/lib/contact-stages";
+import {
+  DEFAULT_STAGE,
+  FOLLOW_UP_STAGES,
+  NUDGE_AFTER_DAYS,
+  TO_MESSAGE_STAGES,
+  TO_SCHEDULE_STAGES,
+  WARMTH_LEVELS,
+  orderTags,
+} from "@/lib/contact-stages";
 
 /**
  * Insights: what is working, and how things look, across the whole search.
@@ -612,8 +620,8 @@ export async function computeInsights(): Promise<Insights> {
   // The steps that move someone down the funnel. "To message" is found but not yet
   // contacted; "to schedule" has accepted or replied and has no call booked.
   const stageOf = (c: { stage: string | null }) => c.stage ?? DEFAULT_STAGE;
-  const toMessage = contacts.filter((c) => ["Identified", "Drafted"].includes(stageOf(c))).length;
-  const toSchedule = contacts.filter((c) => ["Connected", "Replied"].includes(stageOf(c))).length;
+  const toMessage = contacts.filter((c) => TO_MESSAGE_STAGES.includes(stageOf(c))).length;
+  const toSchedule = contacts.filter((c) => TO_SCHEDULE_STAGES.includes(stageOf(c))).length;
   // A call counts as upcoming if it is on the calendar, or if the person is at
   // Scheduled without the call logged yet: moving the stage is the usual record.
   const withCall = new Set(calls.map((c) => c.contactId));

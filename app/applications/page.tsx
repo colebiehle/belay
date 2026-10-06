@@ -10,6 +10,7 @@ import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { STATUSES, OPEN_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, daysAgo, displayCompany, metaTokens } from "@/lib/role-meta";
+import { PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,11 +282,24 @@ export default function ApplicationsPage() {
 
   const setVerdict = async (id: string, verdict: string, notes: string) => {
     setDecided((prev) => new Map(prev).set(id, verdict));
-    await fetch(`/api/jobs/${id}`, {
+    // The card shows the decision before the save lands. If the save fails, put the
+    // card back undecided rather than leave it looking saved; an uncaught rejection
+    // here used to surface as Next's error overlay.
+    const ok = await fetch(`/api/jobs/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verdict, verdictNotes: notes || null }),
-    });
+    })
+      .then((r) => r.ok)
+      .catch(() => false);
+    if (!ok) {
+      setDecided((prev) => {
+        const next = new Map(prev);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
     refreshCounts();
     // Deep dive and tailoring deliberately do NOT fire here. They used to run as
     // a chained client-side fire-and-forget on every Accept: a five-minute LLM
@@ -305,7 +319,7 @@ export default function ApplicationsPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verdict: null, verdictNotes: null }),
-    });
+    }).catch(() => {});
     refreshCounts();
   };
 
@@ -422,6 +436,9 @@ export default function ApplicationsPage() {
   // What the badge counts, and the same definition the dashboard tile uses. Closed
   // rows stay in the list, grouped at the bottom, but they are not work in flight.
   const activeCount = apps.filter((a) => OPEN_STATUSES.includes(a.status)).length;
+  // Home's "not yet sent": accepted, still at Applying, form never went in. The
+  // route already leaves archived rows out, which is the other half of that rule.
+  const readyToSend = apps.filter((a) => a.status === "Applying" && !a.dateApplied).length;
 
   // Keyboard triage. Mouse-only triage cost three clicks per role — expand,
   // verdict, confirm — which is ~129 interactions for a 43-role morning.
@@ -562,74 +579,59 @@ export default function ApplicationsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-100">Applications</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {/* The counts live on the tab badges and the keyboard hints were
-                learned in a day, so this line only repeated what was already
-                on screen twice. */}
-            {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {ingestMsg && (
-            <span className={`text-xs ${ingestMsg.startsWith("Failed") ? "text-accent-pink" : "text-zinc-400"}`}>
-              {ingestMsg}
-            </span>
-          )}
-          {/* One button, and it runs the same scan as the daily schedule, so
-              "ingest" means one thing wherever it starts. */}
-          <button
-            onClick={() => runIngest()}
-            disabled={ingesting}
-            title="Scan every tracked company's board, plus LinkedIn, the VC boards and Gmail alerts"
-            className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 border border-zinc-700 bg-zinc-900 text-zinc-200 rounded-lg hover:border-accent-pink/50 hover:text-accent-pink disabled:opacity-50 transition-all duration-150"
-          >
-            <Mail size={14} /> {ingesting ? "Scouring…" : "Run ingest"}
-          </button>
-          <button
-            onClick={() => {
-              if (tab !== "queue") setTab("queue");
-              setShowAddForm((s) => !s);
-            }}
-            className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 bg-accent-pink text-black rounded-lg hover:opacity-90 transition-all duration-150 ring-1 ring-accent-pink/30 hover:ring-accent-pink/50"
-          >
-            <Plus size={14} /> Add role
-          </button>
-        </div>
-      </div>
+      {/* Page header. The line under the title is the next action, from the same
+          numbers as Home's funnel: roles waiting for a verdict, and accepted roles
+          whose form has not gone in. The date that sat here told you nothing the
+          menu bar does not. */}
+      <PageHeader
+        title="Applications"
+        parts={
+          jobsLoading || appsLoading
+            ? null
+            : [
+                { n: pendingJobs.length, label: "to triage" },
+                { n: readyToSend, label: "ready to send" },
+              ]
+        }
+        actions={
+          <>
+            {ingestMsg && (
+              <span className={`text-xs ${ingestMsg.startsWith("Failed") ? "text-accent-pink" : "text-zinc-400"}`}>
+                {ingestMsg}
+              </span>
+            )}
+            {/* One button, and it runs the same scan as the daily schedule, so
+                "ingest" means one thing wherever it starts. */}
+            <button
+              onClick={() => runIngest()}
+              disabled={ingesting}
+              title="Scan every tracked company's board, plus LinkedIn, the VC boards and Gmail alerts"
+              className={headerButton("secondary", "pink")}
+            >
+              <Mail size={14} /> {ingesting ? "Scouring…" : "Run ingest"}
+            </button>
+            <button
+              onClick={() => {
+                if (tab !== "queue") setTab("queue");
+                setShowAddForm((s) => !s);
+              }}
+              className={headerButton("primary", "pink")}
+            >
+              <Plus size={14} /> Add role
+            </button>
+          </>
+        }
+      />
 
-      {/* Tab switcher */}
-      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg p-1 w-fit">
-        <button
-          onClick={() => setTab("queue")}
-          className={`flex items-center gap-2 text-sm font-medium px-4 py-1.5 rounded-md transition-all duration-150 ${
-            tab === "queue"
-              ? "bg-zinc-800 text-zinc-100 shadow-sm"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          Queue
-          <span className="text-xs px-2 py-0.5 rounded-full font-bold border border-accent-pink text-accent-pink bg-transparent">
-            {pendingJobs.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setTab("pipeline")}
-          className={`flex items-center gap-2 text-sm font-medium px-4 py-1.5 rounded-md transition-all duration-150 ${
-            tab === "pipeline"
-              ? "bg-zinc-800 text-zinc-100 shadow-sm"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
-        >
-          Pipeline
-          <span className="text-xs px-2 py-0.5 rounded-full font-bold border border-accent-pink text-accent-pink bg-transparent">
-            {activeCount}
-          </span>
-        </button>
-      </div>
+      <TabBar
+        tone="pink"
+        active={tab === "passed" ? null : tab}
+        onChange={setTab}
+        tabs={[
+          { key: "queue", label: "Queue", count: pendingJobs.length },
+          { key: "pipeline", label: "Pipeline", count: activeCount },
+        ]}
+      />
 
       {/* Queue view */}
       {tab === "queue" && (
@@ -1061,17 +1063,7 @@ function JobCard({
           onClick={(e) => {
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             e.preventDefault();
-            // window.open then blur does not work: Chrome focuses the new tab
-            // regardless. Synthesising a cmd/ctrl-click does, because the browser
-            // handles "open in a background tab" itself rather than being asked to
-            // un-focus after the fact.
-            const a = document.createElement("a");
-            a.href = job.jobUrl;
-            a.target = "_blank";
-            a.rel = "noopener noreferrer";
-            a.dispatchEvent(
-              new MouseEvent("click", { ctrlKey: true, metaKey: true, bubbles: false, cancelable: true }),
-            );
+            openInBackgroundTab(job.jobUrl);
           }}
           className="flex-1 min-h-0 p-3.5 flex flex-col"
           title="Open the posting in a background tab"

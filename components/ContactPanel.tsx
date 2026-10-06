@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, FileText, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
@@ -141,6 +141,9 @@ export function ContactPanel({
   onDelete,
   arrivedFromSwitch = false,
   knownTags = [],
+  prevId = null,
+  nextId = null,
+  position = null,
 }: {
   contact: PanelContact;
   // Tags already used on anyone, so one you made up is offered everywhere.
@@ -156,6 +159,13 @@ export function ContactPanel({
   // Opened by clicking a mutual in another panel. The backdrop is already up, so
   // it starts visible instead of fading in a second time.
   arrivedFromSwitch?: boolean;
+  // The people either side of this one in the list behind the panel, for J/K and the
+  // header arrows. Going through Identified one person at a time used to be open,
+  // close, find the next row, open.
+  prevId?: string | null;
+  nextId?: string | null;
+  // "3 of 34", so a run through the list knows where it is.
+  position?: string | null;
 }) {
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [scope, setScope] = useState<string | null>(null);
@@ -288,6 +298,25 @@ export function ContactPanel({
     setShown(false);
     setTimeout(() => onOpenContact?.(id), 200);
   };
+
+  // J and K step to the next and previous person through switchTo, the same slide as
+  // following a mutual, so a step reads as a different person rather than the same
+  // panel with its name changed. Not while typing anywhere, and not mid header edit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || editingHeader) return;
+      const key = e.key.toLowerCase();
+      const to = key === "j" ? nextId : key === "k" ? prevId : null;
+      if (!to) return;
+      e.preventDefault();
+      switchTo(to);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prevId, nextId, editingHeader]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -533,6 +562,29 @@ export function ContactPanel({
                 )}
               </p>
             </div>
+            )}
+            {/* Previous and next, beside close: the panel's own controls stay together
+                in the corner. Up and down, because J/K walk a vertical list. */}
+            {(prevId || nextId) && (
+              <div className="flex items-center gap-0.5 shrink-0">
+                {position && <span className="text-[11px] text-zinc-600 tabular-nums mr-1.5">{position}</span>}
+                <button
+                  onClick={() => prevId && switchTo(prevId)}
+                  disabled={!prevId}
+                  className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:text-zinc-800 disabled:cursor-default transition-colors duration-150"
+                  title="Previous person (K)"
+                >
+                  <ChevronUp size={16} />
+                </button>
+                <button
+                  onClick={() => nextId && switchTo(nextId)}
+                  disabled={!nextId}
+                  className="p-0.5 text-zinc-500 hover:text-zinc-200 disabled:text-zinc-800 disabled:cursor-default transition-colors duration-150"
+                  title="Next person (J)"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </div>
             )}
             <button onClick={close} className="text-zinc-600 hover:text-zinc-300 shrink-0" title="Close (Esc)">
               <X size={16} />

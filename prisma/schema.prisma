@@ -282,3 +282,47 @@ model Contact {
   // "cold" | "warm" | "close". How close you are decides what you can ask.
   warmth                String?
 }
+
+// Someone found on a LinkedIn page of people, waiting for a yes or no before they
+// become a Contact. The Network page's Queue tab is these, the same shape as the
+// job queue: paste a page, triage the cards.
+//
+// Its own table rather than a Contact with a "candidate" stage, because a skipped
+// person has to be remembered (so the next paste of the same page does not offer
+// them again) without ever showing up in the network, the graph or the counts that
+// read Contact. Decided rows are kept for that reason, never deleted.
+model PersonCandidate {
+  id          String    @id @default(cuid())
+  name        String
+  title       String?
+  company     String?
+  location    String?
+  // Normalised to https://www.linkedin.com/in/<slug>/, which is what dedupe matches on.
+  linkedinUrl String?
+  // Applied to the whole paste: becomes the new contact's howMet ("Figma · CMU alum").
+  batchNote   String?
+  // A contact's name, as mutuals are stored by name (see Contact.introVias).
+  mutual      String?
+  // A short label of the paste, and an id for it, so the queue can group and bulk
+  // decide one paste at a time.
+  source      String?
+  batchId     String?
+  // "pending" | "added" | "skipped"
+  status      String    @default("pending")
+  // The Contact an Add created, so undoing the add can remove exactly that person.
+  contactId   String?
+  // The reason typed on the decided card ("Why not?" / "Why this one?"), the twin of
+  // Job.verdictNotes. The pass reasons feed the next import's fit ranking, so the
+  // queue learns what you skip the same way the job scorer learns what you pass on.
+  decisionNote String?
+  // 1-10 and one line of why, judged in the same extraction call that read the page,
+  // against the search criteria and recent decisions. A sort key and a hint, not a
+  // verdict: null on rows imported before ranking existed.
+  fit         Int?
+  fitReason   String?
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+
+  @@index([linkedinUrl])
+  @@index([status])
+}

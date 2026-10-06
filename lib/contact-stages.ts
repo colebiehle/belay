@@ -66,6 +66,14 @@ export const CONTACT_STAGE_COLORS: Record<string, string> = {
 export const FOLLOW_UP_STAGES: string[] = ["Connected", "Replied"];
 
 /**
+ * The networking funnel's two to-do counts, shared by Home (via computeInsights) and
+ * the Network page's header line, so "12 to message" on one is 12 on the other.
+ * To message: found, not yet contacted. To schedule: talking, no call booked.
+ */
+export const TO_MESSAGE_STAGES: string[] = ["Identified", "Drafted"];
+export const TO_SCHEDULE_STAGES: string[] = ["Connected", "Replied"];
+
+/**
  * Days without a stage change or a recorded nudge before a row asks for another
  * message.
  */
