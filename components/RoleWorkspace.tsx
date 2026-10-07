@@ -6,7 +6,7 @@ import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, isContactId, metaTokens, parseReferrers } from "@/lib/role-meta";
@@ -528,10 +528,13 @@ export function RoleWorkspace({
         className={`fixed right-0 top-0 h-full w-full max-w-[640px] z-50 flex flex-col bg-raised border-l border-line-2 shadow-float transition-transform ${
           shown ? "translate-x-0 duration-200 ease-enter" : "translate-x-full duration-140 ease-exit"
         }`}
+        // The left edge in the brand, the full height, matching the top line.
+        style={brandHex ? brandEdge(brandHex) : undefined}
       >
-        {/* Header. The company's colour lives here and nowhere else in the panel: a
-            solid 3px line of the brand along the top edge, and under it the brand at
-            22% fading to the panel colour (STYLE_GUIDE 2.6). Only fg-1 and fg-2 sit
+        {/* Header. The company's colour: a solid 3px line of the brand along the top
+            edge (and down the left, on the aside), and under it the brand at 22%
+            fading to the panel colour (STYLE_GUIDE 2.6); in the body only the History
+            markers take it. Only fg-1 and fg-2 sit
             on it (7.64:1 and 4.67:1 at worst, a white brand, at the strongest point);
             fg-3 drops under 3:1 there, so nothing on the header uses it. */}
         <div
@@ -892,6 +895,9 @@ export function RoleWorkspace({
                 <div>
                   {history.map((h, i) => (
                     <div key={i} className="flex items-center gap-2 h-7 group">
+                      {/* The timeline's marker, in the brand: the one place company
+                          colour reaches the body (2.6). */}
+                      <span className={historyDot} style={{ backgroundColor: historyDotColor(brandHex) }} aria-hidden />
                       <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(h.at)}</span>
                       <span className="text-body text-fg-2">{h.status}</span>
                       {i > 0 && (

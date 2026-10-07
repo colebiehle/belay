@@ -32,8 +32,8 @@ type ActivityResponse = {
   yearTotals: Totals;
 };
 
-// The grid fills the panel's width: each week is a 1fr column and each day a square
-// in it, so at 1440 a cell is about 19px and at 1280 about 16px. A fixed 11px cell
+// The grid fills its column: each week is a 1fr column and each day a square in it,
+// so beside the table (lg and up) a cell is about 14px, and stacked at 1024 about 20px. A fixed 11px cell
 // (GitHub's) left a third of the panel empty on a wide screen, and the panel read as
 // a box with a chart in a corner. Below MIN_CELL the cells stop shrinking and the
 // year wraps into stacked bands of weeks instead (two or three on a phone). It never
@@ -314,29 +314,42 @@ export function ActivityHeatmap() {
     <section>
       <h2 className="t-section mb-3">Progress</h2>
 
-      <div className="bg-surface rounded-card p-4 space-y-4">
-        {/* The panel's own header: the streak on the left, the year on the right.
-            The streak is always the current one, whichever year is on screen. */}
-        <div className="flex items-center justify-between gap-4">
-          <p className="flex items-center gap-2 text-meta">
+      {/* Three parts on one grid. From lg up the table is the left column, the full
+          height of the panel, and the right column is the panel's header (the streak,
+          the key, the year) over the squares: the numbers are what you read, so they
+          come first, and the chart beside them is the texture behind them. Below lg
+          they stack in reading order: header, squares, table. The DOM is in that
+          stacked order, so Tab meets the year before the table at every width. */}
+      <div className="bg-surface rounded-card p-4 grid gap-4 lg:gap-x-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+        {/* The header: the streak on the left, then the key and the year on the
+            right. The streak is always the current one, whichever year is on
+            screen. On a phone it wraps under the key rather than squeezing it. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 lg:col-start-2 lg:row-start-1">
+          <p className="flex items-center gap-2 text-meta mr-auto">
             <span className="text-fg-2">{data.streak === 0 ? "No streak" : `${data.streak}-day streak`}</span>
             {data.streak > 0 && !data.todayCounts && <span className="text-fg-3">save it today</span>}
           </p>
+          {/* The key: with one neutral ramp the five steps are close enough that
+              "Less" and "More" are worth the words. Fixed 11px squares: it is a key,
+              not a row of days. */}
+          <div className="flex items-center gap-0.5 text-meta text-fg-3" aria-hidden>
+            <span className="mr-1">Less</span>
+            {HEAT.map((c) => (
+              <span key={c} className={`rounded-[2px] ${c}`} style={{ width: LEGEND_CELL, height: LEGEND_CELL }} />
+            ))}
+            <span className="ml-1">More</span>
+          </div>
           {yearSelect}
         </div>
 
         {/* onMouseLeave lives here, not on each cell. Clearing per cell meant the
             gaps between them reset the recap, so sweeping across a week flickered
             between the hovered day and the resting day on every gap. */}
-        {/* The chart and its table side by side from lg up: the table is narrow
-            (about 14rem), so beside the grid it uses the panel's spare width instead
-            of adding a row under it. Below lg it drops under the grid. The grid
-            measures its own width, so its cells shrink to fit either way. */}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-        <div onMouseLeave={() => setHoveredDay(null)} className="min-w-0">
+        <div onMouseLeave={() => setHoveredDay(null)} className="min-w-0 lg:col-start-2 lg:row-start-2">
           {/* min-w-0 and overflow clip: nothing in here may widen the page. Bands
               keep each cell at MIN_CELL or more, and a month label is never placed
-              where it could overrun the right edge, so the clip is a backstop. */}
+              where it could overrun the right edge, so the clip is a backstop. The
+              grid measures its own width, so its cells fit whatever the column is. */}
           <div ref={gridHostRef} className="min-w-0 overflow-x-clip space-y-3">
             {bands.map((band, bi) => (
               <div
@@ -401,18 +414,11 @@ export function ActivityHeatmap() {
               </div>
             ))}
           </div>
-          {/* The key, right-aligned under the grid: with one neutral ramp the five
-              steps are close enough that "Less" and "More" are worth the line. */}
-          <div className="mt-3 flex items-center justify-end gap-0.5 text-meta text-fg-3" aria-hidden>
-            <span className="mr-1">Less</span>
-            {HEAT.map((c) => (
-              <span key={c} className={`rounded-[2px] ${c}`} style={{ width: LEGEND_CELL, height: LEGEND_CELL }} />
-            ))}
-            <span className="ml-1">More</span>
-          </div>
         </div>
 
-        <div className="border-t border-line-1 pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-6">
+        {/* The table: left of everything from lg, its hairline the full height of
+            the panel; under the squares below lg. */}
+        <div className="border-t border-line-1 pt-4 lg:border-t-0 lg:pt-0 lg:border-r lg:pr-6 lg:col-start-1 lg:row-start-1 lg:row-span-2">
           <RecapPanel
             day={displayDay}
             dayLabel={
@@ -427,7 +433,6 @@ export function ActivityHeatmap() {
             year={shownYear}
             yearTotals={data.yearTotals}
           />
-        </div>
         </div>
       </div>
     </section>

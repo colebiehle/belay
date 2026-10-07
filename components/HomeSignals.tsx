@@ -43,30 +43,27 @@ function Stat({
   note,
   href,
   dim,
-  next = false,
 }: {
   label: string;
   value: ReactNode;
   note?: ReactNode;
   href?: string;
   dim: boolean;
-  /** Undecided work waiting on you: the number is rope (STYLE_GUIDE 2.1, 5.3). */
-  next?: boolean;
 }) {
   // A tile: its name in sentence case meta, then the number at stat size. The name
   // was an uppercase label too, which put it on the same step as the "Applications"
   // label above it. One size for every number: none of them is the headline. The
   // number is chalk, not a section hue; a zero drops to the dim step so the eye
-  // skips it. The one exception is the queue: roles waiting for a verdict are the
-  // next move, so a non-zero queue is rope, the same as the Queue tab's count. The
-  // other tiles are work in motion or dates to keep, not a decision to make.
+  // skips it. Every tile is chalk, the queue included: the rope count of undecided
+  // work lives on the Queue tab only (STYLE_GUIDE 5.3). A rope number on Home beside
+  // five chalk ones read as an alarm, not as "your next move".
   const body = (
     <>
       <p className="text-meta text-fg-3">{label}</p>
       {/* mt-auto: on a phone a long name wraps to two lines, and the numbers in a
           row of three should still line up. */}
       <p
-        className={`text-stat t-chip tabular-nums mt-auto pt-1 ${dim ? "text-fg-3" : next ? "text-rope" : "text-fg-1"}`}
+        className={`text-stat t-chip tabular-nums mt-auto pt-1 ${dim ? "text-fg-3" : "text-fg-1"}`}
       >
         {value}
       </p>
@@ -104,7 +101,7 @@ function ApplicationsCard({ apps }: { apps: Insights["applications"] }) {
     <section>
       <SectionHeading>Roles</SectionHeading>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="In the queue" value={apps.queued} href="/applications" dim={apps.queued === 0} next />
+        <Stat label="In the queue" value={apps.queued} href="/applications" dim={apps.queued === 0} />
         <Stat
           label="Active"
           value={apps.activePipeline}

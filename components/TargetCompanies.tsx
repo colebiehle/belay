@@ -186,7 +186,8 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
   return (
     <section>
       {/* Add is a quiet button, not a pink link: it opens a form, it is not the
-          page's next move. It names what it adds and sits after the heading. The
+          page's next move. It sits right after the heading, so the heading already names
+          what it adds: "+ Add" beside "Companies" (its aria-label says "Add company"). The
           form is built the same as the Sites one beside it: one field, a helper
           line that turns into the error line, then Cancel and the primary action
           on the right. Enter does the primary action, Escape cancels.
@@ -198,9 +199,10 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
         <button
           onClick={() => (adding ? resetDraft() : setAdding(true))}
           aria-expanded={adding}
+          aria-label="Add company"
           className={button("quiet", "compact")}
         >
-          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add company
+          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add
         </button>
       </div>
 

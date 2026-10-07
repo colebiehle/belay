@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, ExternalLink, Plus, Search, Users } from "lucide-react";
-import { button, card, emptyBox, input, revealLink, tag, toggle } from "@/lib/ui";
+import { Clock, ExternalLink, Plus, Search } from "lucide-react";
+import { button, emptyBox, input, listGrid, toggle } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
 import {
@@ -16,7 +16,8 @@ import {
   WARMTH_LEVELS,
 } from "@/lib/contact-stages";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
-import { RowStage, StageSelect } from "@/components/StageChip";
+import { StageSelect } from "@/components/StageChip";
+import { ListCard, TimingLine } from "@/components/ListCard";
 import { PeopleQueue, type Candidate } from "@/components/PeopleQueue";
 import { FormFrame, PageHeader, TabBar, formLink, headerButton } from "@/components/PageChrome";
 
@@ -544,17 +545,15 @@ export default function NetworkingPage() {
                       <h3 className="t-group">{stage}</h3>
                       <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
                     </div>
-                    {/* One container per stage, 56px two-line rows divided by
-                        hairlines. Each person was a separately bordered card of about
-                        66px; the 44px rows that replaced them were too thin to read a
-                        logo on. Arriving by
-                        ?stage= lights the group with a neutral lift for a moment, so
-                        the eye finds it; no rope, because nothing is being asked. */}
-                    <div
-                      className={`${card} divide-y divide-line-1 overflow-hidden transition-colors duration-140 ease-enter ${
-                        flashStage === stage && flashOn ? "bg-lift!" : ""
-                      }`}
-                    >
+                    {/* A grid of cards per stage, the same frame as Roles → Active:
+                        three across at 1440, two at about 1024, one on a phone. Each
+                        person was a bordered card, then a 56px row; the card keeps a
+                        readable logo and says only who they are and when you last
+                        moved. How you met, tags and mutuals are in the panel. Arriving
+                        by ?stage= lights the group's cards with a neutral lift for a
+                        moment, so the eye finds them; no rope, because nothing is
+                        being asked. */}
+                    <div className={listGrid}>
                       {group.map((c) => {
                         const hist = (() => {
                           try {
@@ -576,106 +575,35 @@ export default function NetworkingPage() {
                         // Nobody has been contacted at Identified, so its count is how
                         // long they have waited on you, not a touch.
                         const untouched = stageNow === DEFAULT_STAGE && hist.length <= 1;
-                        const mutualsOf = (() => {
-                          try {
-                            const v = JSON.parse(c.introVias ?? "[]");
-                            if (Array.isArray(v) && v.length) return v.map(String);
-                          } catch {}
-                          return c.introVia ? [c.introVia] : [];
-                        })();
-                        const rowTags = [...(c.warmth ? [c.warmth] : []), ...tagsOf(c)];
+                        const flash = flashStage === stage && flashOn;
                         return (
-                          <div
+                          <ListCard
                             key={c.id}
-                            className={`group/row relative flex items-center gap-3 h-14 px-3 transition-colors duration-90 ease-enter ${
-                              c.id === openId ? "bg-rope-wash" : "hover:bg-lift"
-                            }`}
-                          >
-                              {/* Selected while its panel is open: rope-wash and a 2px
-                                  rope bar inside the left edge. */}
-                              {c.id === openId && <span className="absolute left-0 inset-y-0 w-0.5 bg-rope" />}
-                              {/* Two lines at 56px, a 32px logo: the name, then
-                                  "Company · Role" as in the panel's header. */}
-                              <CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} size={32} />
-                              <button
-                                onClick={() => setOpenId(c.id)}
-                                className="flex-1 min-w-0 flex items-center gap-6 text-left rounded-control"
-                              >
-                                <span className="block min-w-0 flex-1 md:flex-none md:w-[38%]">
-                                  <span className="text-name text-fg-1 flex items-center gap-1.5 min-w-0">
-                                    <span className="truncate">{c.name}</span>
-                                    {c.linkedinUrl && (
-                                      <a
-                                        href={c.linkedinUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className={revealLink}
-                                        title="Open their LinkedIn"
-                                      >
-                                        <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
-                                      </a>
-                                    )}
-                                  </span>
-                                  <span className="block text-meta text-fg-2 truncate">
-                                    {c.company}
-                                    {(c.title || c.role) && <> · {c.title || c.role}</>}
-                                  </span>
-                                </span>
-                                {/* The relationship, in the space the row left empty: how
-                                    you met, what they are to you, and who connects you.
-                                    The things the filters above ask about, readable
-                                    without opening anyone. Hidden on a phone. */}
-                                <span className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 text-meta text-fg-3 overflow-hidden whitespace-nowrap">
-                                  {c.howMet && <span className="truncate shrink">{c.howMet}</span>}
-                                  {c.howMet && rowTags.length > 0 && <span className="text-fg-4">·</span>}
-                                  {rowTags.slice(0, 3).map((t, i) => (
-                                    <span key={t} className={`${tag} ${i === 0 && c.warmth ? "text-fg-1" : ""} shrink-0`}>
-                                      {t}
-                                    </span>
-                                  ))}
-                                  {mutualsOf.length > 0 && (c.howMet || rowTags.length > 0) && (
-                                    <span className="text-fg-4">·</span>
-                                  )}
-                                  {mutualsOf.length > 0 && (
-                                    <span className="flex items-center gap-1 min-w-0" title="Mutual connections">
-                                      <Users size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
-                                      <span className="truncate text-fg-2">
-                                        {mutualsOf[0]}
-                                        {mutualsOf.length > 1 && <span className="text-fg-3"> +{mutualsOf.length - 1}</span>}
-                                      </span>
-                                    </span>
-                                  )}
-                                </span>
-                              </button>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {/* A nudge does not change the stage, so it is recorded as a
-                                    history entry of its own, which restarts the count. */}
-                                {overdue && (
-                                  <button
-                                    onClick={() =>
-                                      update(c.id, {
-                                        stageHistory: JSON.stringify([
-                                          ...hist,
-                                          { stage: stageNow, at: new Date().toISOString(), nudge: true },
-                                        ]),
-                                      })
-                                    }
-                                    className={button("quiet", "compact")}
-                                    title="You followed up; restart the count"
-                                  >
-                                    Follow up
-                                  </button>
-                                )}
-                                {/* The last slot: the day count, said in words, at rest;
-                                    the stage control on hover or focus (STYLE_GUIDE 5.5).
-                                    Overdue is an action, not an alarm, so its count is
-                                    rope with the clock. */}
-                                <RowStage
-                                  rest={
-                                    quietDays !== null && (
-                                      <span
-                                        className={`flex items-center gap-1 text-meta whitespace-nowrap ${overdue ? "text-rope" : "text-fg-3"}`}
+                            logo={<CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} size={40} />}
+                            name={c.name}
+                            // "Company · Role", as in the panel's header.
+                            sub={
+                              <>
+                                {c.company}
+                                {(c.title || c.role) && <> · {c.title || c.role}</>}
+                              </>
+                            }
+                            link={c.linkedinUrl ? { href: c.linkedinUrl, title: "Open their LinkedIn" } : null}
+                            lines={
+                              touched
+                                ? [
+                                    // When they were added, or when you last moved: a
+                                    // stage change or a recorded follow-up. Overdue is an
+                                    // action, not an alarm, so it is rope with the clock,
+                                    // and the follow-up sits at the end of the same line.
+                                    <span key="at" className="flex items-center gap-1 min-w-0 flex-1">
+                                      {overdue && (
+                                        <Clock size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 text-rope" />
+                                      )}
+                                      <TimingLine
+                                        verb={untouched ? "Added" : "Last touch"}
+                                        at={new Date(touched)}
+                                        className={overdue ? "text-rope" : "text-fg-3"}
                                         title={
                                           untouched
                                             ? `Added ${quietDays} days ago and not contacted yet`
@@ -683,31 +611,51 @@ export default function NetworkingPage() {
                                               ? `${quietDays} days since your last touch (a stage change or a follow-up). Follow up.`
                                               : `${quietDays} days since your last touch (a stage change or a follow-up)`
                                         }
-                                      >
-                                        {overdue && <Clock size={14} strokeWidth={1.5} absoluteStrokeWidth />}
-                                        {untouched ? "added" : "last touch"}
-                                        {quietDays === 0 ? " today" : <span className="font-mono text-data">{quietDays}d</span>}
-                                      </span>
-                                    )
-                                  }
-                                  control={
-                                    <StageSelect
-                                      value={stageNow}
-                                      options={CONTACT_STAGES}
-                                      onChange={(next) => {
-                                        update(c.id, {
-                                          stage: next,
-                                          stageHistory: JSON.stringify([
-                                            ...hist,
-                                            { stage: next, at: new Date().toISOString() },
-                                          ]),
-                                        });
-                                      }}
-                                    />
-                                  }
-                                />
-                              </div>
-                          </div>
+                                      />
+                                      {/* A nudge does not change the stage, so it is
+                                          recorded as a history entry of its own, which
+                                          restarts the count. Negative margins keep the
+                                          28px button inside the 16px line, so an overdue
+                                          card is no taller than its neighbours. */}
+                                      {overdue && (
+                                        <button
+                                          onClick={() =>
+                                            update(c.id, {
+                                              stageHistory: JSON.stringify([
+                                                ...hist,
+                                                { stage: stageNow, at: new Date().toISOString(), nudge: true },
+                                              ]),
+                                            })
+                                          }
+                                          className={`${button("quiet", "compact")} relative z-[1] ml-auto -my-1.5 -mr-1`}
+                                          title="You followed up; restart the count"
+                                        >
+                                          Follow up
+                                        </button>
+                                      )}
+                                    </span>,
+                                  ]
+                                : []
+                            }
+                            stage={
+                              <StageSelect
+                                value={stageNow}
+                                options={CONTACT_STAGES}
+                                onChange={(next) => {
+                                  update(c.id, {
+                                    stage: next,
+                                    stageHistory: JSON.stringify([
+                                      ...hist,
+                                      { stage: next, at: new Date().toISOString() },
+                                    ]),
+                                  });
+                                }}
+                              />
+                            }
+                            selected={c.id === openId}
+                            flash={flash}
+                            onOpen={() => setOpenId(c.id)}
+                          />
                         );
                       })}
                     </div>

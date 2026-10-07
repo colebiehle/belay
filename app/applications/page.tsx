@@ -1,9 +1,10 @@
 "use client";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, ExternalLink, Plus, Search, Users } from "lucide-react";
 import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
-import { RowStage, StageSelect } from "@/components/StageChip";
+import { StageSelect } from "@/components/StageChip";
+import { ListCard, TimingLine } from "@/components/ListCard";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
@@ -12,7 +13,7 @@ import { STATUSES, OPEN_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, daysAgo, displayCompany, metaTokens, nextInterview, referrerNames } from "@/lib/role-meta";
 import { FormFrame, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
-import { button, card, cardSub, cardTitle, emptyBox, input, kbd, queueCard, revealLink, tag, textarea, verdictWidth } from "@/lib/ui";
+import { button, card, cardSub, cardTitle, emptyBox, input, kbd, listGrid, queueCard, revealLink, tag, textarea, verdictWidth } from "@/lib/ui";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -841,10 +842,11 @@ export default function ApplicationsPage() {
           ) : filteredApps.length === 0 ? (
             <p className={emptyBox}>Nothing matches &quot;{pipelineFilter}&quot;.</p>
           ) : (
-            // One container per stage, 56px two-line rows divided by hairlines. It was a
-            // stack of separately bordered cards at about 80px each; then 44px rows,
-            // which were too thin to read a logo on. The group header sticks under the
-            // nav so a long Applied group still says which group you are in.
+            // A grid of cards per stage: three across at 1440, two at about 1024, one
+            // on a phone. They were 56px rows in one container; as cards the logo is
+            // big enough to read and the facts stack instead of trailing across an
+            // empty middle. The group header sticks under the nav so a long Applied
+            // group still says which group you are in.
             <div className="space-y-6">
               {STATUS_ORDER.map((status) => {
                 const group = filteredApps.filter((a) => a.status === status);
@@ -855,9 +857,9 @@ export default function ApplicationsPage() {
                       <h3 className="t-group">{status}</h3>
                       <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
                     </div>
-                    <div className={`${card} divide-y divide-line-1 overflow-hidden`}>
+                    <div className={listGrid}>
                       {group.map((app) => (
-                        <PipelineRow
+                        <PipelineCard
                           key={app.id}
                           app={app}
                           contacts={contacts}
@@ -1180,15 +1182,30 @@ function PassedRow({ job }: { job: Job }) {
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline: Application row
+// Active: application card
 // ---------------------------------------------------------------------------
 
-/** "Thu 9 Oct": the pipeline row's interview date, inline, so Archivo with tabular figures. */
-function rowDate(d: Date): string {
-  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+/** "Thu, Oct 9": an interview's day, inline, so Archivo with tabular figures. */
+function interviewDate(d: Date): string {
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-function PipelineRow({
+// What you did to reach each stage, as the verb on the card's timing line: "Applied
+// Oct 3 · 3d ago". Applying is the role you accepted from the queue; the interview
+// stages are spans, so they say since when.
+const STAGE_VERB: Record<string, string> = {
+  Applying: "Accepted",
+  Applied: "Applied",
+  Screen: "Screened",
+  Interviewing: "Interviewing since",
+  "Final round": "Final round since",
+  Offer: "Offer",
+  Accepted: "Accepted",
+  Rejected: "Rejected",
+  Withdrawn: "Withdrew",
+};
+
+function PipelineCard({
   app,
   contacts,
   selected = false,
@@ -1205,16 +1222,21 @@ function PipelineRow({
   // The gap this closes: accepting a role created a row at "Applying" and nothing
   // ever moved it. All three Applying rows in the database were archived rather than
   // sent, one of them after 63 days. Opening the form stamps applyStartedAt, so
-  // "form opened 9d ago, not sent" becomes a thing the row can say.
+  // "form opened 9d ago, not sent" becomes a thing the card can say. Only the stall
+  // is said: from 7 days it is something to do (send it or archive it); under that,
+  // and "not opened yet", were facts with nothing to act on.
   const openedAge = applying ? daysAgo(app.applyStartedAt) : null;
-  // Days since the role reached its current stage, from the last history entry for
-  // it; an Applying row with no history counts from when it was accepted. Display
-  // only; nothing is recorded.
-  const stageAge = (() => {
+  // When the role reached its current stage, from the last history entry for it; an
+  // Applying role with no history counts from when it was accepted. Display only;
+  // nothing is recorded.
+  const stageAt = (() => {
     try {
       const h = JSON.parse(app.statusHistory ?? "[]") as { status?: string; at?: string }[];
       const last = Array.isArray(h) ? [...h].reverse().find((e) => e?.status === app.status) : undefined;
-      return daysAgo(last?.at ?? (applying ? app.createdAt : null));
+      const iso = last?.at ?? (applying ? app.createdAt : null);
+      if (!iso) return null;
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? null : d;
     } catch {
       return null;
     }
@@ -1225,42 +1247,41 @@ function PipelineRow({
   // behind it (see the role panel's Referral section).
   const referrers = referrerNames(app.referrerId, contacts);
 
-  // The middle of the row: what happens next, in the order it matters. An interview
-  // on the calendar, a form opened and not sent, who is referring you. Each is a fact
-  // the panel holds but the list could not show, so a row said only "Applied, 12d".
-  const next: ReactNode[] = [];
+  // The facts under the names, one per line, in the order they matter: when this
+  // stage started, the stall if there is one, the next interview, the referral.
+  // Each line is there only when it has something to say.
+  const lines: ReactNode[] = [];
+  if (stageAt) {
+    lines.push(
+      <TimingLine
+        key="at"
+        verb={STAGE_VERB[app.status] ?? app.status}
+        at={stageAt}
+        title={`Moved to ${app.status} on ${stageAt.toLocaleDateString()}. From the stage change in its history.`}
+      />,
+    );
+  }
+  if (openedAge !== null && openedAge >= 7) {
+    // Alarm, with the glyph as well as the words, never the hue alone (2.4).
+    lines.push(
+      <span key="form" className="flex items-center gap-1 text-alarm truncate" title="You opened the form from Belay and have not marked it sent.">
+        <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+        Form opened {openedAge}d ago, not sent
+      </span>,
+    );
+  }
   if (upcoming) {
     const at = new Date(upcoming.at);
-    next.push(
-      <span key="iv" className="text-fg-2" title={`Interview ${at.toLocaleString()}`}>
-        Interview {rowDate(at)}
+    lines.push(
+      <span key="iv" className="truncate text-fg-2" title={`Interview ${at.toLocaleString()}`}>
+        Interview {interviewDate(at)}
         {upcoming.label && <span className="text-fg-3"> · {upcoming.label}</span>}
       </span>,
     );
   }
-  if (openedAge !== null) {
-    // Seven days opened and not sent is the stall this row exists to catch: alarm,
-    // with the glyph as well as the words, never the hue alone.
-    next.push(
-      <span
-        key="form"
-        className={`flex items-center gap-1 ${openedAge >= 7 ? "text-alarm" : "text-fg-3"}`}
-        title="You opened the form from Belay and have not marked it sent."
-      >
-        {openedAge >= 7 && <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth />}
-        Form opened {openedAge === 0 ? "today" : `${openedAge}d ago`}
-      </span>,
-    );
-  } else if (applying) {
-    next.push(
-      <span key="form" className="text-fg-3">
-        Form not opened yet
-      </span>,
-    );
-  }
   if (referrers.length > 0) {
-    next.push(
-      <span key="ref" className="flex items-center gap-1 text-fg-2 min-w-0">
+    lines.push(
+      <span key="ref" className="flex items-center gap-1 min-w-0 text-fg-2">
         <Users size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 text-fg-3" />
         <span className="truncate">Referred by {referrers.join(", ")}</span>
       </span>,
@@ -1268,96 +1289,40 @@ function PipelineRow({
   }
 
   return (
-    // The row is selected while its panel is open: rope-wash with a 2px rope bar on
-    // the inside left edge, so the row you are working on is findable behind the
-    // scrim.
-    <div
-      className={`group/row relative flex items-center gap-3 h-14 px-3 transition-colors duration-90 ease-enter ${
-        selected ? "bg-rope-wash" : "hover:bg-lift"
-      }`}
-    >
-      {selected && <span className="absolute left-0 inset-y-0 w-0.5 bg-rope" />}
-      {/* Two lines at 56px with a 32px logo: the company, then the role. At 44px
-          with a 24px logo the marks were too small to tell apart, and the pay and
-          location crammed after the role were the queue's facts, not the pipeline's.
-          The posting's age is gone from here too: it is a reason to accept, not a
-          fact about an application, and the panel still shows it. */}
-      <CompanyLogo
-        company={app.job.company}
-        jobUrl={app.job.jobUrl}
-        domain={domainFromEnrichment(app.job.queueEnrichment)}
-        logo={logoFromEnrichment(app.job.queueEnrichment)}
-        size={32}
-      />
-      <button
-        onClick={() => onOpenWorkspace(app.id)}
-        className="flex-1 min-w-0 flex items-center gap-6 text-left rounded-control"
-        title="Open the workspace for this role"
-      >
-        <span className="block min-w-0 flex-1 md:flex-none md:w-[38%]">
-          <span className="text-name text-fg-1 flex items-center gap-1.5 min-w-0">
-            <span className="truncate">{displayCompany(app.job.company)}</span>
-            {/* The link out follows the primary name, here and in the panel and on
-                the contact rows. On an Applying row it is also the "I have started
-                this" signal, so the click stamps the date rather than asking for it. */}
-            <a
-              href={app.portalUrl || app.job.jobUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (applying && !app.applyStartedAt) {
-                  onUpdate(app.id, { applyStartedAt: new Date().toISOString() } as Partial<Application>);
-                }
-              }}
-              className={revealLink}
-              title={app.portalUrl ? "Open the application portal" : "Open the posting"}
-            >
-              <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
-            </a>
-          </span>
-          <span className="block text-meta text-fg-2 truncate">{app.job.roleTitle}</span>
-        </span>
-        {/* What happens next. Hidden on a phone, where the two lines and the count
-            already fill the row. */}
-        <span className="hidden md:flex items-center gap-1.5 min-w-0 flex-1 text-meta tabular-nums overflow-hidden whitespace-nowrap">
-          {next.map((n, i) => (
-            <Fragment key={i}>
-              {i > 0 && <span className="text-fg-4">·</span>}
-              {n}
-            </Fragment>
-          ))}
-        </span>
-      </button>
-
-      {/* The last slot: how long it has sat at this stage, said in words, and the
-          stage control in its place on hover or focus (STYLE_GUIDE 5.5). */}
-      <RowStage
-        rest={
-          stageAge !== null && (
-            <span
-              className="flex items-baseline gap-1 text-meta text-fg-3 whitespace-nowrap"
-              title={`${stageAge === 1 ? "1 day" : `${stageAge} days`} since this role moved to ${app.status}. Counts from the stage change in its history.`}
-            >
-              {/* A same-day count says "today": "0d in Applied" read as a glitch. */}
-              {stageAge === 0 ? (
-                <>{app.status} today</>
-              ) : (
-                <>
-                  <span className="font-mono text-data">{stageAge}d</span> in {app.status}
-                </>
-              )}
-            </span>
-          )
-        }
-        control={
-          <StageSelect
-            value={app.status}
-            options={STATUSES}
-            onChange={(next) => onUpdate(app.id, { status: next } as Partial<Application>)}
-          />
-        }
-      />
-    </div>
+    <ListCard
+      logo={
+        <CompanyLogo
+          company={app.job.company}
+          jobUrl={app.job.jobUrl}
+          domain={domainFromEnrichment(app.job.queueEnrichment)}
+          logo={logoFromEnrichment(app.job.queueEnrichment)}
+          size={40}
+        />
+      }
+      name={displayCompany(app.job.company)}
+      sub={app.job.roleTitle}
+      // The link out follows the primary name. On an Applying role it is also the "I
+      // have started this" signal, so the click stamps the date rather than asking.
+      link={{
+        href: app.portalUrl || app.job.jobUrl,
+        title: app.portalUrl ? "Open the application portal" : "Open the posting",
+        onClick: () => {
+          if (applying && !app.applyStartedAt) {
+            onUpdate(app.id, { applyStartedAt: new Date().toISOString() } as Partial<Application>);
+          }
+        },
+      }}
+      lines={lines}
+      stage={
+        <StageSelect
+          value={app.status}
+          options={STATUSES}
+          onChange={(next) => onUpdate(app.id, { status: next } as Partial<Application>)}
+        />
+      }
+      selected={selected}
+      onOpen={() => onOpenWorkspace(app.id)}
+      openTitle="Open the workspace for this role"
+    />
   );
 }

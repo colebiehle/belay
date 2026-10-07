@@ -6,8 +6,9 @@
  * and drifted: a ring on one primary, `hover:opacity-90` on another, a pink border
  * on a third.
  *
- * Nothing here takes a company colour. Brand colour is content (logo tiles, the
- * panel header wash, graph nodes) and never touches a control.
+ * Nothing here puts a company colour on a control. Brand colour is content (logo
+ * tiles, the panel's wash, top and left lines and History markers, graph nodes) and
+ * never touches a button, tab, select or link.
  */
 
 export type ButtonKind = "primary" | "secondary" | "quiet" | "destructive";
@@ -100,8 +101,9 @@ export const kbd =
  * (pixel-sampled on the flat band) on the v1.1 panel colour (#1E2023), the worst case
  * (a white brand) holds fg-1 at 7.64:1 and fg-2 at 4.67:1, and a black brand (lifted
  * by usableAccent) sits at 11.72 and 7.16. fg-3 falls to 2.92 on white, so it is
- * still not allowed on the band. No strip on the top edge either: on an orange brand
- * it read as rope. One of the four places company colour is allowed (STYLE_GUIDE 2.6).
+ * still not allowed on the band. (v1.3 brought back the fade and a 3px top line, and
+ * v1.4 a matching left edge; see washOf, brandLine and brandEdge below.) One of the
+ * four places company colour is allowed (STYLE_GUIDE 2.6).
  */
 export const WASH_PCT = 22;
 
@@ -118,6 +120,29 @@ export function washOf(brandHex: string): string {
 // at full strength. An inset shadow, so it adds no height to the header.
 export function brandLine(brandHex: string): string {
   return `inset 0 3px 0 ${brandHex}`;
+}
+
+/**
+ * The panel's left edge in the brand (v1.4): the same 3px and the same colour as the
+ * top line, down the full height, in place of the neutral line-2 border. Together the
+ * two lines frame the panel as the company's from the moment it slides in, while the
+ * wash stays in the header. `brandHex` is already through usableAccent, so a black
+ * brand is the same lifted grey here as on top. Without a brand the edge stays
+ * line-2 (the aside's own class). No line on the bottom: the footer is controls.
+ */
+export function brandEdge(brandHex: string): { borderLeftColor: string; borderLeftWidth: number } {
+  return { borderLeftColor: brandHex, borderLeftWidth: 3 };
+}
+
+/**
+ * The one brand accent inside the panel body: the History timeline's markers, a 6px
+ * dot per entry in the brand (fg-3 without one). A dot carries no text, so contrast
+ * is not at stake, and it is content (the company's record), not a control: buttons,
+ * tabs, selects and links stay neutral (STYLE_GUIDE 2.6).
+ */
+export const historyDot = "w-1.5 h-1.5 rounded-full shrink-0";
+export function historyDotColor(brandHex: string | null): string {
+  return brandHex ?? "var(--color-fg-3)";
 }
 
 /**
@@ -142,6 +167,31 @@ export function queueCard(focused: boolean): string {
     focused ? "border-rope" : "border-transparent hover:bg-raised"
   }`;
 }
+
+/**
+ * A list card (Roles → Active, People → Network): one frame for both lists, in a
+ * grid of three at 1440, two at about 1024 and one on a phone (`listGrid`). Surface,
+ * no border, 12px padding (the compact card, 4.1); hover steps to lift like a row.
+ * Selected (its panel is open) is the row's treatment carried over: rope-wash with a
+ * 2px rope bar inside the left edge, drawn as an inset shadow so it follows the
+ * corner radius and shifts nothing. `h-full` so every card in a grid row is the
+ * height of the tallest, which keeps the row calm when one card has an interview line
+ * and its neighbour does not. Keyboard focus on the card's open button rings the
+ * whole card (the button covers it), not just the name: that rule is in globals.css
+ * (`[data-list-card]`), beside the global focus ring it has to outrank.
+ */
+export function listCard(selected: boolean, flash = false): string {
+  return `group/row relative h-full flex gap-3 p-3 rounded-card transition-colors duration-90 ease-enter ${
+    selected
+      ? "bg-rope-wash shadow-[inset_2px_0_0_var(--color-rope)]"
+      : flash
+        ? "bg-lift"
+        : "bg-surface hover:bg-lift"
+  }`;
+}
+
+/** The grid the list cards sit in: 1 across on a phone, 2 from md (768), 3 from xl (1280). */
+export const listGrid = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2";
 
 /** The card's primary name (the company on a role card, the person on a person
  * card): 16px semibold, the largest text on the card, so it is what the eye lands on.

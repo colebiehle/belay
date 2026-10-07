@@ -219,6 +219,17 @@ body {
 .bg-rope:focus-visible {
   outline-color: var(--color-fg-1);
 }
+/* A list card (Roles → Active, People → Network) opens from a button that covers the
+   whole card, so focus rings the card rather than the name the button wraps: one
+   ring, round the thing that opens. Here rather than in the recipe because the
+   global rule above is unlayered and would outrank a utility on the button. */
+[data-card-open]:focus-visible {
+  outline: none;
+}
+[data-list-card]:has([data-card-open]:focus-visible) {
+  outline: 2px solid var(--color-rope);
+  outline-offset: 2px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

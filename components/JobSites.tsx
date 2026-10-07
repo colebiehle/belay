@@ -161,9 +161,10 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
         <button
           onClick={() => (adding ? resetDraft() : setAdding(true))}
           aria-expanded={adding}
+          aria-label="Add site"
           className={button("quiet", "compact")}
         >
-          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add site
+          <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add
         </button>
       </div>
 
