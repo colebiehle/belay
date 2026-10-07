@@ -1293,7 +1293,7 @@ function PipelineCard({
   onOpenWorkspace,
 }: {
   app: Application;
-  contacts: { id: string; name: string }[];
+  contacts: { id: string; name: string; company: string }[];
   selected?: boolean;
   onUpdate: (id: string, patch: Partial<Application>) => void;
   onOpenWorkspace: (id: string) => void;
@@ -1357,6 +1357,25 @@ function PipelineCard({
         Interview {interviewDate(at)}
         {upcoming.label && <span className="text-fg-3"> · {upcoming.label}</span>}
       </span>,
+    );
+  }
+  // Who you know there, as a count, when no one is referring you yet: a referral
+  // names the people already, and a path in is the thing a count is for. The same
+  // match and the same link as the role panel's "2 people at Figma".
+  const known = contacts.filter((c) => c.company.trim().toLowerCase() === app.job.company.trim().toLowerCase()).length;
+  if (referrers.length === 0 && known > 0) {
+    lines.push(
+      <a
+        key="known"
+        href={`/networking?company=${encodeURIComponent(app.job.company)}`}
+        className="relative z-[1] flex w-fit items-center gap-1 min-w-0 text-fg-2 hover:text-fg-1 transition-colors duration-90"
+        title={`Open the people you know at ${app.job.company}`}
+      >
+        <Users size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 text-fg-3" />
+        <span className="truncate">
+          <span className="tabular-nums">{known}</span> {known === 1 ? "person" : "people"} you know
+        </span>
+      </a>,
     );
   }
   if (referrers.length > 0) {

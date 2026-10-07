@@ -1404,3 +1404,4 @@ The owner's decisions, applied as one pass.
 | 5 | Home's "Coming up" is **Upcoming**, always shown, interviews and calls together, with an empty row (5.7) | The page changed shape when the first one was booked; calls had no list |
 | 6 | The Upcoming interviews and calls tiles drop their "Next:" line (5.7) | The dates are in Upcoming; one name under a count of two was misleading |
 | 7 | Upcoming rows carry the company's 20px logo plate (5.7) | Home read as all grey above the fold; a logo is colour that says something. The streak stays neutral: it is a record, not a next move |
+| 8 | An Active role card with no referral says how many people you know there ("4 people you know", `Users` glyph, `meta` `fg-2`), linking to them (5.7) | A path in is the fact a role card was missing; the count matches the panel's link |
