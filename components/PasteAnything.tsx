@@ -127,7 +127,7 @@ export function PasteAnything({
     // whole panel, and the paste with it.
     <div
       ref={boxRef}
-      className="space-y-1.5"
+      className="reveal space-y-1.5"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();

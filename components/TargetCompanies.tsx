@@ -207,7 +207,7 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
       </div>
 
       {adding && (
-        <div className={`mb-3 ${card} p-4 space-y-2`}>
+        <div className={`reveal mb-3 ${card} p-4 space-y-2`}>
           <input
             value={draftInput}
             onChange={(e) => {

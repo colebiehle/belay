@@ -250,6 +250,35 @@ body {
   outline-offset: 2px;
 }
 
+/* Reveal: a form or box that opens in place (Add a company, Add a site, Add people,
+   a paste box). It grows from nothing to its height while fading in and settling
+   4px down, so what is below it slides out of the way instead of jumping, and the
+   eye follows where the new box came from. 200ms ease-enter, the panel's timing
+   (STYLE_GUIDE 4.6). Height animates to auto through interpolate-size; where that
+   is unsupported the box still fades and settles, and only the push is instant.
+   Overflow is clipped only while it plays (overflow animates discretely), so focus
+   rings and menus inside are never cut off once it is open. Closing is instant:
+   exits are shorter, and a form you dismissed has nothing more to say. */
+:root {
+  interpolate-size: allow-keywords;
+}
+@keyframes reveal {
+  from {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    opacity: 0;
+    translate: 0 -4px;
+    overflow: clip;
+  }
+  to {
+    overflow: clip;
+  }
+}
+.reveal {
+  animation: reveal 200ms var(--ease-enter);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 80ms !important;
