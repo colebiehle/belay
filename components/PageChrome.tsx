@@ -102,7 +102,7 @@ export function FormFrame({
   return (
     // Escape closes it from any field inside, as it does in the panels' inline edits.
     <section
-      className="reveal bg-surface rounded-card p-4"
+      className="bg-surface rounded-card p-4"
       onKeyDown={(e) => {
         if (e.key === "Escape" && !closeDisabled) {
           e.stopPropagation();

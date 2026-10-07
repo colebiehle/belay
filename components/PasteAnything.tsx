@@ -66,7 +66,15 @@ export function PasteAnything({
     if (proposal) boxRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [proposal]);
 
+  // Closing folds the box away (.unreveal) and resets when that ends; with reduced
+  // motion there is no animation to wait for, so it resets at once.
+  const [closing, setClosing] = useState(false);
+  const close = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) reset();
+    else setClosing(true);
+  };
   const reset = () => {
+    setClosing(false);
     setOpen(false);
     setText("");
     setError(null);
@@ -127,11 +135,15 @@ export function PasteAnything({
     // whole panel, and the paste with it.
     <div
       ref={boxRef}
-      className="reveal space-y-1.5"
+      className={`${closing ? "unreveal" : "reveal"} space-y-1.5`}
+      inert={closing}
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) reset();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();
-          reset();
+          close();
         }
       }}
     >
@@ -159,7 +171,7 @@ export function PasteAnything({
               <span className="text-meta text-fg-3">Reading…</span>
             ) : (
               <>
-                <button onClick={reset} className={button("quiet", "compact")}>
+                <button onClick={close} className={button("quiet", "compact")}>
                   Cancel
                 </button>
                 <button
@@ -219,14 +231,14 @@ export function PasteAnything({
             </button>
           )}
           <div className="flex items-center justify-end gap-2 pt-0.5">
-            <button onClick={reset} className={button("quiet", "compact")}>
+            <button onClick={close} className={button("quiet", "compact")}>
               Discard
             </button>
             {!nothing && (
               <button
                 onClick={() => {
                   onApplied({ updates: proposal.updates, note: keepNote ? note : null }, kept);
-                  reset();
+                  close();
                 }}
                 disabled={kept.size === 0 && !keepNote}
                 className={button("primary", "compact")}

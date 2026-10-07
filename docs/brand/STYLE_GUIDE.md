@@ -549,7 +549,7 @@ Slide-overs are full-height and flush right, with radius 0.
 | `--dur-quick` | 140ms | `ease-enter` | Chips, toggles, tab change, stage change, queue card exit (8px slide plus fade) |
 | `--dur-panel` | 200ms | `ease-enter` | Slide-over and chat sheet enter |
 | `--dur-panel-exit` | 140ms | `ease-exit` | Slide-over exit (exits are about 30% shorter) |
-| `reveal` (v1.7) | 200ms | `ease-enter` | A form or box opening in place (add company, add site, add people, add role, paste boxes): grows from 0 to its height, fades in and settles 4px. Closing is instant |
+| `reveal` (v1.7) | 200ms | `ease-enter` | A form or box opening in place (add company, add site, add people, add role, paste boxes): grows from 0 to its height, fades in and settles 4px. Closing folds it back, 140ms `ease-exit` (`unreveal`), through `components/Reveal.tsx`, which keeps the form mounted until it has folded |
 
 - `ease-enter` = `cubic-bezier(0.2, 0, 0, 1)` (fast out, long settle).
   `ease-exit` = `cubic-bezier(0.4, 0, 1, 1)`. Nothing takes longer than 240ms. No
@@ -1408,3 +1408,4 @@ The owner's decisions, applied as one pass.
 | 8 | Tried and removed: a "4 people you know" line on Active role cards. Who you know at a company stays in the role panel (5.7) | It repeated on every card for the same company, and the Network cards have no counterpart, so the two card lists stopped matching |
 | 9 | Profile is sections by purpose (Basics, Links, Your story, What you're looking for, Green and red flags, Logistics and pay, Form answers), each with what it feeds and an "n of m" count; a sticky contents rail from lg; examples as "e.g." placeholders; long fields stop at about 12 lines and scroll; "Start from your resume" drafts blank answers for review; "What Belay has learned" read-only at the end (`lib/profile-sections.ts`) | 41 questions in one column grouped by storage gave a new person no place to start and no reason for any field |
 | 10 | Forms that open in place reveal: height from 0, fade, 4px settle, 200ms `ease-enter` (`.reveal` in globals.css, on `FormFrame`, the Home add forms and `PasteAnything`) (4.6) | They appeared at full size in one frame and shoved everything below them down |
+| 11 | Forms fold away on close too, 140ms `ease-exit` (`Reveal`, and `PasteAnything` itself) (4.6) | An instant close after an animated open read as a glitch |

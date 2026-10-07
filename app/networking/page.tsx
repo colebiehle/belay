@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
 import { Clock, ExternalLink, Plus, Search } from "lucide-react";
 import { button, emptyBox, input, listGrid, toggle } from "@/lib/ui";
@@ -357,7 +358,7 @@ export default function NetworkingPage() {
           nothing; what you find comes back through Add people. The company is a
           select rather than a text field so the slug is known and the link lands on
           the real People tab. The same frame as Add people and Add role. */}
-      {activeTab === "queue" && finding && (
+      <Reveal open={activeTab === "queue" && finding}>
         <FormFrame
           title="Find people"
           hint="Opens the company's People tab on LinkedIn, filtered by role. Select all there and paste it into Add people."
@@ -415,7 +416,7 @@ export default function NetworkingPage() {
             />
           </div>
         </FormFrame>
-      )}
+      </Reveal>
 
       {/* Mounted whenever the tab has been decided, hidden on People, so an import
           that takes a minute keeps going if you look at the list meanwhile. */}

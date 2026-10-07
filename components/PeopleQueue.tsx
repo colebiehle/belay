@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Plus, Search, Users, X } from "lucide-react";
 import { button, cardSub, cardTitle, emptyBox, iconButton, input, kbd, queueCard, textarea, verdictBtn } from "@/lib/ui";
@@ -486,7 +487,7 @@ export function PeopleQueue({
           shares (Add role and Find people use the same one). The dashed paste field
           inside it is the target. It reads the clipboard's HTML on paste and says
           what it got instead of dumping a page of LinkedIn into a text field. */}
-      {showAdd && (
+      <Reveal open={showAdd}>
         <FormFrame
           title={manual ? "Add someone manually" : "Add people"}
           hint={
@@ -698,7 +699,7 @@ export function PeopleQueue({
             </>
           )}
         </FormFrame>
-      )}
+      </Reveal>
 
       {/* Filter + sort, the job queue's row: search and sort, then company chips. */}
       {candidates.length > 0 && (

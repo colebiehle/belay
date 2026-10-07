@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Plus, Pencil, Trash2 } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
@@ -169,8 +170,8 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
         </button>
       </div>
 
-      {adding && (
-        <div className={`reveal mb-3 ${card} p-4 space-y-2`}>
+      <Reveal open={adding} className="mb-3">
+        <div className={`${card} p-4 space-y-2`}>
           <input
             value={draftUrl}
             onChange={(e) => setDraftUrl(e.target.value)}
@@ -200,7 +201,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             </button>
           </div>
         </div>
-      )}
+      </Reveal>
 
       <div className="space-y-4">
         {groups.map((g) => (

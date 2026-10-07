@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Pencil, Plus, Trash2 } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
@@ -206,8 +207,8 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
         </button>
       </div>
 
-      {adding && (
-        <div className={`reveal mb-3 ${card} p-4 space-y-2`}>
+      <Reveal open={adding} className="mb-3">
+        <div className={`${card} p-4 space-y-2`}>
           <input
             value={draftInput}
             onChange={(e) => {
@@ -280,7 +281,7 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
             )}
           </div>
         </div>
-      )}
+      </Reveal>
 
       <div className="space-y-6">
         {groups.map((g) => (

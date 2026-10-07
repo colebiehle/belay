@@ -257,8 +257,8 @@ body {
    (STYLE_GUIDE 4.6). Height animates to auto through interpolate-size; where that
    is unsupported the box still fades and settles, and only the push is instant.
    Overflow is clipped only while it plays (overflow animates discretely), so focus
-   rings and menus inside are never cut off once it is open. Closing is instant:
-   exits are shorter, and a form you dismissed has nothing more to say. */
+   rings and menus inside are never cut off once it is open. Closing folds it away
+   the same way, shorter (.unreveal below, via components/Reveal.tsx). */
 :root {
   interpolate-size: allow-keywords;
 }
@@ -277,6 +277,25 @@ body {
 }
 .reveal {
   animation: reveal 200ms var(--ease-enter);
+}
+/* The close, run by components/Reveal.tsx before it unmounts: the same fold in
+   reverse, 140ms ease-exit (exits are about 30% shorter). Forwards, so it does not
+   flash back open for a frame before it is removed. */
+@keyframes unreveal {
+  from {
+    overflow: clip;
+  }
+  to {
+    height: 0;
+    padding-block: 0;
+    margin-block: 0;
+    opacity: 0;
+    translate: 0 -4px;
+    overflow: clip;
+  }
+}
+.unreveal {
+  animation: unreveal 140ms var(--ease-exit) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

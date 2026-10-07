@@ -1,4 +1,5 @@
 "use client";
+import { Reveal } from "@/components/Reveal";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, Plus, Search, Users } from "lucide-react";
 import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/components/CompanyLogo";
@@ -679,7 +680,7 @@ export default function ApplicationsPage() {
           {/* Add role, in the frame every header-triggered form shares (Add people
               and Find people use the same one): title and close, one hint line, the
               field, then the verb on the right of the footer. */}
-          {showAddForm && (
+          <Reveal open={showAddForm}>
             <FormFrame
               title="Add role"
               hint="Paste the posting URL. Claude reads the page, pulls out the company, role and details, scores the fit, and adds it to the queue."
@@ -707,7 +708,7 @@ export default function ApplicationsPage() {
                 onKeyDown={(e) => e.key === "Enter" && addJob()}
               />
             </FormFrame>
-          )}
+          </Reveal>
 
           {/* Filter + Sort */}
           {!jobsLoading && jobs.length > 0 && (
