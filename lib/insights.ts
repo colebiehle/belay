@@ -215,12 +215,16 @@ export type DueContact = { id: string; name: string; company: string; stage: str
 // The next dated thing on a list, with enough to say what and where under a number.
 export type NextInterview = { appId: string; company: string; label: string; at: string };
 export type NextCall = { contactId: string; name: string; company: string; label: string; at: string };
+/** One dated thing ahead: an interview (a role) or a call (a person), for Home's Upcoming. */
+export type UpcomingItem = { kind: "interview" | "call"; href: string; title: string; label: string; at: string };
 
 export type CountRow = { key: string; label: string; count: number };
 
 export type Insights = {
   generatedAt: string;
   minSample: number;
+  // Interviews and calls together, soonest first, the next five.
+  upcoming: UpcomingItem[];
   applications: {
     sent: number;
     responded: number;
@@ -591,6 +595,28 @@ export async function computeInsights(): Promise<Insights> {
     ? { contactId: calls[0].contactId, name: calls[0].name, company: calls[0].company, label: calls[0].label, at: calls[0].at }
     : null;
 
+  const upcoming: UpcomingItem[] = [
+    ...interviews.map((iv) => ({
+      kind: "interview" as const,
+      href: `/applications?app=${iv.appId}`,
+      title: iv.company,
+      label: iv.label || "Interview",
+      at: iv.at,
+      time: iv.time,
+    })),
+    ...calls.map((c) => ({
+      kind: "call" as const,
+      href: `/networking?contact=${c.contactId}`,
+      title: c.company ? `${c.name}, ${c.company}` : c.name,
+      label: c.label || "Call",
+      at: c.at,
+      time: c.time,
+    })),
+  ]
+    .sort((a, b) => a.time - b.time)
+    .slice(0, 5)
+    .map((item) => ({ kind: item.kind, href: item.href, title: item.title, label: item.label, at: item.at }));
+
   // Tags are counted per person, so someone tagged "mentor" twice by a stray edit
   // is still one mentor. orderTags lowercases, so "Mentor" and "mentor" are one row.
   const tagCounts = new Map<string, number>();
@@ -684,6 +710,7 @@ export async function computeInsights(): Promise<Insights> {
 
   return {
     generatedAt: now.toISOString(),
+    upcoming,
     minSample: MIN_SAMPLE,
     applications: {
       sent: sent.length,

@@ -54,7 +54,7 @@ unless it is marked "verify".
 | 7 | Logo | **The top-rope arch** (from "quiet instrument"). Not the figure-eight knot. | Two proposals chose the knot, but it fails two practical tests. Its over-and-under crossing turns to mush at 16px, and Gemini reliably draws knots wrong, so the owner would be fixing topology instead of refining. The arch is three points and one line. It is literally a belay (anchor, climber, belayer), it is a three-node graph fragment for the network side, and it holds at favicon size. | The figure-eight is the most trusted object in climbing, checked by a partner, and it doubles as a B. |
 | 8 | Panel header: brand wash or a 4px strip | *(Since v1.3/1.4: a 3px brand line on the top and left edges over a fading 22% wash; see 2.6.)* **Keep the wash**, made safer: a brand tint (16% at rollout, 24% after, 22% since the v1.1 panel colour; see 2.6), a gradient fading to the panel colour until v1.2 and a **flat band across the whole header** since. Nothing else in the panel takes brand colour. (The 3px brand band that sat on the top edge was dropped in v1.1: on orange brands it read as rope.) | The owner asked for this explicitly. Contrast is measured: at 22% on the v1.1 `raised`, `fg-1` stays at 7.64:1 or better and `fg-2` at 4.67:1 or better across the whole flat band against every tested brand, including pure white and Snap yellow. | A strip says the panel is about your relationship with the company, not the company's marketing. |
 | 9 | Pills | **No pills except dots and avatars.** Chips, stage chips, filter toggles and count badges are 4px rectangles. | Rectangles are denser and read as controls on an instrument. Pills read as friendly decoration. | Pill for "moves along a track", rectangle for "holds things" gives shape a meaning. |
-| 10 | Notebook grammar (date margin, dashed means tentative) | **Adopt two pieces.** A dashed border means written but not sent (the **Drafted** stage chip and unsent drafts). A fixed mono date column goes on log-shaped lists (history, timeline, Coming up). No double rules, no 72px margin on the queue. | Both carry meaning without colour, and Drafted is a stage the owner built specifically to make visible. | The full ledger system is what makes the notebook direction coherent. Partial adoption weakens it. |
+| 10 | Notebook grammar (date margin, dashed means tentative) | **Adopt two pieces.** A dashed border means written but not sent (the **Drafted** stage chip and unsent drafts). A fixed mono date column goes on log-shaped lists (history, timeline, Upcoming). No double rules, no 72px margin on the queue. | Both carry meaning without colour, and Drafted is a stage the owner built specifically to make visible. | The full ledger system is what makes the notebook direction coherent. Partial adoption weakens it. |
 
 ### What this direction is, in one line
 
@@ -158,6 +158,7 @@ and 4.71 on `rope-wash`). That is why it is the floor. Nothing a person has to r
   canvas behind it, so the ring is 7.38:1 against that gap, even next to a logo plate.
   **On a rope fill the ring is `fg-1`** (16.60 against the canvas gap): a rope ring
   around a rope button is the same colour twice and does not read as focus (v1.1).
+  **Text fields take no outer ring** (v1.7, 5.9): the field is already a frame.
 
 #### 2.4 Semantic colours
 
@@ -396,7 +397,7 @@ it grows by about 1.2 per step, which is a difference you can see.
 | `stat` | Archivo, `tnum` | 28 / 32 | 600 | 87 | −0.01em | The signal numbers on Home and Insights |
 | `h1` | Archivo | 24 / 32 | 600 | 100 | −0.015em | Page titles |
 | `h2` | Archivo | 20 / 28 | 600 | 100 | −0.01em | Panel titles: person or role name in a slide-over |
-| `h3` (`t-section`) | Archivo | 16 / 22 | 600 | 100 | −0.005em | Section headings, on a page ("Progress", "Companies", "Sites", "Coming up") and in a slide-over ("History", "Mutuals", "Notes"), and the titles of the add forms (5.9). Always `fg-1`, sentence case. As `text-h3` it is also the **primary name on a queue card** (`cardTitle`, v1.2), the largest text on the card |
+| `h3` (`t-section`) | Archivo | 16 / 22 | 600 | 100 | −0.005em | Section headings, on a page ("Progress", "Companies", "Sites", "Upcoming") and in a slide-over ("History", "Mutuals", "Notes"), and the titles of the add forms (5.9). Always `fg-1`, sentence case. As `text-h3` it is also the **primary name on a queue card** (`cardTitle`, v1.2), the largest text on the card |
 | `name` | Archivo | 14 / 20 | 600 | 100 | 0 | A name in a row or card: person, company, role |
 | `body` | Archivo | 14 / 20 | 400 | 100 | 0 | Headlines, notes, chat, summaries, the next-action line, empty states |
 | `button` | Archivo | 14 / 20 | 500 | 100 | 0 | Buttons and tabs |
@@ -516,7 +517,7 @@ Slide-overs are full-height and flush right, with radius 0.
 | Chip / stage chip / tag | 20px | `px-1.5`, `chip` type |
 | Filter toggle | 24px | `px-2` |
 | List card (Active role, Network person) | about 84px | 40px logo, 12px padding; three across at 1440, two at 1024, one on a phone; every card in a grid row the height of the tallest (v1.4; replaced the 56px two-line row) |
-| Single-line list row (Coming up, history, notes, sites) | **36px** | Mono date column first |
+| Single-line list row (Upcoming, history, notes, sites) | **36px** | Mono date column first |
 | Group header in a list | 32px | Sticky, `t-group` plus a `meta` `tabular-nums` count |
 | Queue card (role) | about 176px (min 160) | 16px padding, 32px logo. Two side by side at 1280px or more |
 | Queue card (person) | about 164px | Same frame and the same rows as the role card, without tags |
@@ -769,7 +770,7 @@ number beside a tier read as a score. Nothing else on Home is rope but the strea
 (5.12) and the header's primary button. The two halves are headed "Roles" and "People" in `t-section` (v1.2); there is no
 "Overview" heading above them, since the two headings already say what the tiles are.
 
-#### 5.7 List cards and log rows (Active, Network, Coming up, history)
+#### 5.7 List cards and log rows (Active, Network, Upcoming, history)
 
 **List cards** (v1.4; `ListCard` in `components/ListCard.tsx`, `listCard()` and
 `listGrid` in `lib/ui.ts`, one component for Roles → Active and People → Network):
@@ -820,7 +821,7 @@ number beside a tier read as a score. Nothing else on Home is rope but the strea
   together. Three compact cards across keep about the same count on screen at 1440
   and put each one's facts in one glance.
 
-**Coming up, history and sites stay rows:** one container per list, `surface`, no
+**Upcoming, history and sites stay rows:** one container per list, `surface`, no
 border, `rounded-card`, rows divided by `line-1`, hover `lift`.
 
 - **Group header (32px, sticky):** `t-group` stage name plus a `meta` `tabular-nums`
@@ -832,8 +833,13 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
   "Oct 5 · today" read the morning after, and two cards dated Oct 5 said "today" and
   "1d ago". History gaps (`+3d`) count the same way, so they agree with the dates.
 - **Log rows (36px):** a fixed **56px** date column first, in `data` `fg-3`
-  (`06 Oct`, with the time in a second column for Coming up), then the entry in
+  (`06 Oct`, with the time in a second column for Upcoming), then the entry in
   `body`. Pipeline history gaps show as `+12d` in `data` `fg-3`.
+- **Home's Upcoming is always there** (v1.7): interviews and calls together, soonest
+  first, five at most, each opening its role or person. With nothing ahead it is one
+  row, "No interviews or calls scheduled" in `body` `fg-3`, so Home keeps its shape the
+  day something is booked. The count tiles beside it carry no "Next:" line: the dates
+  are here, and one name under a count of two read as the only one.
 
 #### 5.8 Slide-over panel (role workspace and contact panel)
 
@@ -882,7 +888,8 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
 - 32px, `canvas` fill (on `surface` or `raised`), 1px `line-input` border,
   `rounded-control`, `px-2.5`, `body` text in `fg-1`, placeholder in `fg-3`.
 - Hover: `fg-3` border (v1.1: `fg-4` was the same grey as `line-input`, so hover did
-  nothing). Focus: `rope` border plus the global focus ring. Error:
+  nothing). Focus (v1.7): a 2px `rope` frame inside the field's edge (border plus a
+  1px inset shadow) and no outer ring, set once in `globals.css` for every text field. Error:
   `alarm` border, plus an `AlertTriangle` and message in `meta` `alarm` below.
 - Textareas use the same style and grow with `AutoResizeTextarea`. The paste box shows
   a character or limit counter in `data-sm` `fg-3` at the bottom right (`212/300`),
@@ -1392,3 +1399,6 @@ The owner's decisions, applied as one pass.
 | 1 | The People row repeats Today and the year (5.12) | The owner wanted each half of the table readable on its own |
 | 2 | Hover clears per cell after 60ms instead of on leaving the grid's column (5.12) | The column stretches to the panel's height, so moving off the squares downward kept the old day |
 | 3 | The squares sit centred in the right column from lg; bands 20px apart (5.12) | A gap under a one-band year left the panel looking unfilled |
+| 4 | Text fields focus as one 2px rope frame inside their edge, no outer ring (2.1, 5.9) | The border and the ring were two orange boxes round the composer, the loudest thing on a panel |
+| 5 | Home's "Coming up" is **Upcoming**, always shown, interviews and calls together, with an empty row (5.7) | The page changed shape when the first one was booked; calls had no list |
+| 6 | The Upcoming interviews and calls tiles drop their "Next:" line (5.7) | The dates are in Upcoming; one name under a count of two was misleading |

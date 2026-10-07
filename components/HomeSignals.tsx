@@ -11,8 +11,8 @@ import type { Insights } from "@/lib/insights";
  * (response rate, warm paths) were here and moved to /insights: a rate is something
  * to read now and then, and on Home it sat beside the to-do counts looking like one.
  *
- * Each number links to where the thing lives, and the dated ones name the next one
- * under the count, because "1 upcoming interview" is not useful until you know when.
+ * Each number links to where the thing lives. The dates are in Upcoming above, not
+ * under the counts: "Next: one company" under a 2 read as if it were the only one.
  *
  * A server component: no state, and the numbers are read on the server with the
  * rest of the page.
@@ -40,13 +40,11 @@ function SectionHeading({ children }: { children: ReactNode }) {
 function Stat({
   label,
   value,
-  note,
   href,
   dim,
 }: {
   label: string;
   value: ReactNode;
-  note?: ReactNode;
   href?: string;
   dim: boolean;
 }) {
@@ -67,7 +65,6 @@ function Stat({
       >
         {value}
       </p>
-      {note && <p className="text-meta text-fg-3 mt-1">{note}</p>}
     </>
   );
   // The whole tile links, so the hit target is the tile and the hover is the fill
@@ -84,19 +81,10 @@ function Stat({
   );
 }
 
-/** "Tue, Oct 7, 2:00 PM": the day matters most, the time second. */
-function when(at: string): string {
-  const d = new Date(at);
-  const day = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-  // Date-only entries (midnight) carry no time worth printing.
-  if (d.getHours() === 0 && d.getMinutes() === 0) return day;
-  return `${day}, ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
-}
 
 // The two halves are sections, not cards: the tiles are the cards now, and a card of
 // cards is one hairline too many.
 function ApplicationsCard({ apps }: { apps: Insights["applications"] }) {
-  const next = apps.nextInterview;
   return (
     <section>
       <SectionHeading>Roles</SectionHeading>
@@ -115,9 +103,6 @@ function ApplicationsCard({ apps }: { apps: Insights["applications"] }) {
           // interview in context rather than one role's panel.
           href="/applications?tab=pipeline&stage=Interviewing"
           dim={apps.upcomingInterviews === 0}
-          // The one note worth its line: a dated count is not useful until you know
-          // when. Empty states say nothing; the dimmed zero already says it.
-          note={next && <NextLine name={next.company} at={next.at} />}
         />
       </div>
     </section>
@@ -125,7 +110,6 @@ function ApplicationsCard({ apps }: { apps: Insights["applications"] }) {
 }
 
 function NetworkCard({ net }: { net: Insights["network"] }) {
-  const next = net.nextCall;
   return (
     <section>
       <SectionHeading>People</SectionHeading>
@@ -143,17 +127,8 @@ function NetworkCard({ net }: { net: Insights["network"] }) {
           // there (or lands on the People tab until it does).
           href="/networking?tab=people&stage=Scheduled"
           dim={net.upcomingCalls === 0}
-          note={next && <NextLine name={next.name} at={next.at} />}
         />
       </div>
     </section>
-  );
-}
-
-function NextLine({ name, at }: { name: string; at: string }) {
-  return (
-    <>
-      Next: <span className="text-fg-2">{name}</span>, {when(at)}
-    </>
   );
 }

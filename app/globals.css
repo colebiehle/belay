@@ -219,6 +219,14 @@ body {
 .bg-rope:focus-visible {
   outline-color: var(--color-fg-1);
 }
+/* A text field is its own frame, so focus is that frame turning rope, 2px, inside
+   its edge: no second ring 2px outside it. Two concentric orange boxes round the
+   one thing you are typing in was the loudest thing on a slide-over (v1.7). */
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), textarea, select):focus-visible {
+  outline: none;
+  border-color: var(--color-rope);
+  box-shadow: inset 0 0 0 1px var(--color-rope);
+}
 /* A list card (Roles → Active, People → Network) opens from a button that covers the
    whole card, so focus rings the card rather than the name the button wraps: one
    ring, round the thing that opens. Here rather than in the recipe because the
