@@ -7,7 +7,7 @@ import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink, panelTab, panelTabLine } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, isContactId, metaTokens, parseReferrers } from "@/lib/role-meta";
@@ -532,7 +532,7 @@ export function RoleWorkspace({
             edge (and down the left, on the aside), and under it the brand at 22%
             fading to the panel colour (STYLE_GUIDE 2.6); in the body only the History
             markers take it. Only fg-1 and fg-2 sit
-            on it (7.64:1 and 4.67:1 at worst, a white brand, at the strongest point);
+            on it (7.86:1 and 4.80:1 at worst, Snap yellow, at the strongest point);
             fg-3 drops under 3:1 there, so nothing on the header uses it. */}
         <div
           className="relative shrink-0 border-b border-line-2"
@@ -615,11 +615,14 @@ export function RoleWorkspace({
             /* Company, then role. Same order as the queue card, the pipeline row and
                 the passed row, so the thing you clicked is the thing that opens. */
             <div className="min-w-0 flex-1">
-              <p className="text-h2 text-fg-1 flex items-center gap-1.5">
+              {/* Title and subtitle wrap rather than truncate (v1.6): on a phone a
+                  long name or role was cut to a few words with nothing to read the
+                  rest from. The link out flows after the last word. */}
+              <p className="text-h2 text-fg-1 break-words">
                 {/* The company is the edit control, as the name is on a person. */}
                 <button
                   onClick={startHeaderEdit}
-                  className="truncate text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
+                  className="inline text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
                   title="Click to edit company, role title and posting URL"
                 >
                   {displayCompany(app.job.company)}
@@ -642,7 +645,7 @@ export function RoleWorkspace({
                   <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
                 </a>
               </p>
-              <p className="text-body text-fg-2">{app.job.roleTitle}</p>
+              <p className="text-body text-fg-2 break-words">{app.job.roleTitle}</p>
               {/* Editable here: the panel is where they are working when the stage
                   actually changes, and reaching back to the row for it was a trip out
                   of the surface they were in. The shared neutral ramp, not the
@@ -668,16 +671,15 @@ export function RoleWorkspace({
           </div>
         </div>
 
-        {/* Tabs. The active underline is fg-1: not the company's colour, and not
-            rope, which is kept for the next move. */}
+        {/* Tabs. The open tab's underline is the company's colour (v1.6; fg-1 without
+            one), never rope, which is kept for the next move. The labels stay neutral. */}
         <div className="shrink-0 px-6 pt-3 flex gap-4 border-b border-line-2">
           {(["details", "chat"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`text-button pb-2 -mb-px border-b-2 transition-colors duration-140 ease-enter ${
-                tab === t ? "text-fg-1 border-fg-1" : "border-transparent text-fg-3 hover:text-fg-2"
-              }`}
+              className={panelTab(tab === t)}
+              style={panelTabLine(tab === t, brandHex)}
             >
               {t === "details" ? "Details" : "Chat"}
             </button>

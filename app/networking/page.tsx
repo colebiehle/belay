@@ -685,7 +685,6 @@ export default function NetworkingPage() {
           // Null at either end, and when the open person is filtered out of the list.
           prevId={openAt > 0 ? order[openAt - 1] : null}
           nextId={openAt >= 0 && openAt < order.length - 1 ? order[openAt + 1] : null}
-          position={openAt >= 0 ? `${openAt + 1} of ${order.length}` : null}
           onDelete={remove}
           onClose={() => {
             setSwitched(false);

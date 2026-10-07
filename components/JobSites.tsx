@@ -18,11 +18,12 @@ type Site = {
 };
 
 // Grouped by what the daily scan can do with each site, which the scan itself
-// records: the ones it reads, and the ones you have to open yourself. The old
-// groups said what a site was for, which did not tell you which ones needed you.
+// records: the ones it reads (Automatic), and the ones you have to open yourself
+// (Manual). The old groups said what a site was for, which did not tell you which
+// ones needed you. One word each since v1.6: a group name, not a sentence.
 const GROUPS = [
-  { key: "daily", label: "Scanned for you" },
-  { key: "manual", label: "Check yourself" },
+  { key: "daily", label: "Automatic" },
+  { key: "manual", label: "Manual" },
   { key: "unscanned", label: "Not checked yet" },
 ];
 const groupOf = (s: Site) => (s.scanStatus === "daily" || s.scanStatus === "manual" ? s.scanStatus : "unscanned");
@@ -210,10 +211,8 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
             }}
             onDrop={() => dropOn(g.cat, null)}
           >
-            <div className="flex items-baseline gap-2 mb-2">
-              <h3 className="t-group">{g.label}</h3>
-              <span className="text-meta tabular-nums text-fg-3">{g.items.length}</span>
-            </div>
+            {/* No count beside the group name on Home (v1.6), as on the tiers. */}
+            <h3 className="t-group mb-2">{g.label}</h3>
             <div className={tileGrid}>
               {g.items.map((s) =>
                 editingId === s.id ? (
@@ -281,7 +280,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                           (e.currentTarget as HTMLImageElement).src = logoUrl(s.domain, 64);
                         }}
                       />
-                      <span className="text-body text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter">
+                      <span className="min-w-0 truncate text-body text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter">
                         {s.name}
                       </span>
                     </a>

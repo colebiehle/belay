@@ -138,7 +138,8 @@ function mix(a: string, b: string, t: number): string {
  * only ever upgrades the colour: a miss falls through to the palette, never to wrong.
  * Brand colours come in at full saturation, so they are pulled 40% of the way
  * toward the graph neutral to sit with the palette instead of shouting over it;
- * near-black brands (Notion, Nike) are lifted first or they vanish on the canvas.
+ * near-black and near-white brands (Notion, Nike, Uber) take the shared neutral grey
+ * first (usableAccent), or they vanish on the canvas.
  *
  * The palette is indexed by a hash of the name rather than by order of appearance, so
  * adding a person at a new company does not repaint everyone else.

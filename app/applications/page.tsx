@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ExternalLink, Plus, Search, Users } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ExternalLink, Plus, Search, Users } from "lucide-react";
 import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/components/CompanyLogo";
 import { TierBadge } from "@/components/TierBadge";
 import { StageSelect } from "@/components/StageChip";
@@ -9,11 +9,11 @@ import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
-import { STATUSES, OPEN_STATUSES } from "@/lib/statuses";
+import { STATUSES, OPEN_STATUSES, CLOSED_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, daysAgo, displayCompany, metaTokens, nextInterview, referrerNames } from "@/lib/role-meta";
 import { FormFrame, NoMatch, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
-import { button, card, cardSub, cardTitle, emptyBox, input, kbd, listGrid, queueCard, revealLink, tag, textarea, verdictWidth } from "@/lib/ui";
+import { button, card, cardSub, cardTitle, emptyBox, input, kbd, listGrid, queueCard, revealLink, tag, textarea, verdictBtn } from "@/lib/ui";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -95,6 +95,9 @@ type Application = {
 // top and a role moves down the page as it progresses — Offer and Rejected end up
 // at the bottom, which is where you look least often.
 const STATUS_ORDER = STATUSES;
+// Active shows the open stages as groups and folds the closed ones (Accepted,
+// Rejected, Withdrawn: CLOSED_STATUSES) into one "Closed" group at the bottom.
+const OPEN_ORDER = STATUS_ORDER.filter((s) => !CLOSED_STATUSES.includes(s));
 
 /** The pipeline group's element id, the target of ?stage=. "Final round" -> stage-final-round. */
 const stageAnchor = (status: string) => `stage-${status.toLowerCase().replace(/\s+/g, "-")}`;
@@ -181,6 +184,7 @@ export default function ApplicationsPage() {
   const [apps, setApps] = useState<Application[]>([]);
   const [appsLoading, setAppsLoading] = useState(true);
   const [pipelineFilter, setPipelineFilter] = useState("");
+  const [closedOpen, setClosedOpen] = useState(false);
   const [selectedPipelineCompanies, setSelectedPipelineCompanies] = useState<Set<string>>(new Set());
 
   // Passed state
@@ -227,9 +231,18 @@ export default function ApplicationsPage() {
     const stage = new URLSearchParams(window.location.search).get("stage");
     if (!stage || appsLoading || tab !== "pipeline" || stageScrolled.current) return;
     stageScrolled.current = true;
-    const from = STATUS_ORDER.indexOf(stage);
+    // A closed stage lives inside the folded Closed group: open it and go there.
+    if (CLOSED_STATUSES.includes(stage)) {
+      // Opened a frame later, outside the effect body, then scrolled to once drawn.
+      requestAnimationFrame(() => {
+        setClosedOpen(true);
+        requestAnimationFrame(() => document.getElementById(stageAnchor("Closed"))?.scrollIntoView({ block: "start" }));
+      });
+      return;
+    }
+    const from = OPEN_ORDER.indexOf(stage);
     if (from < 0) return;
-    const target = STATUS_ORDER.slice(from).find((s) => document.getElementById(stageAnchor(s)));
+    const target = OPEN_ORDER.slice(from).find((s) => document.getElementById(stageAnchor(s)));
     if (target) document.getElementById(stageAnchor(target))?.scrollIntoView({ block: "start" });
   }, [appsLoading, tab]);
 
@@ -439,7 +452,8 @@ export default function ApplicationsPage() {
   const pendingJobs = jobs.filter((j) => !decided.has(j.id));
 
   // What the badge counts, and the same definition the dashboard tile uses. Closed
-  // rows stay in the list, grouped at the bottom, but they are not work in flight.
+  // rows are folded into the shut Closed group at the bottom of the list, with their
+  // own count there, so the tab and the open groups under it agree.
   const activeCount = apps.filter((a) => OPEN_STATUSES.includes(a.status)).length;
   // Home's "not yet sent": accepted, still at Applying, form never went in. The
   // route already leaves archived rows out, which is the other half of that rule.
@@ -546,6 +560,22 @@ export default function ApplicationsPage() {
     const matchCompany = selectedPipelineCompanies.size === 0 || selectedPipelineCompanies.has(a.job.company);
     return matchText && matchCompany;
   });
+
+  // Closed roles, in stage order (Accepted, Rejected, Withdrawn), shown only when the
+  // Closed group is opened. Shut by default each visit.
+  const closedApps = STATUS_ORDER.filter((s) => CLOSED_STATUSES.includes(s)).flatMap((s) =>
+    filteredApps.filter((a) => a.status === s),
+  );
+  const pipelineCard = (app: Application) => (
+    <PipelineCard
+      key={app.id}
+      app={app}
+      contacts={contacts}
+      selected={app.id === workspaceId}
+      onUpdate={updateApp}
+      onOpenWorkspace={setWorkspaceId}
+    />
+  );
 
   // The same scan the daily run does: every source, every tracked company, then
   // every new role scored.
@@ -873,7 +903,7 @@ export default function ApplicationsPage() {
             // empty middle. The group header sticks under the nav so a long Applied
             // group still says which group you are in.
             <div className="space-y-6">
-              {STATUS_ORDER.map((status) => {
+              {OPEN_ORDER.map((status) => {
                 const group = filteredApps.filter((a) => a.status === status);
                 if (group.length === 0) return null;
                 return (
@@ -882,21 +912,43 @@ export default function ApplicationsPage() {
                       <h3 className="t-group">{status}</h3>
                       <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
                     </div>
-                    <div className={listGrid}>
-                      {group.map((app) => (
-                        <PipelineCard
-                          key={app.id}
-                          app={app}
-                          contacts={contacts}
-                          selected={app.id === workspaceId}
-                          onUpdate={updateApp}
-                          onOpenWorkspace={setWorkspaceId}
-                        />
-                      ))}
-                    </div>
+                    <div className={listGrid}>{group.map(pipelineCard)}</div>
                   </div>
                 );
               })}
+              {/* Closed: Accepted, Rejected and Withdrawn folded into one group at the
+                  bottom, shut by default with its count. They are over, so the tab
+                  does not count them, and while they sat open under their own
+                  headings the list showed more roles than the tab said it held. Each
+                  card's timing line still says how it ended ("Rejected Oct 3"). The
+                  heading is the group heading with a disclosure chevron after the
+                  count; it does not
+                  stick, because a shut group has nothing under it to scroll past. */}
+              {closedApps.length > 0 && (
+                <div id={stageAnchor("Closed")} className="scroll-mt-14">
+                  <button
+                    onClick={() => setClosedOpen((v) => !v)}
+                    aria-expanded={closedOpen}
+                    aria-controls="closed-roles"
+                    className="group/closed flex items-center gap-2 h-8 pr-1 rounded-control text-fg-3 hover:text-fg-2 transition-colors duration-90 ease-enter"
+                  >
+                    {/* Name and count first, so "Closed" lines up with the group
+                        names above it; the chevron after them says it opens. */}
+                    <span className="t-group group-hover/closed:text-fg-2!">Closed</span>
+                    <span className="text-meta tabular-nums">{closedApps.length}</span>
+                    {closedOpen ? (
+                      <ChevronDown size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+                    ) : (
+                      <ChevronRight size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
+                    )}
+                  </button>
+                  {closedOpen && (
+                    <div id="closed-roles" className={listGrid}>
+                      {closedApps.map(pipelineCard)}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1076,7 +1128,7 @@ function JobCard({
   // or K), the card under it turns Accept primary, so the orange marks exactly where A
   // will land. At rest there is no cursor and no rope on any card. Pass is quiet: it
   // is the common verdict but never the next move. A set verdict shows a check and a
-  // lift fill, and both buttons keep one width throughout (verdictWidth).
+  // lift fill, and both buttons keep one size throughout (verdictBtn in lib/ui).
   const verdictButton = (kind: "Apply" | "Pass") => {
     const on = kind === "Apply" ? accepted : passed;
     const other = kind === "Apply" ? passed : accepted;
@@ -1084,13 +1136,13 @@ function JobCard({
     const key = kind === "Apply" ? "A" : "P";
     const look =
       kind === "Apply" && focused && !decided
-        ? button("primary", "compact")
-        : `${button(kind === "Apply" ? "secondary" : "quiet", "compact")} ${on ? "bg-lift text-fg-1" : ""} ${other ? "text-fg-3" : ""}`;
+        ? verdictBtn("primary")
+        : `${verdictBtn(kind === "Apply" ? "secondary" : "quiet")} ${on ? "bg-lift text-fg-1" : ""} ${other ? "text-fg-3" : ""}`;
     return (
       <button
         onClick={() => (on ? onClearVerdict() : onVerdict(job.id, kind, ""))}
         title={on ? `${kind === "Apply" ? "Accepted" : "Passed"}. Click to undo (U)` : `${label} (${key})`}
-        className={`${look} ${verdictWidth}`}
+        className={look}
       >
         {on && <Check size={14} strokeWidth={1.5} absoluteStrokeWidth />} {label}
         {focused && !decided && <span className={`${kbd} ${kind === "Apply" ? "border-on-rope/30 text-on-rope" : ""}`}>{key}</span>}

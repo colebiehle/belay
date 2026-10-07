@@ -2,13 +2,13 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { logDate, calendarDays } from "@/lib/dates";
-import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink, panelTab, panelTabLine } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
@@ -147,7 +147,6 @@ export function ContactPanel({
   knownTags = [],
   prevId = null,
   nextId = null,
-  position = null,
 }: {
   contact: PanelContact;
   // Tags already used on anyone, so one you made up is offered everywhere.
@@ -163,13 +162,12 @@ export function ContactPanel({
   // Opened by clicking a mutual in another panel. The backdrop is already up, so
   // it starts visible instead of fading in a second time.
   arrivedFromSwitch?: boolean;
-  // The people either side of this one in the list behind the panel, for J/K and the
-  // header arrows. Going through Identified one person at a time used to be open,
-  // close, find the next row, open.
+  // The people either side of this one in the list behind the panel, for J and K.
+  // Going through Identified one person at a time used to be open, close, find the
+  // next row, open. The header's "3 of 34" and up/down arrows went in v1.6: the keys
+  // cost nothing on screen, the arrows were two more controls beside close.
   prevId?: string | null;
   nextId?: string | null;
-  // "3 of 34", so a run through the list knows where it is.
-  position?: string | null;
 }) {
   const [tab, setTab] = useState<"details" | "chat">("details");
   const [scope, setScope] = useState<string | null>(null);
@@ -468,7 +466,7 @@ export function ContactPanel({
             edge (and down the left, on the aside), and under it the brand at 22%
             fading to the panel colour (STYLE_GUIDE 2.6); in the body only the History
             markers take it. Only fg-1 and fg-2 sit
-            on it (7.64:1 and 4.67:1 at worst, a white brand, at the strongest point);
+            on it (7.86:1 and 4.80:1 at worst, Snap yellow, at the strongest point);
             fg-3 drops under 3:1 there, so nothing on the header uses it. */}
         <div
           className="relative shrink-0 border-b border-line-2"
@@ -542,12 +540,15 @@ export function ContactPanel({
               </div>
             ) : (
             <div className="min-w-0 flex-1">
-              <p className="text-h2 text-fg-1 flex items-center gap-1.5">
+              {/* Title and subtitle wrap rather than truncate (v1.6): on a phone a
+                  long name or role was cut to a few words with nothing to read the
+                  rest from. The link out flows after the last word. */}
+              <p className="text-h2 text-fg-1 break-words">
                 {/* The name is the edit control. A pencil beside it sat next to the
                     LinkedIn link and read as a second link. */}
                 <button
                   onClick={startHeaderEdit}
-                  className="truncate text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
+                  className="inline text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
                   title="Click to edit name, company, title and LinkedIn"
                 >
                   {contact.name}
@@ -580,31 +581,6 @@ export function ContactPanel({
               </div>
             </div>
             )}
-            {/* Previous and next, beside close: the panel's own controls stay together
-                in the corner. Up and down, because J/K walk a vertical list. */}
-            {(prevId || nextId) && (
-              <div className="flex items-center shrink-0">
-                {position && <span className="text-meta tabular-nums text-fg-2 mr-1.5">{position}</span>}
-                <button
-                  onClick={() => prevId && switchTo(prevId)}
-                  disabled={!prevId}
-                  className={`${iconButton("quiet", "compact")} text-fg-2`}
-                  title="Previous person (K)"
-                  aria-label="Previous person"
-                >
-                  <ChevronUp size={16} strokeWidth={1.5} absoluteStrokeWidth />
-                </button>
-                <button
-                  onClick={() => nextId && switchTo(nextId)}
-                  disabled={!nextId}
-                  className={`${iconButton("quiet", "compact")} text-fg-2`}
-                  title="Next person (J)"
-                  aria-label="Next person"
-                >
-                  <ChevronDown size={16} strokeWidth={1.5} absoluteStrokeWidth />
-                </button>
-              </div>
-            )}
             <button
               onClick={close}
               className={`${iconButton("quiet", "compact")} text-fg-2 shrink-0`}
@@ -623,9 +599,8 @@ export function ContactPanel({
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`text-button pb-2 -mb-px border-b-2 transition-colors duration-140 ease-enter ${
-                tab === t ? "text-fg-1 border-fg-1" : "border-transparent text-fg-3 hover:text-fg-2"
-              }`}
+              className={panelTab(tab === t)}
+              style={panelTabLine(tab === t, brandHex)}
             >
               {t === "details" ? "Details" : "Chat"}
             </button>

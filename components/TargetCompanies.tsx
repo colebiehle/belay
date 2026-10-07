@@ -291,15 +291,10 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
             }}
             onDrop={() => g.tier !== 0 && dropOn(g.tier, null)}
           >
-            {/* Same treatment as every other group heading in the app: the pipeline's
-                status groups, the network's stage groups, the sites' categories. This
-                one was bolder, lighter, un-cased and differently tracked, and it held
-                the count inside itself instead of beside it. The count is mono, so
-                it reads as a number to compare down the column. */}
-            <div className="flex items-baseline gap-2 mb-2">
-              <h3 className="t-group">{g.tier === 0 ? g.label : `${g.label}-tier`}</h3>
-              <span className="text-meta tabular-nums text-fg-3">{g.items.length}</span>
-            </div>
+            {/* The group heading every list uses (t-group), without the count beside
+                it (v1.6): on Home the tiles are right under it and countable at a
+                glance, and "S-tier 8" read as a score. */}
+            <h3 className="t-group mb-2">{g.tier === 0 ? g.label : `${g.label}-tier`}</h3>
 
             {/* Auto-fill at 88px or wider: a fixed 7 across stranded the eighth tile
                 of an 8-company tier alone on a second row. At 1440 the column holds 8. */}
@@ -375,7 +370,10 @@ export function TargetCompanies({ compact = false }: { compact?: boolean } = {})
                           (e.currentTarget as HTMLImageElement).src = logoUrl(c.domain, 64);
                         }}
                       />
-                      <span className="text-meta text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter text-center">
+                      {/* One line, ellipsis, the full name in the tile's title: a
+                          long name ("Deloitte Digital") wrapped to two lines and made
+                          its tile taller than every other tile in the row. */}
+                      <span className="w-full truncate text-meta text-fg-2 group-hover:text-fg-1 transition-colors duration-90 ease-enter text-center">
                         {c.name}
                       </span>
                     </a>

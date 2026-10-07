@@ -158,9 +158,10 @@ function RecapPanel({
   yearTotals: Totals;
 }) {
   // One table: the day and the year are the columns, the counts are the rows, so
-  // each heading appears once. The verbs say which half a row belongs to (you
-  // triage roles, you identify people), so the groups need no headings of their own;
-  // a hairline between the halves keeps them apart.
+  // each heading appears once. The two halves are labelled (v1.6): "Roles" heads the
+  // first column of the header row, beside Today and the year, and "People" is a
+  // label row of its own over the second half, with no second Today or year. The
+  // verbs alone (triage, identify) did not say which rows went together.
   const roles: RecapRow[] = [
     { label: "Triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
     { label: "Applied", day: day?.applied ?? 0, year: yearTotals.applied },
@@ -172,7 +173,8 @@ function RecapPanel({
     { label: "Chatted", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
   ];
   // Fixed column widths in tabular figures: hovering changes the day column's
-  // numbers and heading, and nothing beside them moves.
+  // numbers and heading, and nothing beside them moves. Every row, the two label
+  // rows included, is 28px.
   const cols = "grid grid-cols-[6.5rem_4.5rem_3.5rem] items-baseline h-7";
   const row = (r: RecapRow) => (
     <div key={r.label} role="row" className={cols}>
@@ -188,10 +190,14 @@ function RecapPanel({
     </div>
   );
 
+  // Group names in the guide's group style (t-group: 12px semibold fg-3), the same
+  // as the tiers and stages; the column headings beside "Roles" stay meta fg-3.
   return (
     <div role="table" aria-label="Activity">
       <div role="row" className={cols}>
-        <span role="columnheader" />
+        <span role="columnheader" className="t-group">
+          Roles
+        </span>
         <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums truncate">
           {dayLabel}
         </span>
@@ -200,7 +206,11 @@ function RecapPanel({
         </span>
       </div>
       {roles.map(row)}
-      <div className="my-1.5 border-t border-line-2" role="presentation" />
+      <div role="row" className={`${cols} mt-1.5 border-t border-line-2 pt-1.5 box-content`}>
+        <span role="rowheader" className="t-group col-span-3">
+          People
+        </span>
+      </div>
       {people.map(row)}
     </div>
   );
@@ -327,7 +337,9 @@ export function ActivityHeatmap() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 min-w-0 lg:col-start-2 lg:row-start-1">
           <p className="flex items-center gap-2 text-meta mr-auto">
             <span className="text-fg-2">{data.streak === 0 ? "No streak" : `${data.streak}-day streak`}</span>
-            {data.streak > 0 && !data.todayCounts && <span className="text-fg-3">save it today</span>}
+            {/* The hint is a next move, so it is rope (v1.6); the streak itself is a
+                record and stays neutral. Shown only while today has nothing in it. */}
+            {data.streak > 0 && !data.todayCounts && <span className="text-rope">save it today</span>}
           </p>
           {/* The key: with one neutral ramp the five steps are close enough that
               "Less" and "More" are worth the words. Fixed 11px squares: it is a key,

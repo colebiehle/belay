@@ -8,6 +8,8 @@
  * whether you were looking at the list or the thing the list opens.
  */
 
+import { calendarDays } from "@/lib/dates";
+
 export function displayCompany(company: string): string {
   // Surface unparsed/placeholder company names cleanly
   if (!company || /^\(?unknown/i.test(company.trim())) return "[Unknown]";
@@ -44,6 +46,18 @@ export function inferExpRange(
   if (t.includes("junior") || t.includes("associate") || t.includes("entry") || t.includes("new grad"))
     return { text: "0-2 yrs", inferred: true };
   return { text: "", inferred: false };
+}
+
+/** Calendar days since the posting went up, or null without a readable date. */
+function postedDays(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : calendarDays(d);
+}
+
+/** "Posted today", "Posted 6d ago". */
+export function postedAge(days: number): string {
+  return days === 0 ? "Posted today" : `Posted ${days}d ago`;
 }
 
 /** Days between `iso` and now, floored. null for a missing or unparseable date. */
@@ -94,10 +108,15 @@ export function metaTokens(job: {
   // figure. Leading also gives it a fixed left edge, so "which of these are dead"
   // is a vertical scan rather than a hunt along nine ragged line ends, and it is the
   // one token a right-truncating line can never clip.
-  const age = daysAgo(job.datePosted);
+  // "Posted 6d ago": the posting's date in the shared date vocabulary (lib/dates),
+  // counted in calendar days like every other age, and with its verb, so it cannot be
+  // read as the age of anything else on the card. "6d old" was the one age in the app
+  // said another way. Queue cards, passed rows and the role panel only: Active and
+  // Network cards never show it (STYLE_GUIDE 5.6, 5.7).
+  const age = postedDays(job.datePosted);
   if (age !== null)
     out.push({
-      text: age === 0 ? "posted today" : `${age}d old`,
+      text: postedAge(age),
       title:
         age >= 30
           ? "Posted over a month ago. Plenty of these are already filled."

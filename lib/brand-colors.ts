@@ -1,7 +1,8 @@
 /**
  * Company colours. They are content, not chrome: a brand colour appears on the logo
- * tile, the slide-over header's 3px band and 24% wash, and the network graph's
- * nodes, and on no control anywhere (STYLE_GUIDE 2.6).
+ * tile, the slide-over's top and left edges, its header wash, its active tab's
+ * underline and History markers, and the network graph's nodes, and on no other
+ * control anywhere (STYLE_GUIDE 2.6). Every one of those goes through usableAccent.
  *
  * The first attempt sampled the company's logo on a canvas at runtime. It did not
  * work, for two reasons: the panel built the logo URL by stripping non-alphanumerics
@@ -94,9 +95,10 @@ export function readableOn(hex: string): "#000000" | "#ffffff" {
  * and the graph nodes sit on near-black graphite, so those brands drew an invisible
  * band and a node that read as a hole punched in the canvas.
  *
- * The fix is a floor, not a replacement: the hue is kept and the colour is raised
- * toward a dark grey until it separates from the background. A brand that is actually
- * black still looks black-ish, it is just visible.
+ * The fix was a floor: the hue kept and the colour raised toward a dark grey until it
+ * separated from the background. Since v1.6 those five are caught first by
+ * isNeutralBrand and take NEUTRAL_BRAND; the floor is left for a dark brand that does
+ * have a hue (a deep navy or green over 0.06 chroma), which it lifts toward grey.
  */
 function luminance(hex: string): number {
   const h = hex.replace("#", "");
@@ -112,7 +114,58 @@ function luminance(hex: string): number {
 
 const MIN_LUM = 0.12;
 
+/**
+ * The grey a near-black or near-white brand takes everywhere a brand colour appears
+ * (the panel's top and left edges, its header wash, the active tab's underline, the
+ * History markers, graph nodes). It is `fg-3`: 5.36:1 on the `raised` panel, so a
+ * 3px edge and a 6px marker read clearly, and its 22% wash keeps `fg-1` at 10.25 and
+ * `fg-2` at 6.26. Lifted black (#636374 for Uber) was a murky blue-grey, and white
+ * was the brightest line on the screen with the weakest wash for text; neither said
+ * anything a plain neutral does not (STYLE_GUIDE 2.6, v1.6).
+ */
+export const NEUTRAL_BRAND = "#90949A";
+
+// OKLCH lightness and chroma, the axes the threshold is set on: sRGB luminance alone
+// cannot tell a dark navy from a black, and chroma is what says "has a hue".
+function oklch(hex: string): { l: number; c: number } | null {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n) || full.length !== 6) return null;
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = [lin((n >> 16) & 255), lin((n >> 8) & 255), lin(n & 255)];
+  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
+  const A = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
+  const B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
+  return { l: L, c: Math.hypot(A, B) };
+}
+
+/**
+ * Near-black or near-white: OKLCH chroma under 0.06 (no hue you would name) and
+ * lightness under 0.40 or over 0.90. Catches Notion, IDEO and Nike (C 0), Uber
+ * (L 0.15, C 0.036), Epic (L 0.29), white and off-white logos, and pale tints like
+ * #FFD6E0 (L 0.91, C 0.047). Leaves mid greys (Apple L 0.73, Cursor L 0.56), which
+ * already read as a neutral, and every brand with a hue, including Snap's yellow
+ * (L 0.96 but C 0.21) and Anthropic's clay (C 0.076).
+ */
+export function isNeutralBrand(hex: string): boolean {
+  const v = oklch(hex);
+  return !!v && v.c < 0.06 && (v.l < 0.4 || v.l > 0.9);
+}
+
+/**
+ * The brand colour as it is drawn: the one rule every brand-coloured thing goes
+ * through. A near-black or near-white brand becomes NEUTRAL_BRAND; any other brand
+ * too dark to show on graphite is lifted (below); everything else is itself.
+ */
 export function usableAccent(hex: string): string {
+  if (isNeutralBrand(hex)) return NEUTRAL_BRAND;
   if (luminance(hex) >= MIN_LUM) return hex;
   const h = hex.replace("#", "");
   const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;

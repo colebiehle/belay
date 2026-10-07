@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Plus, Search, Users, X } from "lucide-react";
-import { button, cardSub, cardTitle, emptyBox, iconButton, input, kbd, queueCard, textarea, verdictWidth } from "@/lib/ui";
+import { button, cardSub, cardTitle, emptyBox, iconButton, input, kbd, queueCard, textarea, verdictBtn } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { PersonPicker } from "@/components/PersonPicker";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
@@ -1127,7 +1127,7 @@ function CandidateCard({
 
   // Add is secondary on every card; once the keyboard cursor shows (after J or K),
   // the card under it turns Add primary, marking where A will land. Pass is quiet,
-  // as on the job card. Both keep one width in every state (verdictWidth).
+  // as on the job card. Both keep one size in every state (verdictBtn in lib/ui).
   const verdictButton = (action: "add" | "skip") => {
     const on = action === "add" ? added : passed;
     const other = action === "add" ? passed : added;
@@ -1135,8 +1135,8 @@ function CandidateCard({
     const key = action === "add" ? "A" : "P";
     const look =
       action === "add" && focused && !decided
-        ? button("primary", "compact")
-        : `${button(action === "add" ? "secondary" : "quiet", "compact")} ${on ? "bg-lift text-fg-1" : ""} ${other ? "text-fg-3" : ""}`;
+        ? verdictBtn("primary")
+        : `${verdictBtn(action === "add" ? "secondary" : "quiet")} ${on ? "bg-lift text-fg-1" : ""} ${other ? "text-fg-3" : ""}`;
     return (
       <button
         onClick={() => onDecide(action)}
@@ -1147,7 +1147,7 @@ function CandidateCard({
               ? "Add to your network (A)"
               : "Pass. They will not be offered again (P)"
         }
-        className={`${look} ${verdictWidth}`}
+        className={look}
       >
         {on && <Check size={14} strokeWidth={1.5} absoluteStrokeWidth />} {label}
         {focused && !decided && (

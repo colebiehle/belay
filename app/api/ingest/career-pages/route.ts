@@ -691,7 +691,7 @@ Format:
   }
 
   // A backstop for the status set when the site was added (lib/site-probe.ts).
-  // Only a hard failure moves a site to "check yourself", and only roles found move
+  // Only a hard failure moves a site to Manual, and only roles found move
   // it back: a day with nothing matching says nothing about whether it is readable.
   const now = new Date();
   for (const r of results.filter((x) => x.kind === "site")) {

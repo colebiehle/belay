@@ -7,14 +7,16 @@
  * on a third.
  *
  * Nothing here puts a company colour on a control. Brand colour is content (logo
- * tiles, the panel's wash, top and left lines and History markers, graph nodes) and
- * never touches a button, tab, select or link.
+ * tiles, the panel's wash, top and left lines and History markers, graph nodes), and
+ * in a panel the open tab's underline (v1.6); it never touches a button, a tab's
+ * label, a select or a link. Every brand colour is `usableAccent(B)`, so a
+ * near-black or near-white brand is the one neutral grey everywhere at once.
  */
 
 export type ButtonKind = "primary" | "secondary" | "quiet" | "destructive";
 
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-1.5 text-button rounded-control whitespace-nowrap transition-colors duration-90 ease-enter disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center text-button rounded-control whitespace-nowrap transition-colors duration-90 ease-enter disabled:cursor-not-allowed";
 
 const BUTTON_KIND: Record<ButtonKind, string> = {
   // One per view. Rope means "your next move", so a second rope fill on screen
@@ -33,13 +35,13 @@ const BUTTON_KIND: Record<ButtonKind, string> = {
 /** A button: 32px by default, 28px inside rows. */
 export function button(kind: ButtonKind, size: "default" | "compact" = "default"): string {
   const box = size === "compact" ? "h-7 px-2.5" : "h-8 px-3";
-  return `${BUTTON_BASE} ${box} ${BUTTON_KIND[kind]}`;
+  return `${BUTTON_BASE} gap-1.5 ${box} ${BUTTON_KIND[kind]}`;
 }
 
 /** A square icon-only button (24px hit target minimum); give it an aria-label. */
 export function iconButton(kind: ButtonKind = "quiet", size: "default" | "compact" = "default"): string {
   const box = size === "compact" ? "h-7 w-7" : "h-8 w-8";
-  return `${BUTTON_BASE} ${box} ${BUTTON_KIND[kind]}`;
+  return `${BUTTON_BASE} gap-1.5 ${box} ${BUTTON_KIND[kind]}`;
 }
 
 /**
@@ -99,9 +101,10 @@ export const kbd =
  * owner found it too subtle. Flat, the whole header is the brand at the strength the
  * top row already had, so the contrast floor is unchanged: measured in Chromium
  * (pixel-sampled on the flat band) on the v1.1 panel colour (#1E2023), the worst case
- * (a white brand) holds fg-1 at 7.64:1 and fg-2 at 4.67:1, and a black brand (lifted
- * by usableAccent) sits at 11.72 and 7.16. fg-3 falls to 2.92 on white, so it is
- * still not allowed on the band. (v1.3 brought back the fade and a 3px top line, and
+ * was a white brand, fg-1 at 7.64:1 and fg-2 at 4.67:1. Since v1.6 white and black
+ * brands take the neutral grey (usableAccent), whose band holds 10.25 and 6.26, so
+ * the worst case is Snap yellow at 7.86 and 4.80. fg-3 falls to about 3 on light
+ * brands, so it is still not allowed on the band. (v1.3 brought back the fade and a 3px top line, and
  * v1.4 a matching left edge; see washOf, brandLine and brandEdge below.) One of the
  * four places company colour is allowed (STYLE_GUIDE 2.6).
  */
@@ -126,9 +129,11 @@ export function brandLine(brandHex: string): string {
  * The panel's left edge in the brand (v1.4): the same 3px and the same colour as the
  * top line, down the full height, in place of the neutral line-2 border. Together the
  * two lines frame the panel as the company's from the moment it slides in, while the
- * wash stays in the header. `brandHex` is already through usableAccent, so a black
- * brand is the same lifted grey here as on top. Without a brand the edge stays
- * line-2 (the aside's own class). No line on the bottom: the footer is controls.
+ * wash stays in the header. `brandHex` is already through usableAccent, so a
+ * near-black or near-white brand (Uber, Notion, a white logo) is the same neutral
+ * grey (`fg-3`) here, on top, in the wash, the tab underline and the History markers
+ * (v1.6). Without a brand the edge stays line-2 (the aside's own class). No line on
+ * the bottom: the footer is controls.
  */
 export function brandEdge(brandHex: string): { borderLeftColor: string; borderLeftWidth: number } {
   return { borderLeftColor: brandHex, borderLeftWidth: 3 };
@@ -143,6 +148,22 @@ export function brandEdge(brandHex: string): { borderLeftColor: string; borderLe
 export const historyDot = "w-1.5 h-1.5 rounded-full shrink-0";
 export function historyDotColor(brandHex: string | null): string {
   return brandHex ?? "var(--color-fg-3)";
+}
+
+/**
+ * A slide-over's Details / Chat tab. The open tab's 2px underline is the brand (v1.6),
+ * the third place the panel carries it after the edges and the wash: it ties the tab
+ * row to the header above it. Without a brand it stays `fg-1`. Only the line takes
+ * the colour; the label stays `fg-1`, and the closed tab `fg-3`, so the control
+ * itself is neutral like every other control in the panel (2.6).
+ */
+export function panelTab(on: boolean): string {
+  return `text-button pb-2 -mb-px border-b-2 transition-colors duration-140 ease-enter ${
+    on ? "text-fg-1 border-fg-1" : "border-transparent text-fg-3 hover:text-fg-2"
+  }`;
+}
+export function panelTabLine(on: boolean, brandHex: string | null): { borderBottomColor: string } | undefined {
+  return on && brandHex ? { borderBottomColor: brandHex } : undefined;
 }
 
 /**
@@ -201,11 +222,21 @@ export const cardTitle = "text-h3 text-fg-1";
 /** The line under it: the role title, or "Company · Role" as in the person panel. */
 export const cardSub = "text-body text-fg-2 truncate";
 
-/** The verdict buttons on a queue card (Pass, Accept, Add) keep one width in every
- * state: at rest, under the keyboard cursor with its key hint, and decided with its
- * check. They used to size to their content, so a click that swapped the hint for a
- * check made the button jump. */
-export const verdictWidth = "w-[5.5rem]";
+/**
+ * A verdict button on a queue card (Pass, Accept, Add), both queues. One fixed size
+ * in every state, at rest, under the keyboard cursor with its key hint, and decided
+ * with its check, so a click that swaps the hint for a check moves nothing (v1.2).
+ * 72 × 28px since v1.6 (was 88): measured in Chromium, the widest content is
+ * "Accept" with its `kbd` hint at 65.4px and "Accept" with its check at 62.8px, with
+ * the 4px gap used here; 72 holds that inside the 1px border with about 2px to
+ * spare. At 88 the pair took a third of a phone-width card for two short words.
+ * The 6px gap and 10px padding of a compact button do not fit, so this is its own
+ * box rather than `button(kind, "compact")` with a width on top: two paddings in one
+ * class list are settled by stylesheet order, not by which came last.
+ */
+export function verdictBtn(kind: ButtonKind): string {
+  return `${BUTTON_BASE} gap-1 h-7 w-18 shrink-0 ${BUTTON_KIND[kind]}`;
+}
 /**
  * A 24px hit area round a 14px icon link (WCAG 2.2 target size, 4.7) without moving
  * anything: an invisible ::after 5px past each edge. The external-link icons after
@@ -214,8 +245,9 @@ export const verdictWidth = "w-[5.5rem]";
 export const hitTarget = "relative after:absolute after:-inset-[5px]";
 
 /** The external-link icon after a panel's title: always shown, fg-2 (fg-3 is not
- * allowed on the brand wash, 2.6), with the 24px hit area. */
-export const headerLink = `${hitTarget} shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90 ease-enter`;
+ * allowed on the brand wash, 2.6), with the 24px hit area. Inline after the title's
+ * last word, centred on its line, because the title wraps (v1.6). */
+export const headerLink = `${hitTarget} inline-flex align-middle ml-1.5 -mt-0.5 text-fg-2 hover:text-fg-1 transition-colors duration-90 ease-enter`;
 
 /**
  * The external-link icon after a name (Active and Network cards, passed rows). It

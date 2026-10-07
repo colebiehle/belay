@@ -11,7 +11,7 @@ import type { MetaToken } from "@/lib/role-meta";
  * literal "Not specified" where every card printed nothing.
  *
  * Archivo with tabular figures, not mono: these numbers sit inline in a phrase
- * ("5d old", "$169–303k"), and mono is for numbers in a column (STYLE_GUIDE 3.1).
+ * ("Posted 5d ago", "$169–303k"), and mono is for numbers in a column (STYLE_GUIDE 3.1).
  */
 export function MetaLine({ tokens }: { tokens: MetaToken[] }) {
   if (tokens.length === 0) return null;
@@ -29,7 +29,7 @@ export function MetaLine({ tokens }: { tokens: MetaToken[] }) {
               .filter(Boolean)
               .join(" ")}
           >
-            {/* An alarm token (a posting 30+ days old) carries a glyph as well as its
+            {/* An alarm token (a posting up 30+ days) carries a glyph as well as its
                 number: a semantic colour is never the only signal. */}
             {t.tone?.includes("text-alarm") && (
               <AlertTriangle size={12} strokeWidth={1.5} absoluteStrokeWidth className="inline -mt-0.5 mr-0.5" />
