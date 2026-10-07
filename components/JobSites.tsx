@@ -222,6 +222,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
                       placeholder="Name"
+                      aria-label="Name"
                       autoFocus
                       className={input("compact")}
                     />
@@ -229,6 +230,7 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                       value={editUrl}
                       onChange={(e) => setEditUrl(e.target.value)}
                       placeholder="URL"
+                      aria-label="URL"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") saveEdit();
                         if (e.key === "Escape") setEditingId(null);

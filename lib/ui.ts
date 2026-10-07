@@ -207,10 +207,21 @@ export const cardSub = "text-body text-fg-2 truncate";
  * check made the button jump. */
 export const verdictWidth = "w-[5.5rem]";
 /**
- * The external-link icon after a name (People and Pipeline rows, person cards). It
+ * A 24px hit area round a 14px icon link (WCAG 2.2 target size, 4.7) without moving
+ * anything: an invisible ::after 5px past each edge. The external-link icons after
+ * names were 14px targets.
+ */
+export const hitTarget = "relative after:absolute after:-inset-[5px]";
+
+/** The external-link icon after a panel's title: always shown, fg-2 (fg-3 is not
+ * allowed on the brand wash, 2.6), with the 24px hit area. */
+export const headerLink = `${hitTarget} shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90 ease-enter`;
+
+/**
+ * The external-link icon after a name (Active and Network cards, passed rows). It
  * shows on hover of the row or card (which carries `group/row`) and on keyboard
  * focus, and stays in the tab order while hidden: at rest a column of identical link
  * icons was the loudest pattern in the list (STYLE_GUIDE 5.6).
  */
 export const revealLink =
-  "shrink-0 text-fg-3 hover:text-fg-1 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-[color,opacity] duration-90 ease-enter";
+  `${hitTarget} shrink-0 text-fg-3 hover:text-fg-1 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 transition-[color,opacity] duration-90 ease-enter`;

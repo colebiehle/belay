@@ -7,7 +7,7 @@ import { CompanyLogo } from "@/components/CompanyLogo";
 import { PersonPicker } from "@/components/PersonPicker";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
-import { FormFrame, formLink, openInBackgroundTab } from "@/components/PageChrome";
+import { FormFrame, NoMatch, formLink, openInBackgroundTab } from "@/components/PageChrome";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
 import {
   compactPaste,
@@ -718,6 +718,7 @@ export function PeopleQueue({
                   setCursor(0);
                 }}
                 placeholder="Filter by name, company or title…"
+                aria-label="Filter the queue"
                 className={`${input()} pl-8`}
               />
             </div>
@@ -727,6 +728,7 @@ export function PeopleQueue({
                 setSort(e.target.value as Sort);
                 setCursor(0);
               }}
+              aria-label="Sort the queue"
               className={`${input("default", true)} pr-7`}
             >
               <option value="fit">Fit</option>
@@ -758,7 +760,15 @@ export function PeopleQueue({
           )}
         </div>
       ) : ordered.length === 0 ? (
-        <p className={emptyBox}>{q ? <>Nothing matches &quot;{filter.trim()}&quot;.</> : "Nothing matches these filters."}</p>
+        <NoMatch
+          query={filter}
+          onlyQuery={selectedCompanies.size === 0}
+          onClear={() => {
+            setFilter("");
+            setSelectedCompanies(new Set());
+            setCursor(0);
+          }}
+        />
       ) : (
         // Each card says its own mutual, as each role card says its own location: the
         // "All via" line above them made the two queues two layouts.
@@ -921,6 +931,7 @@ function ManualAddForm({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={enter}
           placeholder="Name"
+          aria-label="Name"
           autoFocus
           className={INPUT}
         />
@@ -930,6 +941,7 @@ function ManualAddForm({
           onKeyDown={enter}
           list="manual-company-names"
           placeholder="Company"
+          aria-label="Company"
           className={INPUT}
         />
         <input
@@ -937,6 +949,7 @@ function ManualAddForm({
           onChange={(e) => setRole(e.target.value)}
           onKeyDown={enter}
           placeholder="Their role"
+          aria-label="Their role"
           className={INPUT}
         />
       </div>
@@ -953,6 +966,7 @@ function ManualAddForm({
           onChange={(e) => onUrlChange(e.target.value)}
           onKeyDown={enter}
           placeholder="LinkedIn profile link (optional)"
+          aria-label="LinkedIn profile link"
           className={`${INPUT} pr-24`}
         />
         <span
@@ -1102,6 +1116,7 @@ function CandidateCard({
         onChange={(e) => setNote(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
         placeholder={added ? "Why this one?" : "Why not?"}
+        aria-label={added ? "Why this one?" : "Why not?"}
         className={`${textarea()} flex-1`}
       />
     </div>
@@ -1143,7 +1158,7 @@ function CandidateCard({
   };
 
   return (
-    <div onClick={onFocus} className={queueCard(focused)}>
+    <div data-queue-card onClick={onFocus} className={queueCard(focused)}>
       {decided || !c.linkedinUrl ? (
         <div className="flex-1 min-h-0 flex flex-col">
           {head}

@@ -12,7 +12,7 @@ import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { STATUSES, OPEN_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, daysAgo, displayCompany, metaTokens, nextInterview, referrerNames } from "@/lib/role-meta";
-import { FormFrame, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
+import { FormFrame, NoMatch, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
 import { button, card, cardSub, cardTitle, emptyBox, input, kbd, listGrid, queueCard, revealLink, tag, textarea, verdictWidth } from "@/lib/ui";
 
 // ---------------------------------------------------------------------------
@@ -689,12 +689,14 @@ export default function ApplicationsPage() {
                     value={queueFilter}
                     onChange={(e) => setQueueFilter(e.target.value)}
                     placeholder="Filter by company or role…"
+                    aria-label="Filter the queue"
                     className={`${input()} pl-8`}
                   />
                 </div>
                 <select
                   value={queueSort}
                   onChange={(e) => setQueueSort(e.target.value as typeof queueSort)}
+                  aria-label="Sort the queue"
                   className={`${input("default", true)} pr-7`}
                 >
                   <option value="tier">Tier, then score</option>
@@ -724,7 +726,14 @@ export default function ApplicationsPage() {
               </button>
             </div>
           ) : filteredJobs.length === 0 ? (
-            <p className={emptyBox}>Nothing matches &quot;{queueFilter}&quot;.</p>
+            <NoMatch
+              query={queueFilter}
+              onlyQuery={selectedQueueCompanies.size === 0}
+              onClear={() => {
+                setQueueFilter("");
+                setSelectedQueueCompanies(new Set());
+              }}
+            />
           ) : (
             // Two per row from 1280px. The raggedness that drove the single column
             // came from variable-height cards, not from the grid — the cards share
@@ -761,7 +770,8 @@ export default function ApplicationsPage() {
                 <input
                   value={passedFilter}
                   onChange={(e) => setPassedFilter(e.target.value)}
-                  placeholder="Filter by company, role, or reason…"
+                  placeholder="Filter by company, role or reason…"
+                  aria-label="Filter passed roles"
                   className={`${input()} pl-8`}
                 />
               </div>
@@ -781,7 +791,14 @@ export default function ApplicationsPage() {
               <p>No passed roles yet. Pass a role in the queue and it lands here with your reason.</p>
             </div>
           ) : filteredPassed.length === 0 ? (
-            <p className={emptyBox}>Nothing matches &quot;{passedFilter}&quot;.</p>
+            <NoMatch
+              query={passedFilter}
+              onlyQuery={selectedPassedCompanies.size === 0}
+              onClear={() => {
+                setPassedFilter("");
+                setSelectedPassedCompanies(new Set());
+              }}
+            />
           ) : (
             // One container, rows divided by hairlines, the same as every list.
             <div className={`${card} divide-y divide-line-1 overflow-hidden`}>
@@ -821,6 +838,7 @@ export default function ApplicationsPage() {
                   value={pipelineFilter}
                   onChange={(e) => setPipelineFilter(e.target.value)}
                   placeholder="Filter by company or role…"
+                  aria-label="Filter active roles"
                   className={`${input()} pl-8`}
                 />
               </div>
@@ -837,10 +855,17 @@ export default function ApplicationsPage() {
             <p className="text-body text-fg-3">Loading…</p>
           ) : apps.length === 0 ? (
             <div className={emptyBox}>
-              <p>No applications yet. Accept a role in the queue and it lands here.</p>
+              <p>No active roles yet. Accept a role in the queue and it lands here.</p>
             </div>
           ) : filteredApps.length === 0 ? (
-            <p className={emptyBox}>Nothing matches &quot;{pipelineFilter}&quot;.</p>
+            <NoMatch
+              query={pipelineFilter}
+              onlyQuery={selectedPipelineCompanies.size === 0}
+              onClear={() => {
+                setPipelineFilter("");
+                setSelectedPipelineCompanies(new Set());
+              }}
+            />
           ) : (
             // A grid of cards per stage: three across at 1440, two at about 1024, one
             // on a phone. They were 56px rows in one container; as cards the logo is
@@ -1039,6 +1064,7 @@ function JobCard({
         // the global key handler bails on a focused TEXTAREA, so autofocusing it
         // meant the second A of a triage run typed the letter "a" into a note.
         placeholder={accepted ? "Why this one?" : "Why not?"}
+        aria-label={accepted ? "Why this one?" : "Why not?"}
         className={`${textarea()} flex-1`}
       />
     </div>
@@ -1074,6 +1100,7 @@ function JobCard({
 
   return (
     <div
+      data-queue-card
       onClick={onFocus}
       // The frame both queues share (lib/ui queueCard): the rope border only under
       // the keyboard cursor, a transparent one holding its place otherwise.
@@ -1101,7 +1128,7 @@ function JobCard({
             openInBackgroundTab(job.jobUrl);
           }}
           className="flex-1 min-h-0 flex flex-col rounded-control"
-          title="Open the posting in a background tab"
+          title="Open the posting in a background tab (O)"
         >
           {head}
           {meta}
@@ -1159,6 +1186,7 @@ function PassedRow({ job }: { job: Job }) {
                 rel="noopener noreferrer"
                 className={revealLink}
                 title="Open the posting"
+                aria-label="Open the posting"
               >
                 <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
               </a>
@@ -1305,7 +1333,7 @@ function PipelineCard({
       // have started this" signal, so the click stamps the date rather than asking.
       link={{
         href: app.portalUrl || app.job.jobUrl,
-        title: app.portalUrl ? "Open the application portal" : "Open the posting",
+        title: app.portalUrl ? "Open the application form" : "Open the posting",
         onClick: () => {
           if (applying && !app.applyStartedAt) {
             onUpdate(app.id, { applyStartedAt: new Date().toISOString() } as Partial<Application>);

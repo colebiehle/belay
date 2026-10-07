@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { listCard, revealLink } from "@/lib/ui";
+import { dateAndAge } from "@/lib/dates";
 
 /**
  * One card for both lists grouped by stage: Roles → Active and People → Network
@@ -72,7 +73,7 @@ export function ListCard({
                   e.stopPropagation();
                   link.onClick?.();
                 }}
-                className={`${revealLink} relative z-[1]`}
+                className={`${revealLink} z-[1]`}
                 title={link.title}
                 aria-label={link.title}
               >
@@ -102,17 +103,8 @@ export function ListCard({
   );
 }
 
-/** "Oct 3", or "Oct 3, 2025" outside the current year. */
-export function shortDate(at: Date): string {
-  const sameYear = at.getFullYear() === new Date().getFullYear();
-  return at.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
-}
-
-/** "Oct 3 · 3d ago", "Oct 6 · today": an absolute date, then how long ago. */
-export function dateAndAge(at: Date, now = Date.now()): { date: string; age: string } {
-  const days = Math.max(0, Math.floor((now - at.getTime()) / 86_400_000));
-  return { date: shortDate(at), age: days === 0 ? "today" : `${days}d ago` };
-}
+// The date helpers live in lib/dates so server pages can use them too.
+export { shortDate, dateAndAge } from "@/lib/dates";
 
 /** One timing line: "Applied Oct 3 · 3d ago". Quiet by default (`fg-3`, the `·` in
  * `fg-4`); an overdue follow-up passes `text-rope` and puts its Clock before it. */

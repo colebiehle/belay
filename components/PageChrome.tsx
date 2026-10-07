@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
-import { button, iconButton } from "@/lib/ui";
+import { button, emptyBox, iconButton } from "@/lib/ui";
 
 /**
  * The top of a two-sided page, shared by Applications and Network so the two read
@@ -54,7 +54,10 @@ export function PageHeader({
   actions: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    // On a phone the actions go under the title rather than beside it: side by side,
+    // the next-action line was squeezed into a 100px column and broke after every
+    // second word ("7 to / review · 33 to / message").
+    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <div className="min-w-0">
         <h1 className="text-h1 text-fg-1">{title}</h1>
         <NextActionLine parts={parts} />
@@ -135,7 +138,32 @@ export function FormFrame({
 /** The quiet way sideways inside a form frame ("Add someone manually", "Paste what
  * you found"): a meta-sized underlined text link, so it never competes with the verb. */
 export const formLink =
-  "text-meta text-fg-3 underline decoration-line-2 underline-offset-4 hover:text-fg-1 hover:decoration-fg-3 transition-colors duration-90 ease-enter disabled:text-fg-4";
+  "inline-block py-1 -my-1 text-meta text-fg-3 underline decoration-line-2 underline-offset-4 hover:text-fg-1 hover:decoration-fg-3 transition-colors duration-90 ease-enter disabled:text-fg-4";
+
+/**
+ * The empty state when filters meet at nothing (5.10): what happened, then the one way
+ * back. Every list had its own: Roles printed `Nothing matches ""` when only company
+ * chips were set, People said "Nobody matches" with a Clear all, the people queue had
+ * no way back at all. One line now, quoting the search only when the search is the
+ * only filter, and always the same Clear all.
+ */
+export function NoMatch({ query, onlyQuery, onClear }: { query: string; onlyQuery: boolean; onClear: () => void }) {
+  const q = query.trim();
+  return (
+    <div className={emptyBox}>
+      {q && onlyQuery ? <>Nothing matches &ldquo;{q}&rdquo;.</> : "Nothing matches these filters."}{" "}
+      <button onClick={onClear} className={inlineLink}>
+        Clear all
+      </button>
+    </div>
+  );
+}
+
+/** A quiet text action inside a sentence (an empty state's way out): fg-1, underlined
+ * in a hairline that brightens on hover, padded to a 24px target without moving the
+ * line. */
+export const inlineLink =
+  "inline-block py-0.5 -my-0.5 text-fg-1 underline decoration-line-3 underline-offset-4 hover:decoration-fg-1 transition-colors duration-90 ease-enter";
 
 /** The header's two button weights: at most one primary (rope) per header. */
 export function headerButton(kind: "primary" | "secondary"): string {

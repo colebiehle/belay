@@ -70,6 +70,7 @@ export function PersonPicker({
               if (e.key === "Enter" && matches.length === 1) choose(matches[0]);
             }}
             placeholder={placeholder}
+            aria-label={placeholder.replace(/[?…]+$/, "")}
             autoFocus
             className={input("compact")}
           />

@@ -1,10 +1,11 @@
 # Belay style guide
 
-*Version 1.4, 6 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
+*Version 1.5, 6 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
 This is the decision. The proposals stay as the record of the argument. Version 1.1
 folds in a design critique of the shipped rebrand; version 1.2 folds in the owner's
 feedback on the queues, lists, panels and add forms; 1.3 the panel's brand line; 1.4
-the list cards, the Progress layout and the panel's brand edge. Every change each made
+the list cards, the Progress layout and the panel's brand edge; 1.5 a consistency and
+usability pass. Every change each made
 is listed, with its reason, in Part 3 at the end.*
 
 How to read this: Part 1 explains the rulings and why they were made. Part 2 is the
@@ -557,7 +558,14 @@ Slide-overs are full-height and flush right, with radius 0.
   stage control, the external-link icon, a tile's edit button) also shows on
   `:focus-visible` or `:focus-within`, and stays in the tab order while hidden.
 - Hit targets are at least 24×24px (WCAG 2.2 AA). Icon-only buttons get
-  `aria-label`.
+  `aria-label`. A 14px icon link (the `ExternalLink` after a name) gets a 24px hit
+  area from an invisible `::after` (`hitTarget` in `lib/ui.ts`, v1.5), so the icon
+  stays 14px and nothing moves. **Every field has a name** (v1.5): a placeholder is
+  not a label, so a field without a visible label takes an `aria-label` (filters,
+  sorts, stage selects as "Stage", reason boxes, the chat composer).
+- **Focus rings the thing that opens** (v1.5): a queue card's open link covers only
+  its upper part, so keyboard focus on it rings the whole card (`[data-queue-card]`
+  in `globals.css`), as a list card does.
 - `<html>` keeps `color-scheme: dark` so native controls and scrollbars match.
 
 ### 5. Components
@@ -579,6 +587,8 @@ Slide-overs are full-height and flush right, with radius 0.
   separators as `·` in `fg-4` with 6px on each side. Example: **3** to triage · **12**
   to message · **2** to schedule. When everything is zero: "Nothing waiting" in
   `fg-3`.
+- On a phone the actions sit under the title, 12px below, rather than beside it
+  (v1.5): side by side, the next-action line was squeezed to a 100px column.
 - Actions on the right, 8px apart: at most **one primary** and one or two secondary
   buttons.
 - The Home `h1` is "Home". The line under it is the long date in `fg-3`.
@@ -660,7 +670,9 @@ it is. Text contrast is computed on each fill:
   border** (v1.1). Removable tags show a 12px `X` on hover.
 - **Filter toggles** (company filter row): 24px, no border. **Off:** `fg-2` text,
   `lift` fill on hover. **On:** `lift` fill, `fg-1`. An optional 6px brand dot before
-  the name is allowed (2.6). "Clear" is a quiet button. *Why (v1.1):* fifteen outlined
+  the name is allowed (2.6). "Clear" is a quiet button. The row shows one line at
+  rest, and "See all (N)" appears **only when chips are hidden past that line** (v1.5;
+  it sat beside a row that already showed everything), never while a chip is on. *Why (v1.1):* fifteen outlined
   toggles in a row read as a fence; off is plain text you can click, on is a filled
   key, and the difference between them is the one that matters.
 - **Tier badge:** 20px square, `data` type. S: `fg-1` fill with `canvas` text.
@@ -765,6 +777,12 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
 
 - **Group header (32px, sticky):** `t-group` stage name plus a `meta` `tabular-nums`
   count, both `fg-3`, sitting on `canvas` above the grid or container.
+- **Dates read one way everywhere** (v1.5, `lib/dates.ts`): inline on a card,
+  `Oct 3` (`shortDate`); in a log column, `06 Oct` (`logDate`), always a three-letter
+  month (en-GB had written `Sept`, four letters in a column sized for three, and Home
+  had used `Oct 06`). **Ages count calendar days**, not elapsed hours (`calendarDays`):
+  "Oct 5 · today" read the morning after, and two cards dated Oct 5 said "today" and
+  "1d ago". History gaps (`+3d`) count the same way, so they agree with the dates.
 - **Log rows (36px):** a fixed **56px** date column first, in `data` `fg-3`
   (`06 Oct`, with the time in a second column for Coming up), then the entry in
   `body`. Pipeline history gaps show as `+12d` in `data` `fg-3`.
@@ -791,7 +809,9 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
   nothing in particular. **On Home** (Companies, Sites) the button beside the heading
   is "+ Add" (`Plus` and the word), with an `aria-label` naming what it adds ("Add
   company", "Add site"): there the heading is one word and right beside it, so the
-  noun was said twice in one glance (v1.4).
+  noun was said twice in one glance (v1.4). The same rule holds for an edit that has nothing to
+  edit yet: a person panel with no warmth, tags, note or how-met shows a quiet
+  "Add how you know them" where the pencil would sit alone (v1.5).
 - **Referral** (role panel) works like Mutuals on a person: "Add referral" opens a
   picker over the whole network, people at the company first, and a quiet link to note
   a name for someone not in it. Entries are stored in `Application.referrerId` as a
@@ -838,6 +858,11 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
   where a list would be, it goes inside a `surface` container with a **dashed**
   `line-2` border.
 - No illustrations, no icons larger than 16px, no encouragement.
+- **Filters that meet at nothing** (v1.5, `NoMatch` in `PageChrome.tsx`, every list):
+  `Nothing matches "figma".` when the search is the only filter, else "Nothing
+  matches these filters.", then a **Clear all** that resets the search and every chip.
+  Roles had printed `Nothing matches ""` with only chips set, and the people queue had
+  no way back. Filter fields all read "Filter by …".
 - Formula: what is missing, then how it fills. For example: "No people yet. Add
   someone from the queue, or use Add people."
 
@@ -1266,3 +1291,18 @@ The owner's decisions on the Progress panel, Home, the two lists and the panels.
 | 4 | Active and Network are grids of compact cards (40px logo, name, second line, a timing line "Applied Oct 3 · 3d ago", then interview, stalled form and referral when present), one `ListCard` for both; "Form not opened yet" and the person card's mutual, how-met and tags are gone (4.4, 5.5, 5.7) | Bigger marks and each item's facts in one glance; lines with nothing to act on were noise |
 | 5 | Panels: a 3px brand line down the full left edge as well as the top, no bottom line; the History markers in the brand; controls stay neutral (2.6, 4.3, 5.8) | The left line keeps whose record it is in view at every scroll position; one quiet content accent in the body |
 
+## Part 3d. Changes in v1.5 (6 October 2026)
+
+A consistency and usability pass over every page at 1440, 1024 and 390. No layout or
+naming decisions changed.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | Card ages count calendar days; log dates are always `06 Oct`; one date module (5.7) | "Oct 5 · today" and two Oct 5 cards a day apart; `Sept` broke the date column |
+| 2 | One no-match state with Clear all on every list (5.10) | Roles quoted an empty search; the people queue had no way back |
+| 3 | "See all (N)" only when chips overflow (5.5) | It sat beside a row that already showed every chip and did nothing visible |
+| 4 | Every field and stage select has an accessible name; 14px icon links get a 24px hit area (4.7) | Placeholders are not labels; a 14px target is under WCAG 2.2's 24px |
+| 5 | Keyboard focus on a queue card rings the card (4.7) | The ring cut across the card above its buttons |
+| 6 | Header actions stack under the title on a phone (5.2) | The next-action line broke after every second word |
+| 7 | An empty person panel says "Add how you know them" in place of a lone pencil (5.8) | A pencil alone on an empty row edited nothing you could see |
+| 8 | Copy: "No active roles yet" (was "No applications yet"); both chat hints "Ask anything about this …"; the link out is "Open the application form" on card and panel | One name per thing (7) |

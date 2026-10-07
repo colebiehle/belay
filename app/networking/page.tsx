@@ -18,8 +18,9 @@ import {
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { StageSelect } from "@/components/StageChip";
 import { ListCard, TimingLine } from "@/components/ListCard";
+import { calendarDays } from "@/lib/dates";
 import { PeopleQueue, type Candidate } from "@/components/PeopleQueue";
-import { FormFrame, PageHeader, TabBar, formLink, headerButton } from "@/components/PageChrome";
+import { FormFrame, NoMatch, PageHeader, TabBar, formLink, headerButton } from "@/components/PageChrome";
 
 /**
  * Networking as a queue, not a directory.
@@ -461,7 +462,8 @@ export default function NetworkingPage() {
                 <input
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  placeholder="Search by name, role or company…"
+                  placeholder="Filter by name, company or role…"
+                  aria-label="Filter your network"
                   className={`${input()} pl-8`}
                 />
               </div>
@@ -520,20 +522,16 @@ export default function NetworkingPage() {
               {/* Warmth, tags, companies and the search all narrow together, so they can
                   meet at nobody. Say so, rather than leave a blank page under the chips. */}
               {visible.length === 0 && (
-                <p className={emptyBox}>
-                  Nobody matches these filters.{" "}
-                  <button
-                    onClick={() => {
-                      setFilter("");
-                      setSelectedCompanies(new Set());
-                      setSelectedTags(new Set());
-                      setSelectedWarmth(new Set());
-                    }}
-                    className="text-fg-1 underline decoration-line-3 underline-offset-4 hover:decoration-fg-1"
-                  >
-                    Clear all
-                  </button>
-                </p>
+                <NoMatch
+                  query={filter}
+                  onlyQuery={selectedCompanies.size + selectedTags.size + selectedWarmth.size === 0}
+                  onClear={() => {
+                    setFilter("");
+                    setSelectedCompanies(new Set());
+                    setSelectedTags(new Set());
+                    setSelectedWarmth(new Set());
+                  }}
+                />
               )}
               {groups.map(({ stage, people: group }) => {
                 return (
@@ -569,7 +567,8 @@ export default function NetworkingPage() {
                         // right edge is one column. Overdue only where the ball is with
                         // them and nothing is booked.
                         const touched = lastTouch(c);
-                        const quietDays = touched ? Math.max(0, Math.floor((now - touched) / 86_400_000)) : null;
+                        // Calendar days, as the card prints them, so the tooltip and the "3d ago" agree.
+                        const quietDays = touched ? calendarDays(touched, now) : null;
                         const overdue =
                           FOLLOW_UP_STAGES.includes(stageNow) && quietDays !== null && quietDays >= NUDGE_AFTER_DAYS;
                         // Nobody has been contacted at Identified, so its count is how

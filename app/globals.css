@@ -231,6 +231,17 @@ body {
   outline-offset: 2px;
 }
 
+/* A queue card's open link covers its upper part (the head and the reading line), so
+   its own ring cut across the card above the buttons. Ring the card instead, as a
+   list card does: one ring, round the card the link opens from. */
+[data-queue-card] > a:focus-visible {
+  outline: none;
+}
+[data-queue-card]:has(> a:focus-visible) {
+  outline: 2px solid var(--color-rope);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: 80ms !important;

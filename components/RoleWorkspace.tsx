@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import { logDate, calendarDays } from "@/lib/dates";
 import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { MetaLine } from "@/components/MetaLine";
 import { cleanTags, displayCompany, isContactId, metaTokens, parseReferrers } from "@/lib/role-meta";
@@ -121,10 +122,6 @@ const SCOPES_LATE: { key: string; label: string; hint: string; from: string[] }[
 
 
 
-/** "06 Oct": the log rows' fixed date column. */
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -572,6 +569,7 @@ export function RoleWorkspace({
                   value={headerDraft.company}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
                   placeholder="Company"
+                  aria-label="Company"
                   autoFocus
                   className={`${field("compact")} font-semibold`}
                 />
@@ -579,6 +577,7 @@ export function RoleWorkspace({
                   value={headerDraft.roleTitle}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, roleTitle: e.target.value })}
                   placeholder="Role title"
+                  aria-label="Role title"
                   className={field("compact")}
                 />
                 <input
@@ -588,6 +587,7 @@ export function RoleWorkspace({
                     setHeaderError(null);
                   }}
                   placeholder="Posting URL"
+                  aria-label="Posting URL"
                   className={`${field("compact")} ${headerError ? "border-alarm" : ""}`}
                 />
                 <div className="flex items-center justify-end gap-2">
@@ -635,8 +635,9 @@ export function RoleWorkspace({
                       onUpdate(app.id, { applyStartedAt: new Date().toISOString() });
                     }
                   }}
-                  className="shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90"
+                  className={headerLink}
                   title={app.portalUrl ? "Open the application form" : "Open the posting"}
+                  aria-label={app.portalUrl ? "Open the application form" : "Open the posting"}
                 >
                   <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
                 </a>
@@ -739,6 +740,7 @@ export function RoleWorkspace({
                 }
                 onBlur={() => persistNotes(notes)}
                 placeholder="Title"
+                aria-label="Title"
                 className="flex-1 text-name bg-transparent text-fg-1 placeholder:text-fg-3 rounded-control"
               />
               <button
@@ -760,6 +762,7 @@ export function RoleWorkspace({
               }
               onBlur={() => persistNotes(notes)}
               placeholder="…"
+              aria-label="Note"
               className="w-full text-body bg-transparent text-fg-2 placeholder:text-fg-3 resize-none rounded-control"
             />
           </div>
@@ -813,12 +816,14 @@ export function RoleWorkspace({
                     onChange={(e) => setTldrDraft(e.target.value)}
                     autoFocus
                     placeholder="Anything about this role worth keeping at the top."
+                    aria-label="Your note on this role"
                     className={textarea()}
                   />
                   <input
                     value={portalDraft}
                     onChange={(e) => setPortalDraft(e.target.value)}
                     placeholder="Application form link, if it is not the posting"
+                    aria-label="Application form link"
                     className={field("compact")}
                   />
                   <div className="flex items-center justify-end gap-2">
@@ -898,17 +903,12 @@ export function RoleWorkspace({
                       {/* The timeline's marker, in the brand: the one place company
                           colour reaches the body (2.6). */}
                       <span className={historyDot} style={{ backgroundColor: historyDotColor(brandHex) }} aria-hidden />
-                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(h.at)}</span>
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(h.at)}</span>
                       <span className="text-body text-fg-2">{h.status}</span>
                       {i > 0 && (
                         <span className="font-mono text-data text-fg-3">
                           +
-                          {Math.max(
-                            0,
-                            Math.round(
-                              (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
-                            ),
-                          )}
+                          {calendarDays(new Date(history[i - 1].at), new Date(h.at))}
                           d
                         </span>
                       )}
@@ -1016,6 +1016,7 @@ export function RoleWorkspace({
                     value={referrerDraft}
                     onChange={(e) => setReferrerDraft(e.target.value)}
                     placeholder="Their name"
+                    aria-label="Their name"
                     autoFocus
                     className={field("compact")}
                   />
@@ -1060,7 +1061,7 @@ export function RoleWorkspace({
                 const past = when.getTime() < Date.now();
                 return (
                   <div key={iv.id} className="flex items-center gap-2 h-7 group">
-                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(iv.at)}</span>
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(iv.at)}</span>
                     <span className="font-mono text-data text-fg-3 shrink-0 w-16">
                       {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                     </span>
@@ -1097,7 +1098,7 @@ export function RoleWorkspace({
                   className="space-y-2"
                 >
                   <input name="at" type="datetime-local" required autoFocus className={field("compact")} />
-                  <input name="label" placeholder="Recruiter screen, portfolio review…" className={field("compact")} />
+                  <input name="label" placeholder="Recruiter screen, portfolio review…" aria-label="What the interview is" className={field("compact")} />
                   <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
@@ -1131,7 +1132,7 @@ export function RoleWorkspace({
                       download={v.fileName}
                       className="flex items-center gap-2 h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
                     >
-                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(v.savedAt)}</span>
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(v.savedAt)}</span>
                       <span className="text-body text-fg-1 truncate">{v.label}</span>
                     </a>
                   ))}
@@ -1174,6 +1175,7 @@ export function RoleWorkspace({
                   value={noteQuery}
                   onChange={(e) => setNoteQuery(e.target.value)}
                   placeholder="Search notes"
+                  aria-label="Search notes"
                   className={field("compact")}
                 />
               )}
@@ -1188,7 +1190,7 @@ export function RoleWorkspace({
                       onClick={() => setOpenNoteId(n.id)}
                       className="w-full flex items-center gap-2 text-left h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
                     >
-                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(n.createdAt)}</span>
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(n.createdAt)}</span>
                       <span className="text-body text-fg-1 truncate flex-1">{n.title || "Untitled"}</span>
                     </button>
                   ))}
@@ -1279,6 +1281,7 @@ export function RoleWorkspace({
                     }}
                     autoFocus
                     placeholder="Title this note"
+                    aria-label="Note title"
                     className={field("compact")}
                   />
                 )}
@@ -1311,6 +1314,7 @@ export function RoleWorkspace({
                 // button above, and the hint for it sits in the empty transcript, so
                 // repeating either here was the same words three times.
                 placeholder="Write something…"
+                aria-label="Message"
                 className={`${textarea()} max-h-40`}
               />
               <button

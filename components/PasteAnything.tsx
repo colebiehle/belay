@@ -146,6 +146,7 @@ export function PasteAnything({
             autoFocus
             disabled={reading}
             placeholder={placeholder}
+            aria-label={label}
             className={`${textarea()} max-h-48`}
           />
           {error && (

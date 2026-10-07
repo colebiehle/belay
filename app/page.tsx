@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { computeInsights } from "@/lib/insights";
 import Link from "next/link";
+import { logDate } from "@/lib/dates";
 import { ActivityHeatmap } from "@/components/ActivityHeatmap";
 import { JobSites } from "@/components/JobSites";
 import { TargetCompanies } from "@/components/TargetCompanies";
@@ -82,7 +83,7 @@ export default async function Home() {
                 className="flex items-center gap-3 h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter first:rounded-t-card last:rounded-b-card"
               >
                 <span className="w-14 shrink-0 font-mono text-data tabular-nums text-fg-3">
-                  {new Date(iv.at).toLocaleDateString(undefined, { month: "short", day: "2-digit" })}
+                  {logDate(iv.at)}
                 </span>
                 <span className="w-16 shrink-0 font-mono text-data tabular-nums text-fg-3">
                   {new Date(iv.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}

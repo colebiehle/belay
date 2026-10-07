@@ -1,13 +1,14 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import { logDate, calendarDays } from "@/lib/dates";
 import { AlertTriangle, ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
 import { usableAccent } from "@/lib/brand-colors";
-import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor } from "@/lib/ui";
+import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
@@ -72,7 +73,7 @@ export type PanelContact = {
  * one move that connects this page to the applications page, so it gets its own chip.
  */
 const SCOPES: { key: string | null; label: string; hint: string }[] = [
-  { key: null, label: "No context set", hint: "Anything about this person." },
+  { key: null, label: "No context set", hint: "Ask anything about this person." },
   {
     key: "connect",
     label: "Drafting a connect note",
@@ -133,10 +134,6 @@ function metLine(howMet: string): string {
   return `Met at ${v}`;
 }
 
-/** "06 Oct": the log rows' fixed date column, so the dates line up without a table. */
-function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
 
 export function ContactPanel({
   contact,
@@ -257,6 +254,9 @@ export function ContactPanel({
   const brandHex = brand ? usableAccent(brand) : null;
   const openNote = notes.find((n) => n.id === openNoteId) ?? null;
   const tags = parseJson<string[]>(contact.relationship, []);
+  // Anything recorded about how you know them: the edit control names what it adds
+  // until one of these exists.
+  const relationSet = !!(contact.warmth || tags.length || contact.notes || contact.howMet);
   const history = parseJson<{ stage: string; at: string; nudge?: boolean }[]>(contact.stageHistory, []);
   // Newest first, because the note you want is almost always the one you just made or
   // the call you just had. Search covers title and body.
@@ -499,6 +499,7 @@ export function ContactPanel({
                   value={headerDraft.name}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, name: e.target.value })}
                   placeholder="Name"
+                  aria-label="Name"
                   autoFocus
                   className={`${field("compact")} font-semibold`}
                 />
@@ -507,12 +508,14 @@ export function ContactPanel({
                     value={headerDraft.company}
                     onChange={(e) => setHeaderDraft({ ...headerDraft, company: e.target.value })}
                     placeholder="Company"
+                    aria-label="Company"
                     className={field("compact")}
                   />
                   <input
                     value={headerDraft.title}
                     onChange={(e) => setHeaderDraft({ ...headerDraft, title: e.target.value })}
                     placeholder="Title"
+                    aria-label="Title"
                     className={field("compact")}
                   />
                 </div>
@@ -520,6 +523,7 @@ export function ContactPanel({
                   value={headerDraft.linkedinUrl}
                   onChange={(e) => setHeaderDraft({ ...headerDraft, linkedinUrl: e.target.value })}
                   placeholder="LinkedIn URL"
+                  aria-label="LinkedIn URL"
                   className={field("compact")}
                 />
                 <div className="flex items-center justify-end gap-2">
@@ -555,8 +559,9 @@ export function ContactPanel({
                     href={contact.linkedinUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 text-fg-2 hover:text-fg-1 transition-colors duration-90"
+                    className={headerLink}
                     title="Open their LinkedIn"
+                    aria-label="Open their LinkedIn"
                   >
                     <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </a>
@@ -668,6 +673,7 @@ export function ContactPanel({
                 }
                 onBlur={() => persistNotes(notes)}
                 placeholder="Title"
+                aria-label="Title"
                 className="flex-1 text-name bg-transparent text-fg-1 placeholder:text-fg-3 rounded-control"
               />
               <button
@@ -689,6 +695,7 @@ export function ContactPanel({
               }
               onBlur={() => persistNotes(notes)}
               placeholder="…"
+              aria-label="Note"
               className="w-full text-body bg-transparent text-fg-2 placeholder:text-fg-3 resize-none rounded-control"
             />
           </div>
@@ -703,14 +710,16 @@ export function ContactPanel({
                   {/* Quiet on purpose: tags for what they are to you, and nothing at
                       all until one is set. Warmth is the brighter tag because it
                       decides what you can ask. */}
-                  <div className="flex flex-wrap gap-1 min-w-0">
-                    {contact.warmth && <span className={`${tagClass} text-fg-1`}>{contact.warmth}</span>}
-                    {tags.map((t) => (
-                      <span key={t} className={tagClass}>
-                        {t}
-                      </span>
-                    ))}
-                  </div>
+                  {(contact.warmth || tags.length > 0) && (
+                    <div className="flex flex-wrap gap-1 min-w-0">
+                      {contact.warmth && <span className={`${tagClass} text-fg-1`}>{contact.warmth}</span>}
+                      {tags.map((t) => (
+                        <span key={t} className={tagClass}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setTldrDraft(contact.notes ?? "");
@@ -719,11 +728,25 @@ export function ContactPanel({
                       setWarmthDraft(contact.warmth);
                       setEditingTldr(true);
                     }}
-                    className={`${iconButton("quiet", "compact")} ml-auto shrink-0`}
+                    // With nothing set yet, a pencil alone at the far right of an
+                    // empty row edited nothing you could see; it says what it adds
+                    // instead, like a section's add (5.8). Once something is set, the
+                    // pencil beside it edits it.
+                    className={
+                      relationSet
+                        ? `${iconButton("quiet", "compact")} ml-auto shrink-0`
+                        : `${button("quiet", "compact")} -ml-2.5`
+                    }
                     title="How you know them, and your note on this person"
-                    aria-label="Edit how you know them and your note"
+                    aria-label={relationSet ? "Edit how you know them and your note" : undefined}
                   >
-                    <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                    {relationSet ? (
+                      <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                    ) : (
+                      <>
+                        <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add how you know them
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -757,6 +780,7 @@ export function ContactPanel({
                         value={howMetDraft}
                         onChange={(e) => setHowMetDraft(e.target.value)}
                         placeholder="Config 2026, CMU alum, cold outreach"
+                        aria-label="How you met"
                         className="flex-1 min-w-0 bg-transparent text-fg-1 placeholder:text-fg-3 outline-none"
                       />
                     </label>
@@ -821,6 +845,7 @@ export function ContactPanel({
                         autoFocus
                         maxLength={28}
                         placeholder="new tag"
+                        aria-label="New tag"
                         className="text-chip t-chip w-28 h-6 px-2 rounded-control border border-line-input bg-canvas text-fg-1 placeholder:text-fg-3 focus:border-rope"
                       />
                     )}
@@ -830,6 +855,7 @@ export function ContactPanel({
                     onChange={(e) => setTldrDraft(e.target.value)}
                     autoFocus
                     placeholder="How you know them, what the ask is, anything a draft should carry."
+                    aria-label="Your note on this person"
                     className={textarea()}
                   />
                   <div className="flex items-center justify-end gap-2">
@@ -893,17 +919,12 @@ export function ContactPanel({
                       {/* The timeline's marker, in the brand: the one place company
                           colour reaches the body (2.6). */}
                       <span className={historyDot} style={{ backgroundColor: historyDotColor(brandHex) }} aria-hidden />
-                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(h.at)}</span>
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(h.at)}</span>
                       <span className="text-body text-fg-2">{h.nudge ? "Nudged" : h.stage}</span>
                       {i > 0 && (
                         <span className="font-mono text-data text-fg-3">
                           +
-                          {Math.max(
-                            0,
-                            Math.round(
-                              (new Date(h.at).getTime() - new Date(history[i - 1].at).getTime()) / 86400000,
-                            ),
-                          )}
+                          {calendarDays(new Date(history[i - 1].at), new Date(h.at))}
                           d
                         </span>
                       )}
@@ -1005,7 +1026,7 @@ export function ContactPanel({
                 const past = when.getTime() < Date.now();
                 return (
                   <div key={ev.id} className="flex items-center gap-2 h-7 group">
-                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(ev.at)}</span>
+                    <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(ev.at)}</span>
                     <span className="font-mono text-data text-fg-3 shrink-0 w-16">
                       {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                     </span>
@@ -1037,7 +1058,7 @@ export function ContactPanel({
                   className="space-y-2"
                 >
                   <input name="at" type="datetime-local" required autoFocus className={field("compact")} />
-                  <input name="label" placeholder="Coffee chat, intro call…" className={field("compact")} />
+                  <input name="label" placeholder="Coffee chat, intro call…" aria-label="What the call is" className={field("compact")} />
                   <div className="flex items-center justify-end gap-2">
                     <button type="button" onClick={() => setAddingEvent(false)} className={button("quiet", "compact")}>
                       Cancel
@@ -1073,6 +1094,7 @@ export function ContactPanel({
                   value={noteQuery}
                   onChange={(e) => setNoteQuery(e.target.value)}
                   placeholder="Search notes"
+                  aria-label="Search notes"
                   className={field("compact")}
                 />
               )}
@@ -1087,7 +1109,7 @@ export function ContactPanel({
                       onClick={() => setOpenNoteId(n.id)}
                       className="w-full flex items-center gap-2 text-left h-9 px-3 hover:bg-lift transition-colors duration-90 ease-enter"
                     >
-                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{shortDate(n.createdAt)}</span>
+                      <span className="font-mono text-data text-fg-3 shrink-0 w-14">{logDate(n.createdAt)}</span>
                       <span className="text-body text-fg-1 truncate flex-1">{n.title || "Untitled"}</span>
                     </button>
                   ))}
@@ -1188,6 +1210,7 @@ export function ContactPanel({
                     }}
                     autoFocus
                     placeholder="Title this note"
+                    aria-label="Note title"
                     className={field("compact")}
                   />
                 )}
@@ -1217,6 +1240,7 @@ export function ContactPanel({
                   }
                 }}
                 placeholder="Write something…"
+                aria-label="Message"
                 className={`${textarea()} max-h-40`}
               />
               <button

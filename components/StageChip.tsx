@@ -105,6 +105,9 @@ export function StageSelect({
       <select
         value={value}
         title={title}
+        // A select's name is its value otherwise ("Applied"), which says what it is
+        // set to but not what it sets.
+        aria-label="Stage"
         onChange={(e) => onChange(e.target.value)}
         className={`appearance-none bg-transparent h-full w-full ${accepted ? "pl-5" : "pl-1.5"} pr-5 min-w-[6.5rem] text-chip t-chip cursor-pointer text-center rounded-control`}
       >
