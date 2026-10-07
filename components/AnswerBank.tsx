@@ -168,6 +168,18 @@ export function AnswerBank() {
     }
   };
 
+  // The contents rail glides to a section rather than jumping, so you can see which
+  // way you went. Done here, not with scroll-behavior on <html>, which would also
+  // animate every route change. Reduced motion keeps the jump.
+  const glide = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+  };
+
   const learned = LEARNED.map((l) => ({ ...l, content: cells.find((c) => c.kind === l.kind)?.content ?? "" })).filter(
     (l) => l.content.trim(),
   );
@@ -195,6 +207,7 @@ export function AnswerBank() {
                 <li key={s.id}>
                   <a
                     href={`#${s.id}`}
+                    onClick={(e) => glide(e, s.id)}
                     className="flex items-center justify-between gap-2 h-8 px-2 -mx-2 rounded-control text-body text-fg-2 hover:text-fg-1 hover:bg-raised transition-colors duration-90 ease-enter"
                   >
                     <span className="truncate">{s.title}</span>
@@ -213,6 +226,7 @@ export function AnswerBank() {
               <li>
                 <a
                   href="#learned"
+                  onClick={(e) => glide(e, "learned")}
                   className="flex items-center h-8 px-2 -mx-2 rounded-control text-body text-fg-2 hover:text-fg-1 hover:bg-raised transition-colors duration-90 ease-enter"
                 >
                   What Belay has learned
