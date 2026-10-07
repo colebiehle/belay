@@ -836,7 +836,8 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
   (`06 Oct`, with the time in a second column for Upcoming), then the entry in
   `body`. Pipeline history gaps show as `+12d` in `data` `fg-3`.
 - **Home's Upcoming is always there** (v1.7): interviews and calls together, soonest
-  first, five at most, each opening its role or person. With nothing ahead it is one
+  first, five at most, each opening its role or person, with the company's 20px logo
+  plate after the time (the one brand colour above the fold on Home, and it is content). With nothing ahead it is one
   row, "No interviews or calls scheduled" in `body` `fg-3`, so Home keeps its shape the
   day something is booked. The count tiles beside it carry no "Next:" line: the dates
   are here, and one name under a count of two read as the only one.
@@ -1402,3 +1403,4 @@ The owner's decisions, applied as one pass.
 | 4 | Text fields focus as one 2px rope frame inside their edge, no outer ring (2.1, 5.9) | The border and the ring were two orange boxes round the composer, the loudest thing on a panel |
 | 5 | Home's "Coming up" is **Upcoming**, always shown, interviews and calls together, with an empty row (5.7) | The page changed shape when the first one was booked; calls had no list |
 | 6 | The Upcoming interviews and calls tiles drop their "Next:" line (5.7) | The dates are in Upcoming; one name under a count of two was misleading |
+| 7 | Upcoming rows carry the company's 20px logo plate (5.7) | Home read as all grey above the fold; a logo is colour that says something. The streak stays neutral: it is a record, not a next move |

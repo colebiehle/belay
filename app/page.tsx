@@ -6,6 +6,7 @@ import { JobSites } from "@/components/JobSites";
 import { TargetCompanies } from "@/components/TargetCompanies";
 import { ChatPanel } from "@/components/ChatPanel";
 import { Signals } from "@/components/HomeSignals";
+import { CompanyLogo } from "@/components/CompanyLogo";
 
 export default async function Home() {
   // The same function behind /insights and /api/insights, so a number here can
@@ -48,7 +49,8 @@ export default async function Home() {
           does not change shape the day one is booked; with nothing ahead it is one
           dim line. The dates live here and not under the tiles' counts, where "Next:"
           named one interview of several. Log rows in one container: a fixed mono date
-          column, then the time, so the dates line up down the edge. */}
+          column, then the time, so the dates line up down the edge, then the company's
+          logo. */}
       <section>
         <h2 className="t-section mb-3">Upcoming</h2>
         <div className="bg-surface rounded-card divide-y divide-line-1">
@@ -68,7 +70,16 @@ export default async function Home() {
                   <span className="w-16 shrink-0 font-mono text-data tabular-nums text-fg-3">
                     {timed ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : ""}
                   </span>
-                  <span className="text-body text-fg-1 truncate">{u.title}</span>
+                  {/* The company's logo, small: Home's one place for brand colour
+                      above the fold, and it is content (whose interview), not decoration. */}
+                  <CompanyLogo
+                    company={u.company || u.title}
+                    jobUrl={u.logoUrl}
+                    domain={u.domain}
+                    logo={u.logo}
+                    size={20}
+                  />
+                  <span className="text-body text-fg-1 truncate -ml-1">{u.title}</span>
                   <span className="text-meta text-fg-3 truncate">{u.label}</span>
                 </Link>
               );

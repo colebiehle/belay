@@ -216,7 +216,32 @@ export type DueContact = { id: string; name: string; company: string; stage: str
 export type NextInterview = { appId: string; company: string; label: string; at: string };
 export type NextCall = { contactId: string; name: string; company: string; label: string; at: string };
 /** One dated thing ahead: an interview (a role) or a call (a person), for Home's Upcoming. */
-export type UpcomingItem = { kind: "interview" | "call"; href: string; title: string; label: string; at: string };
+export type UpcomingItem = {
+  kind: "interview" | "call";
+  href: string;
+  title: string;
+  label: string;
+  at: string;
+  // For the row's logo (CompanyLogo's inputs): the company, a URL to read its
+  // domain from, and the domain and logo the role's enrichment found, if any.
+  company: string;
+  logoUrl: string;
+  domain: string | null;
+  logo: string | null;
+};
+
+// CompanyLogo's domainFromEnrichment and logoFromEnrichment, readable on the server
+// (that module is a client component).
+function logoOf(raw: string | null): { domain: string | null; logo: string | null } {
+  let e: { companyDomain?: unknown; companyLogo?: unknown } = {};
+  try {
+    e = raw ? (JSON.parse(raw) ?? {}) : {};
+  } catch {}
+  return {
+    domain: typeof e.companyDomain === "string" && e.companyDomain.includes(".") ? e.companyDomain : null,
+    logo: typeof e.companyLogo === "string" && e.companyLogo.startsWith("https://") ? e.companyLogo : null,
+  };
+}
 
 export type CountRow = { key: string; label: string; count: number };
 
@@ -369,6 +394,7 @@ export async function computeInsights(): Promise<Insights> {
         id: true,
         name: true,
         company: true,
+        linkedinUrl: true,
         stage: true,
         stageHistory: true,
         eventList: true,
@@ -567,6 +593,8 @@ export async function computeInsights(): Promise<Insights> {
       upcomingOf(j.application!.interviewList, today).map((iv) => ({
         appId: j.application!.id,
         company: j.company,
+        jobUrl: j.jobUrl,
+        enrichment: j.queueEnrichment,
         label: iv.label ?? "",
         at: iv.at,
         time: iv.time,
@@ -585,6 +613,7 @@ export async function computeInsights(): Promise<Insights> {
         contactId: c.id,
         name: c.name,
         company: c.company,
+        linkedinUrl: c.linkedinUrl,
         label: e.label ?? "",
         at: e.at,
         time: e.time,
@@ -602,6 +631,9 @@ export async function computeInsights(): Promise<Insights> {
       title: iv.company,
       label: iv.label || "Interview",
       at: iv.at,
+      company: iv.company,
+      logoUrl: iv.jobUrl,
+      ...logoOf(iv.enrichment),
       time: iv.time,
     })),
     ...calls.map((c) => ({
@@ -610,12 +642,16 @@ export async function computeInsights(): Promise<Insights> {
       title: c.company ? `${c.name}, ${c.company}` : c.name,
       label: c.label || "Call",
       at: c.at,
+      company: c.company,
+      logoUrl: c.linkedinUrl ?? "",
+      domain: null,
+      logo: null,
       time: c.time,
     })),
   ]
     .sort((a, b) => a.time - b.time)
     .slice(0, 5)
-    .map((item) => ({ kind: item.kind, href: item.href, title: item.title, label: item.label, at: item.at }));
+    .map(({ time, ...item }) => (void time, item));
 
   // Tags are counted per person, so someone tagged "mentor" twice by a stray edit
   // is still one mentor. orderTags lowercases, so "Mentor" and "mentor" are one row.

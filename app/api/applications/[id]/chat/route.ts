@@ -95,6 +95,27 @@ export async function POST(
   let cellLabel = "";
   let cellContent = "";
   let cellGuidance = "";
+
+  // The people you know at this company, for the scopes where they matter (prep,
+  // outreach): who they are, how close, and what you have noted. Outreach used to
+  // assume you knew no one, and prep never heard of the person who referred you.
+  const peopleHere = async (): Promise<string> => {
+    const company = app.job.company.trim();
+    if (!company) return "";
+    const people = await prisma.contact.findMany({
+      where: { company: { equals: company } },
+      select: { name: true, title: true, role: true, warmth: true, stage: true, profileText: true, notes: true },
+      take: 12,
+    });
+    if (!people.length) return "";
+    return `People they know at ${company}:\n${people
+      .map((p) =>
+        `- ${p.name}${p.title || p.role ? `, ${p.title || p.role}` : ""}${p.warmth ? ` (${p.warmth})` : ""}${p.stage ? `, ${p.stage}` : ""}` +
+        (p.profileText ? `\n  ${p.profileText.slice(0, 400)}` : "") +
+        (p.notes ? `\n  Their note: ${p.notes.slice(0, 300)}` : ""),
+      )
+      .join("\n")}`;
+  };
   if (cellKey === "resume") {
     // Against the BASE resume, not the tailored copy. you keeps the real document
     // outside this app and edits it there, so the useful output is "change these
@@ -119,9 +140,9 @@ export async function POST(
       "They will paste the question as the form words it, then brain-dump rough thoughts. Your job is to turn that into an answer in their voice: concrete, specific to this role, no filler, no em-dashes, no AI phrasing. Ask for the word or character limit if they have not said it. Work from what they actually told you rather than inventing achievements.";
   } else if (cellKey === "outreach") {
     cellLabel = "Outreach for this application";
-    cellContent = "";
+    cellContent = await peopleHere();
     cellGuidance =
-      "Help them decide who to reach at this company and what to send. A weak referral still beats a cold application, so the bar for reaching out is lower than it feels. Keep drafts short and forwardable. They will have no contacts at most companies, so say what to search for as well as what to write.";
+      "Help them decide who to reach at this company and what to send. A weak referral still beats a cold application, so the bar for reaching out is lower than it feels. Keep drafts short and forwardable. Start from the people they already know there, if any are listed above; otherwise say what to search for as well as what to write.";
   } else if (cellKey === "portfolio") {
     cellLabel = "Which portfolio work to lead with";
     const projects = await prisma.material.findMany({
@@ -152,9 +173,28 @@ export async function POST(
       "Short, specific, no grovelling and no filler. Say plainly when following up is not worth it yet, and how long to wait.";
   } else if (cellKey === "prep") {
     cellLabel = "Interview prep for this role";
-    cellContent = app.interviewPrep ?? "";
+    // The interviews on file, so "prep me for Thursday" knows what Thursday is.
+    const interviews = (() => {
+      try {
+        const v = JSON.parse(app.interviewList ?? "[]") as { label?: string; at?: string }[];
+        return Array.isArray(v) ? v.filter((iv) => iv.at) : [];
+      } catch {
+        return [];
+      }
+    })();
+    cellContent = [
+      interviews.length
+        ? `Interviews on file:\n${interviews
+            .map((iv) => `- ${new Date(iv.at!).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}${iv.label ? `: ${iv.label}` : ""}${new Date(iv.at!).getTime() < Date.now() ? " (past)" : ""}`)
+            .join("\n")}`
+        : "",
+      await peopleHere(),
+      app.interviewPrep ?? "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
     cellGuidance =
-      "Help them prepare for an actual interview at this company. Practise questions, portfolio framing, what this team will probe on. Use the job description and their own background rather than generic advice.";
+      "Help them prepare for an actual interview at this company. Practise questions, portfolio framing, what this team will probe on. Use the job description, the interview on file (its label often names the round or the interviewer) and their own background rather than generic advice. If they know people there, say what to ask them before the interview. When they ask for a brief, give one they can save as a note: the round, what it tests, 5 to 8 likely questions with the story to answer each from their background, and 3 questions to ask.";
   } else if (cellKey === "coverLetter") {
     cellLabel = "Tailored cover letter";
     cellContent = app.coverLetterContent ?? "";

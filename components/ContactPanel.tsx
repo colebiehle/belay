@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { logDate, calendarDays } from "@/lib/dates";
-import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
@@ -61,6 +61,8 @@ export type PanelContact = {
   relationship: string | null;
   warmth: string | null;
   dateAdded: string;
+  // A background lookup (lib/enrich-contact) is still running for them.
+  enriching?: boolean;
 };
 
 /**
@@ -197,6 +199,23 @@ export function ContactPanel({
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [noteQuery, setNoteQuery] = useState("");
   const [editingTldr, setEditingTldr] = useState(false);
+  // "Look up": the web search from their LinkedIn link, about a minute.
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const lookUp = async () => {
+    setLookingUp(true);
+    setLookupError(null);
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/enrich`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d?.error ?? `Could not look them up (HTTP ${res.status})`);
+      if (d.updates && Object.keys(d.updates).length) onUpdate(contact.id, d.updates);
+    } catch (e) {
+      setLookupError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLookingUp(false);
+    }
+  };
   // The header's facts. They were fixed at creation, so a typo in a name meant
   // deleting the person and losing their notes, history and mutuals with them.
   const [editingHeader, setEditingHeader] = useState(false);
@@ -856,6 +875,31 @@ export function ContactPanel({
               {contact.profileText && <p className="text-body text-fg-2">{contact.profileText}</p>}
               {/* Shown until there is a summary; after that it only appears while
                   editing, as a way to redo it. */}
+              {/* With a profile link and no summary, Belay can find them itself: a web
+                  search from the link (lib/enrich-contact), which also fills an empty
+                  company and swaps the pasted headline for their job title. People
+                  added from the queue are looked up on Add, so this says so while
+                  that is still running. Pasting stays below for when it cannot be sure. */}
+              {!contact.profileText && contact.linkedinUrl && (
+                lookingUp || contact.enriching ? (
+                  <p className="text-meta text-fg-3">Looking them up from their LinkedIn link…</p>
+                ) : (
+                  <div className="space-y-1">
+                    <button
+                      onClick={lookUp}
+                      className={`${button("quiet", "compact")} -ml-2.5`}
+                      title="Search the web from their LinkedIn link for their role, company and a summary"
+                    >
+                      <Search size={14} strokeWidth={1.5} absoluteStrokeWidth /> Look up from LinkedIn
+                    </button>
+                    {lookupError && (
+                      <p className="flex items-center gap-1.5 text-meta text-alarm">
+                        <AlertTriangle size={12} strokeWidth={1.5} absoluteStrokeWidth /> {lookupError}
+                      </p>
+                    )}
+                  </div>
+                )
+              )}
               {(!contact.profileText || editingTldr) && (
                 <PasteAnything
                   endpoint={`/api/contacts/${contact.id}/paste`}

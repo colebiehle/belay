@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logJournal } from "@/lib/journal";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
 import { normalizeLinkedInUrl, personKey } from "@/lib/people-import";
+import { enqueueEnrich } from "@/lib/enrich-contact";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,10 @@ export async function PATCH(req: NextRequest) {
     });
     created.push(contact);
   }
+
+  // The paste gave a headline at most: look each new person up from their profile
+  // link, in the background, to fill the title, company and summary.
+  enqueueEnrich(created.filter((c) => c.linkedinUrl).map((c) => c.id));
 
   if (created.length) {
     // One entry for a bulk add rather than thirty: the journal is read by the brain,
