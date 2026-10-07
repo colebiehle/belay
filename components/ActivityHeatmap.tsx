@@ -157,65 +157,51 @@ function RecapPanel({
   year: number;
   yearTotals: Totals;
 }) {
-  // A small table: one-word labels (the group heading already says roles or
-  // people), then the day and the year in two narrow columns right beside them.
-  // Short labels are what keep the numbers close enough to read across; the long
-  // ones ("Applications submitted") pushed the columns a hundred pixels away.
-  const groups: { title: string; rows: RecapRow[] }[] = [
-    {
-      title: "Roles",
-      rows: [
-        { label: "Triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
-        { label: "Applied", day: day?.applied ?? 0, year: yearTotals.applied },
-        { label: "Interviewed", day: day?.interviewScheduled ?? 0, year: yearTotals.interviewScheduled },
-      ],
-    },
-    {
-      title: "People",
-      rows: [
-        { label: "Identified", day: day?.contactsAdded ?? 0, year: yearTotals.contactsAdded },
-        { label: "Messaged", day: day?.outreachSent ?? 0, year: yearTotals.outreachSent },
-        { label: "Chatted", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
-      ],
-    },
+  // One table: the day and the year are the columns, the counts are the rows, so
+  // each heading appears once. The verbs say which half a row belongs to (you
+  // triage roles, you identify people), so the groups need no headings of their own;
+  // a hairline between the halves keeps them apart.
+  const roles: RecapRow[] = [
+    { label: "Triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
+    { label: "Applied", day: day?.applied ?? 0, year: yearTotals.applied },
+    { label: "Interviewed", day: day?.interviewScheduled ?? 0, year: yearTotals.interviewScheduled },
+  ];
+  const people: RecapRow[] = [
+    { label: "Identified", day: day?.contactsAdded ?? 0, year: yearTotals.contactsAdded },
+    { label: "Messaged", day: day?.outreachSent ?? 0, year: yearTotals.outreachSent },
+    { label: "Chatted", day: day?.coffeeChats ?? 0, year: yearTotals.coffeeChats },
   ];
   // Fixed column widths in tabular figures: hovering changes the day column's
   // numbers and heading, and nothing beside them moves.
-  const cols = "grid grid-cols-[7.5rem_4.5rem_3.5rem] items-baseline";
+  const cols = "grid grid-cols-[6.5rem_4.5rem_3.5rem] items-baseline h-7";
+  const row = (r: RecapRow) => (
+    <div key={r.label} role="row" className={cols}>
+      <span role="rowheader" className="text-body text-fg-2">
+        {r.label}
+      </span>
+      <span role="cell" className={`text-body tabular-nums text-right ${day && r.day > 0 ? "text-fg-1" : "text-fg-3"}`}>
+        {day ? r.day : "–"}
+      </span>
+      <span role="cell" className={`text-body tabular-nums text-right ${r.year > 0 ? "text-fg-1" : "text-fg-3"}`}>
+        {r.year}
+      </span>
+    </div>
+  );
 
   return (
-    <div className="grid gap-x-12 gap-y-4 sm:grid-cols-[auto_auto] sm:justify-start">
-      {groups.map((g) => (
-        <div key={g.title} role="table" aria-label={g.title}>
-          <div role="row" className={`${cols} h-7`}>
-            <span role="columnheader" className="t-group">
-              {g.title}
-            </span>
-            <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums truncate">
-              {dayLabel}
-            </span>
-            <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums">
-              {year}
-            </span>
-          </div>
-          {g.rows.map((r) => (
-            <div key={r.label} role="row" className={`${cols} h-7`}>
-              <span role="rowheader" className="text-body text-fg-2">
-                {r.label}
-              </span>
-              <span
-                role="cell"
-                className={`text-body tabular-nums text-right ${day && r.day > 0 ? "text-fg-1" : "text-fg-3"}`}
-              >
-                {day ? r.day : "–"}
-              </span>
-              <span role="cell" className={`text-body tabular-nums text-right ${r.year > 0 ? "text-fg-1" : "text-fg-3"}`}>
-                {r.year}
-              </span>
-            </div>
-          ))}
-        </div>
-      ))}
+    <div role="table" aria-label="Activity">
+      <div role="row" className={cols}>
+        <span role="columnheader" />
+        <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums truncate">
+          {dayLabel}
+        </span>
+        <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums">
+          {year}
+        </span>
+      </div>
+      {roles.map(row)}
+      <div className="my-1.5 border-t border-line-2" role="presentation" />
+      {people.map(row)}
     </div>
   );
 }
@@ -342,7 +328,12 @@ export function ActivityHeatmap() {
         {/* onMouseLeave lives here, not on each cell. Clearing per cell meant the
             gaps between them reset the recap, so sweeping across a week flickered
             between the hovered day and the resting day on every gap. */}
-        <div onMouseLeave={() => setHoveredDay(null)}>
+        {/* The chart and its table side by side from lg up: the table is narrow
+            (about 14rem), so beside the grid it uses the panel's spare width instead
+            of adding a row under it. Below lg it drops under the grid. The grid
+            measures its own width, so its cells shrink to fit either way. */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div onMouseLeave={() => setHoveredDay(null)} className="min-w-0">
           {/* min-w-0 and overflow clip: nothing in here may widen the page. Bands
               keep each cell at MIN_CELL or more, and a month label is never placed
               where it could overrun the right edge, so the clip is a backstop. */}
@@ -421,9 +412,7 @@ export function ActivityHeatmap() {
           </div>
         </div>
 
-        {/* Day detail below the grid, not beside it. Side by side, the grid got half
-            the width and a year of cells was not readable. */}
-        <div className="border-t border-line-1 pt-4">
+        <div className="border-t border-line-1 pt-4 lg:border-t-0 lg:pt-0 lg:border-l lg:pl-6">
           <RecapPanel
             day={displayDay}
             dayLabel={
@@ -438,6 +427,7 @@ export function ActivityHeatmap() {
             year={shownYear}
             yearTotals={data.yearTotals}
           />
+        </div>
         </div>
       </div>
     </section>
