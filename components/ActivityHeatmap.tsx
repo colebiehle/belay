@@ -159,9 +159,10 @@ function RecapPanel({
 }) {
   // One table: the day and the year are the columns, the counts are the rows, so
   // each heading appears once. The two halves are labelled (v1.6): "Roles" heads the
-  // first column of the header row, beside Today and the year, and "People" is a
-  // label row of its own over the second half, with no second Today or year. The
-  // verbs alone (triage, identify) did not say which rows went together.
+  // first column of the header row, beside Today and the year, and "People" heads
+  // the second half the same way, with the headings repeated (v1.7: the owner
+  // wanted each half readable on its own). The verbs alone (triage, identify) did
+  // not say which rows went together.
   const roles: RecapRow[] = [
     { label: "Triaged", day: day?.jobsReviewed ?? 0, year: yearTotals.jobsReviewed },
     { label: "Applied", day: day?.applied ?? 0, year: yearTotals.applied },
@@ -207,8 +208,14 @@ function RecapPanel({
       </div>
       {roles.map(row)}
       <div role="row" className={`${cols} mt-1.5 border-t border-line-2 pt-1.5 box-content`}>
-        <span role="rowheader" className="t-group col-span-3">
+        <span role="rowheader" className="t-group">
           People
+        </span>
+        <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums truncate">
+          {dayLabel}
+        </span>
+        <span role="columnheader" className="text-meta text-fg-3 text-right tabular-nums">
+          {year}
         </span>
       </div>
       {people.map(row)}
@@ -235,6 +242,22 @@ export function ActivityHeatmap() {
   const [year, setYear] = useState(THIS_YEAR);
   const [data, setData] = useState<ActivityResponse | null>(null);
   const [hoveredDay, setHoveredDay] = useState<DayBucket | null>(null);
+  // Leaving a cell clears the hovered day after a beat, and entering the next cell
+  // cancels it: sweeping across the 2px gaps does not flicker back to today, and
+  // moving off the squares (onto the labels, the key, the empty panel) resets at once.
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enterDay = (b: DayBucket) => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = null;
+    setHoveredDay(b);
+  };
+  const leaveDay = () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => setHoveredDay(null), 60);
+  };
+  useEffect(() => () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+  }, []);
   // The grid's width, so the year can wrap into bands rather than scroll.
   const gridHostRef = useRef<HTMLDivElement>(null);
   const [gridWidth, setGridWidth] = useState(0);
@@ -354,15 +377,16 @@ export function ActivityHeatmap() {
           {yearSelect}
         </div>
 
-        {/* onMouseLeave lives here, not on each cell. Clearing per cell meant the
-            gaps between them reset the recap, so sweeping across a week flickered
-            between the hovered day and the resting day on every gap. */}
-        <div onMouseLeave={() => setHoveredDay(null)} className="min-w-0 lg:col-start-2 lg:row-start-2">
+        {/* Hover is per cell (enterDay / leaveDay): this column stretches to the
+            panel's height, so a leave handler here missed the cursor moving off the
+            squares into the space below them. From lg the squares sit centred in the
+            height the table gives them, rather than leaving a gap at the bottom. */}
+        <div className="min-w-0 lg:col-start-2 lg:row-start-2 lg:flex lg:flex-col lg:justify-center">
           {/* min-w-0 and overflow clip: nothing in here may widen the page. Bands
               keep each cell at MIN_CELL or more, and a month label is never placed
               where it could overrun the right edge, so the clip is a backstop. The
               grid measures its own width, so its cells fit whatever the column is. */}
-          <div ref={gridHostRef} className="min-w-0 overflow-x-clip space-y-3">
+          <div ref={gridHostRef} className="min-w-0 overflow-x-clip space-y-5">
             {bands.map((band, bi) => (
               <div
                 key={bi}
@@ -414,7 +438,8 @@ export function ActivityHeatmap() {
                     return (
                       <div
                         key={`${ci}-${ri}`}
-                        onMouseEnter={() => setHoveredDay(b)}
+                        onMouseEnter={() => enterDay(b)}
+                        onMouseLeave={leaveDay}
                         style={place}
                         className={`aspect-square rounded-[2px] flex items-center justify-center ${intensityClass(weight)} ${ring}`}
                       >

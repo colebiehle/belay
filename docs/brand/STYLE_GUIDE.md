@@ -1,6 +1,6 @@
 # Belay style guide
 
-*Version 1.6, 6 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
+*Version 1.7, 7 October 2026. Supersedes the three proposals in `docs/brand/proposals/`.
 This is the decision. The proposals stay as the record of the argument. Version 1.1
 folds in a design critique of the shipped rebrand; version 1.2 folds in the owner's
 feedback on the queues, lists, panels and add forms; 1.3 the panel's brand line; 1.4
@@ -959,12 +959,16 @@ border, `rounded-card`, rows divided by `line-1`, hover `lift`.
   is the texture behind them, so the table leads; the key moved up beside the year so
   the grid ends the panel cleanly.
 - **Today:** a 1.5px inset `rope` ring. **Selected day:** a 1.5px inset `fg-1` ring.
+- **Hover is per cell** (v1.7): leaving a cell clears the selected day after 60ms, and
+  entering the next cell cancels it, so the 2px gaps never flicker and the table is back
+  on Today as soon as the cursor is off the squares. From lg the squares are centred
+  vertically in the height the table sets, and bands are 20px apart.
 - **The table must not move** as the cursor sweeps the grid. One table: the day and
   the year are the columns, headed in `meta` `fg-3` ("Today", or the hovered date,
   short: "Sep 29"; and the year), and the counts are the rows. **The halves are
   labelled** (v1.6): the header row reads **Roles | Today | 2026**, "Roles" in
   `t-group` over the label column; then Triaged, Applied, Interviewed; a `line-2`
-  rule; a label row **People** in `t-group` alone (no second Today or year); then
+  rule; **People | Today | 2026** the same way (v1.7; v1.6 had People alone); then
   Identified, Messaged, Chatted. Labels in `body` `fg-2`. *Why:* the verbs alone did
   not say which rows went together.
   Fixed column widths (6.5rem, 4.5rem, 3.5rem) and fixed 28px rows (label rows too), numbers in
@@ -1380,3 +1384,11 @@ The owner's decisions, applied as one pass.
 | 8 | "save it today" is rope; the streak stays neutral (2.1, 5.12) | The hint is a next move |
 | 9 | Verdict buttons 72 × 28px, measured, one recipe for both queues (4.4, 5.4) | 88px was wider than any label needs |
 | 10 | A panel's open tab underline takes the brand; near-black and near-white brands are one neutral grey (`fg-3`) everywhere brand colour appears, by an OKLCH threshold (chroma < 0.06 and L < 0.40 or > 0.90) (2.6) | One more tie between tabs and header; lifted black was murky and white was glaring and the weakest wash for text |
+
+## Part 3f. Changes in v1.7 (7 October 2026)
+
+| # | Change | Why |
+|---|---|---|
+| 1 | The People row repeats Today and the year (5.12) | The owner wanted each half of the table readable on its own |
+| 2 | Hover clears per cell after 60ms instead of on leaving the grid's column (5.12) | The column stretches to the panel's height, so moving off the squares downward kept the old day |
+| 3 | The squares sit centred in the right column from lg; bands 20px apart (5.12) | A gap under a one-band year left the panel looking unfilled |
