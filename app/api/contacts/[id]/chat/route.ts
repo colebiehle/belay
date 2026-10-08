@@ -130,11 +130,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let task = "";
   switch (scope) {
     case "connect":
-      task = `Draft a LinkedIn connection note. HARD LIMIT ${CONNECT_NOTE_LIMIT} characters including spaces — count them and say the count. That is about three sentences, so there is room for exactly one specific thing and one small ask, and nothing else.
+      task = `Draft a LinkedIn connection note. It has two jobs, in order: get accepted, then get a reply.
 
-The ask decides whether this works. "Can we chat" converts badly. A narrow, concrete question with a time bound converts far better: name the thing they are actually curious about at their company and ask for fifteen minutes. If they have not said what they are curious about, ask them rather than inventing one.
+Accepted: it must read as one person writing to one person, not outreach. Human, warm, plain, and specific to THEM: something only this person could receive. Anything that could be pasted to the next person on the list reads as spam and gets ignored.
+Replied: it ends on one easy, specific question about their work that they could answer in a line or two from their phone. That question is the call to action and the thread the conversation continues from. Not "can we chat", not a call, never a referral: a big ask in a first note lowers acceptance.
 
-Sending with no note at all sometimes outperforms a weak note. Say so if the material here is too thin to write something specific.`;
+Structure, ${CONNECT_NOTE_LIMIT} characters at most including spaces:
+1. "Hi {first name}," and straight in. No "hope you're well", no "I came across your profile".
+2. Why them, one sentence, the strongest true hook available: shared ground first (CMU or UCSD, a mutual, an event, a shared field), then something specific in their work or path, then the team or role they are pursuing there. Specific beats flattering; never praise a post or project they have not actually seen.
+3. Who they are, half a sentence, only the part that makes sense to this person ("I'm finishing my MHCI at CMU and design AI products").
+4. The question: about the person's own work or experience, easy, a little curious. Make it one they would enjoy answering.
+No sign-off; LinkedIn shows the name.
+
+They may give a line like "goal: … · hook: … · role: …". Use it; fill anything missing from what is known below. If there is no real hook, ask them for one in a single line instead of inventing it.
+
+Give two versions, each with its character count: a warmer, more personal one and a more direct one. Then one line on which you would send and why.`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
@@ -157,7 +167,7 @@ Pick ONE role from the list above and name it, with the link. Six options is not
 Make it easy to say no. One short paragraph, a sentence on why they are a fit for that specific role, and an explicit out. Offer to send anything that makes it easier for them: the resume, a two-line blurb they can paste, the req link. People say yes to referrals when the work is already done for them.`;
       break;
     case "prep":
-      task = `Help they prepare for this conversation. What to ask that they can uniquely answer, what they want out of it, and what not to ask. Keep it to a handful of questions they could hold in their head, not a script.`;
+      task = `Help them prepare for this conversation. What to ask that they can uniquely answer, what they want out of it, and what not to ask. Keep it to a handful of questions they could hold in their head, not a script.`;
       break;
     case "debrief":
       task = `they just had the conversation and will say what happened. Help them pull out what they learned, then get specific about the ask: a referral, an internal flag, an intro to someone else, or nothing. The conversation is not the goal. If the right move is no ask at all, say so.`;
@@ -178,7 +188,7 @@ The person:
 - How they found them: ${contact.introVia ? `through ${contact.introVia}` : "cold, no mutual connection"}
 - Stage: ${contact.stage || "To reach out"}${relationshipLines ? `\n${relationshipLines}` : ""}
 
-${contact.profileText ? `Their profile, as they pasted it:\n${contact.profileText.slice(0, 4000)}\n` : "they have not pasted their profile. You cannot read it yourself. Ask for it if the draft needs something specific about them.\n"}
+${contact.profileText ? `Who this person is (a summary from their profile or a web lookup):\n${contact.profileText.slice(0, 4000)}\n` : "There is no summary of this person yet. You cannot look them up yourself. Ask for one detail if the draft needs something specific about them.\n"}
 ${theirRoles.length > 0 ? `Roles they are tracking at ${contact.company}:\n${theirRoles
     .map((r) => {
       const app = r.application;

@@ -79,7 +79,7 @@ const SCOPES: { key: string | null; label: string; hint: string }[] = [
   {
     key: "connect",
     label: "Drafting a connect note",
-    hint: `LinkedIn caps these at ${CONNECT_NOTE_LIMIT} characters. Say what you are curious about and it will write to that.`,
+    hint: `Personal, specific to them, ending on one easy question. Under ${CONNECT_NOTE_LIMIT} characters. Optional: "goal: … · hook: … · role: …"`,
   },
   {
     key: "followup",
