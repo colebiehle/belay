@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { logJournal } from "@/lib/journal";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
 import { normalizeLinkedInUrl, personKey } from "@/lib/people-import";
-import { enqueueEnrich } from "@/lib/enrich-contact";
+import { enqueueEnrich, resumeCandidateLookups } from "@/lib/enrich-contact";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,8 @@ export const dynamic = "force-dynamic";
  */
 
 export async function GET() {
+  // Anything a restart dropped from the lookup queue goes back in line.
+  void resumeCandidateLookups();
   const pending = await prisma.personCandidate.findMany({
     where: { status: "pending" },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -100,6 +102,8 @@ export async function PATCH(req: NextRequest) {
         stage: DEFAULT_STAGE,
         stageHistory: JSON.stringify([{ stage: DEFAULT_STAGE, at: now.toISOString() }]),
         dateAdded: now,
+        // The card's lookup, if it ran, so they are not looked up twice.
+        profileText: r.summary,
       },
     });
     await prisma.personCandidate.update({
@@ -109,9 +113,10 @@ export async function PATCH(req: NextRequest) {
     created.push(contact);
   }
 
-  // The paste gave a headline at most: look each new person up from their profile
-  // link, in the background, to fill the title, company and summary.
-  enqueueEnrich(created.filter((c) => c.linkedinUrl).map((c) => c.id));
+  // The card's lookup usually ran while it sat in the queue. Anyone it missed is
+  // looked up now, in the background, to fill the title, company and summary.
+  // Only for the ones whose card lookup had not run yet (or found no summary).
+  enqueueEnrich(created.filter((c) => c.linkedinUrl && !c.profileText).map((c) => c.id));
 
   if (created.length) {
     // One entry for a bulk add rather than thirty: the journal is read by the brain,

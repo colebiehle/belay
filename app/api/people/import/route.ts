@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lookupProfile } from "@/lib/linkedin-profile";
+import { resumeCandidateLookups } from "@/lib/enrich-contact";
 import { callClaudeDetailed, extractJson } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
 import { identity } from "@/lib/identity";
@@ -156,7 +157,7 @@ ${text}
     .map((p) => ({
       name: str(p.name)?.replace(/\s*·\s*(1st|2nd|3rd\+?)\s*$/i, "") ?? null,
       title: str(p.title),
-      company: str(p.company),
+      company: companyOf(str(p.company)),
       location: str(p.location),
       linkedinUrl: normalizeLinkedInUrl(str(p.linkedinUrl)),
       fit: fitOf(p.fit),
@@ -198,12 +199,10 @@ ${text}
     });
   }
 
-  // Some headlines name no company ("Designer, building things"), so the card had
-  // none and showed no logo. The profile's public page usually names the current
-  // company, so look those up after the import answers, one at a time and paced,
-  // because LinkedIn blocks bursts. Cards fill in as the queue refreshes.
-  const missing = fresh.filter((p) => !p.company && p.linkedinUrl);
-  if (missing.length) void fillCompanies(batchId, missing.map((p) => p.linkedinUrl!));
+  // Every new card is looked up from its profile link in the background, two at a
+  // time in paste order (lib/enrich-contact): an empty company and a short summary
+  // land on the cards while you triage. The paste answers now, not after.
+  if (fresh.length) void resumeCandidateLookups();
 
   return NextResponse.json({
     found: people.length,
@@ -215,16 +214,21 @@ ${text}
   });
 }
 
-async function fillCompanies(batchId: string, urls: string[]) {
-  for (const url of urls.slice(0, 25)) {
-    const { company } = await lookupProfile(url);
-    if (company) {
-      await prisma.personCandidate
-        .updateMany({ where: { batchId, linkedinUrl: url, company: null }, data: { company } })
-        .catch(() => {});
-    }
-    await new Promise((r) => setTimeout(r, 2500));
-  }
+/**
+ * The extractor sometimes reads a location or a profile tagline into the company:
+ * "Carnegie Mellon University - San Francisco Bay Area", "Pittsburgh, Pennsylvania,
+ * United States | Professional Profile". A trailing " - <place>" is cut; anything
+ * still shaped like a place or a tagline is dropped, and the card's lookup finds
+ * the real one.
+ */
+function companyOf(raw: string | null): string | null {
+  if (!raw) return null;
+  const place = /\b(Area|United States|Metropolitan|Greater)\b|, [A-Z]{2}$/;
+  let c = raw.trim();
+  const dash = c.split(" - ");
+  if (dash.length > 1 && place.test(dash.slice(1).join(" - "))) c = dash[0].trim();
+  if (c.includes("|") || place.test(c)) return null;
+  return c || null;
 }
 
 type Person = { name: string; company: string | null; linkedinUrl: string | null };
@@ -299,5 +303,6 @@ async function addOneProfile(url: string, mutual: string | null, batchNote: stri
       status: "pending",
     },
   });
+  void resumeCandidateLookups();
   return NextResponse.json({ ...base, added: 1, name: made.name, candidateId: made.id, lookedUp: !!found.name });
 }

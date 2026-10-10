@@ -55,6 +55,10 @@ export type Candidate = {
   fit?: number | null;
   fitReason?: string | null;
   decisionNote?: string | null;
+  // The background lookup from the profile link (lib/enrich-contact): a short
+  // summary, and when it ran. Null lookedUpAt with a link means it is still waiting.
+  summary?: string | null;
+  lookedUpAt?: string | null;
   // Client-only: decided this session and not yet filed. The row has left "pending"
   // on the server, so a refetch would drop it; the page's loader keeps these.
   decided?: "add" | "skip";
@@ -159,6 +163,28 @@ export function PeopleQueue({
 }) {
   // --- Add ------------------------------------------------------------------
   const [pasted, setPasted] = useState<Pasted | null>(null);
+
+  // While any card is still waiting for its lookup, check every 8 seconds and fold
+  // in what has landed (company, summary). Merge only: no card is added, removed or
+  // reordered under you, so a card you are deciding stays put.
+  const waiting = candidates.some((c) => !c.decided && c.linkedinUrl && !c.lookedUpAt);
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(async () => {
+      const fresh = (await fetch("/api/people/candidates")
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [])) as Candidate[];
+      const byId = new Map(fresh.map((c) => [c.id, c]));
+      setCandidates((prev) =>
+        prev.map((c) => {
+          const f = byId.get(c.id);
+          if (!f || (f.lookedUpAt === c.lookedUpAt && f.company === c.company && f.summary === c.summary)) return c;
+          return { ...c, company: c.company ?? f.company, summary: f.summary ?? c.summary, lookedUpAt: f.lookedUpAt };
+        }),
+      );
+    }, 8000);
+    return () => clearInterval(t);
+  }, [waiting, setCandidates]);
   const [mutual, setMutual] = useState("");
   const [pickingMutual, setPickingMutual] = useState(false);
   const [batchNote, setBatchNote] = useState("");
@@ -246,28 +272,11 @@ export function PeopleQueue({
         setImportError(data?.error ?? "Could not read that paste. Try again.");
       } else {
         setResult({ ...data, truncated: pasted.text.length > IMPORT_MAX_CHARS });
-        const page = !pasted.profile;
         clearImport();
         await reloadCandidates();
         // The new card is at the top of the list; the sort that puts it there has to
         // be on, or "at the top" is a lie.
         if (data.added) setSort((s) => (s === "oldest" ? "fit" : s));
-        // Companies the paste did not name are looked up in the background, paced,
-        // after the import answers. Fold them in as they land, without disturbing a
-        // card already being decided.
-        if (page) {
-          for (const ms of [20_000, 60_000]) {
-            setTimeout(async () => {
-              const fresh = (await fetch("/api/people/candidates")
-                .then((r) => (r.ok ? r.json() : []))
-                .catch(() => [])) as Candidate[];
-              const company = new Map(fresh.filter((c) => c.company).map((c) => [c.id, c.company]));
-              setCandidates((prev) =>
-                prev.map((c) => (!c.company && company.get(c.id) ? { ...c, company: company.get(c.id)! } : c)),
-              );
-            }, ms);
-          }
-        }
       }
     } catch {
       setImportError("Can't reach Belay on this machine. Is `npm run dev` running?");
@@ -1122,8 +1131,16 @@ function CandidateCard({
       />
     </div>
   ) : (
-    // The fit's reason in the headline's slot: the same line, size and colour.
-    c.fitReason && <p className="mt-2 text-body text-fg-1 line-clamp-2">{c.fitReason}</p>
+    // The reading line: who they are, once the lookup has found it, since that is
+    // what the decision turns on; until then the fit's one line of why (still on the
+    // score's tooltip after). Two lines either way, so the card never changes size.
+    // While the lookup runs, a dim note says more is coming.
+    (c.summary || c.fitReason) && (
+      <p className={`mt-2 text-body line-clamp-2 ${c.summary ? "text-fg-2" : "text-fg-1"}`} title={c.summary ?? undefined}>
+        {c.summary ?? c.fitReason}
+        {!c.summary && c.linkedinUrl && !c.lookedUpAt && <span className="text-meta text-fg-3"> · looking them up</span>}
+      </p>
+    )
   );
 
   // Add is secondary on every card; once the keyboard cursor shows (after J or K),

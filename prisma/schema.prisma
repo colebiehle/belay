@@ -320,6 +320,12 @@ model PersonCandidate {
   // verdict: null on rows imported before ranking existed.
   fit         Int?
   fitReason   String?
+  // The web lookup from the profile link (lib/enrich-contact), run in the background
+  // right after the paste so the card has a summary while you triage. lookedUpAt is
+  // set when it has run, found or not; null means it is still waiting. The summary
+  // becomes the Contact's on Add, so nobody is looked up twice.
+  summary     String?
+  lookedUpAt  DateTime?
   createdAt   DateTime  @default(now())
   decidedAt   DateTime?
 
