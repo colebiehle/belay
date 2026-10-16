@@ -4,6 +4,7 @@ import { logJournal } from "@/lib/journal";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
 import { normalizeLinkedInUrl, personKey } from "@/lib/people-import";
 import { enqueueEnrich, resumeCandidateLookups } from "@/lib/enrich-contact";
+import { mergeIntoContact, parseList } from "@/lib/people-merge";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,13 @@ export async function PATCH(req: NextRequest) {
   const created = [];
   for (const r of rows.filter((x) => x.status === "pending")) {
     const twin = (r.linkedinUrl && byUrl.get(r.linkedinUrl)) || byKey.get(personKey(r.name, r.company ?? ""));
+    // Every mutual and tag the card collected, across pastes.
+    const mutuals = parseList(r.mutuals);
+    if (!mutuals.length && r.mutual) mutuals.push(r.mutual);
+    const tags = parseList(r.tags);
     if (twin) {
+      // Already in the network: what the card knew is merged into them instead.
+      for (const m of mutuals.length ? mutuals : [null]) await mergeIntoContact(twin, m, tags);
       await prisma.personCandidate.update({ where: { id: r.id }, data: { status: "added", decidedAt: now } });
       continue;
     }
@@ -97,8 +104,9 @@ export async function PATCH(req: NextRequest) {
         title: r.title,
         linkedinUrl: r.linkedinUrl,
         howMet: r.batchNote,
-        introVia: r.mutual,
-        introVias: r.mutual ? JSON.stringify([r.mutual]) : null,
+        introVia: mutuals[0] ?? null,
+        introVias: mutuals.length ? JSON.stringify(mutuals) : null,
+        relationship: tags.length ? JSON.stringify(tags) : null,
         stage: DEFAULT_STAGE,
         stageHistory: JSON.stringify([{ stage: DEFAULT_STAGE, at: now.toISOString() }]),
         dateAdded: now,

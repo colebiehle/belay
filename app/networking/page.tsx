@@ -431,6 +431,7 @@ export default function NetworkingPage() {
             contacts={contacts.map((c) => ({ id: c.id, name: c.name, company: c.company }))}
             companies={companies}
             onContactsChanged={load}
+            knownTags={usedTags}
             onContactCreated={(made) => {
               setContacts((prev) => [...prev, made as unknown as Contact]);
               // Open them straight away: the next thing after adding someone is their

@@ -326,6 +326,13 @@ model PersonCandidate {
   // becomes the Contact's on Add, so nobody is looked up twice.
   summary     String?
   lookedUpAt  DateTime?
+  // JSON string[]s. Every mutual and tag this person has arrived with, across
+  // pastes: a second paste of the same person adds to these rather than being
+  // dropped as a duplicate, so overlap shows (two mutuals, a CMU tag and a Figma
+  // tag). `mutual` stays the first mutual, for rows from before. Both become the
+  // Contact's introVias and relationship tags on Add.
+  mutuals     String?
+  tags        String?
   createdAt   DateTime  @default(now())
   decidedAt   DateTime?
 

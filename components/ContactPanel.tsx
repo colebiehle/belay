@@ -12,7 +12,8 @@ import { button, card as cardClass, iconButton, input as field, sectionHead, tag
 import { StageSelect } from "@/components/StageChip";
 import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
-import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, RELATIONSHIP_TAGS, WARMTH_LEVELS, orderTags } from "@/lib/contact-stages";
+import { TagPicker } from "@/components/TagPicker";
+import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, WARMTH_LEVELS } from "@/lib/contact-stages";
 
 /**
  * One person's panel, built the same way as the role panel because outreach turned
@@ -244,13 +245,6 @@ export function ContactPanel({
   const [addingEvent, setAddingEvent] = useState(false);
   const [howMetDraft, setHowMetDraft] = useState(contact.howMet ?? "");
   const [tagsDraft, setTagsDraft] = useState<string[]>(() => parseJson<string[]>(contact.relationship, []));
-  // The inline "+ tag" field, null while closed.
-  const [newTag, setNewTag] = useState<string | null>(null);
-  const addNewTag = () => {
-    const t = (newTag ?? "").trim().toLowerCase().slice(0, 28);
-    if (t) setTagsDraft(orderTags([...tagsDraft, t]));
-    setNewTag(null);
-  };
   const [warmthDraft, setWarmthDraft] = useState<string | null>(contact.warmth);
   const [shown, setShown] = useState(false);
   const [backdropShown, setBackdropShown] = useState(arrivedFromSwitch);
@@ -795,55 +789,7 @@ export function ContactPanel({
                       ))}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {orderTags([...RELATIONSHIP_TAGS, ...knownTags, ...tagsDraft]).map((t) => {
-                      const on = tagsDraft.includes(t);
-                      return (
-                        <button
-                          key={t}
-                          onClick={() =>
-                            setTagsDraft(on ? tagsDraft.filter((x) => x !== t) : orderTags([...tagsDraft, t]))
-                          }
-                          aria-pressed={on}
-                          className={toggle(on)}
-                        >
-                          {t}
-                        </button>
-                      );
-                    })}
-                    {newTag === null ? (
-                      <button
-                        onClick={() => setNewTag("")}
-                        className="inline-flex items-center gap-1 h-6 px-2 rounded-control border border-dashed border-line-2 text-chip t-chip text-fg-3 hover:border-line-3 hover:text-fg-1 transition-colors duration-90"
-                      >
-                        <Plus size={12} strokeWidth={1.5} absoluteStrokeWidth /> tag
-                      </button>
-                    ) : (
-                      <input
-                        value={newTag}
-                        onChange={(e) => setNewTag(e.target.value)}
-                        onKeyDown={(e) => {
-                          // Enter adds the tag rather than saving the form, and Escape
-                          // closes only this field, not the editor or the panel.
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            addNewTag();
-                          }
-                          if (e.key === "Escape") {
-                            e.stopPropagation();
-                            setNewTag(null);
-                          }
-                        }}
-                        onBlur={addNewTag}
-                        autoFocus
-                        maxLength={28}
-                        placeholder="new tag"
-                        aria-label="New tag"
-                        className="text-chip t-chip w-28 h-6 px-2 rounded-control border border-line-input bg-canvas text-fg-1 placeholder:text-fg-3 focus:border-rope"
-                      />
-                    )}
-                  </div>
+                  <TagPicker value={tagsDraft} onChange={setTagsDraft} known={knownTags} />
                   <AutoResizeTextarea
                     value={tldrDraft}
                     onChange={(e) => setTldrDraft(e.target.value)}

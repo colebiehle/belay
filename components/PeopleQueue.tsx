@@ -1,6 +1,7 @@
 "use client";
 
 import { Reveal } from "@/components/Reveal";
+import { TagPicker } from "@/components/TagPicker";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Plus, Search, Users, X } from "lucide-react";
 import { button, cardSub, cardTitle, emptyBox, iconButton, input, kbd, queueCard, textarea, verdictBtn } from "@/lib/ui";
@@ -59,6 +60,9 @@ export type Candidate = {
   // summary, and when it ran. Null lookedUpAt with a link means it is still waiting.
   summary?: string | null;
   lookedUpAt?: string | null;
+  // JSON string[]s: every mutual and tag this person has arrived with, across pastes.
+  mutuals?: string | null;
+  tags?: string | null;
   // Client-only: decided this session and not yet filed. The row has left "pending"
   // on the server, so a refetch would drop it; the page's loader keeps these.
   decided?: "add" | "skip";
@@ -74,6 +78,8 @@ type ImportResult = {
   added: number;
   alreadyInNetwork: number;
   alreadyQueued: number;
+  // Known people this paste added a mutual or a tag to.
+  updated?: number;
   source: string;
   truncated: boolean;
   // The single-link path's answer: who it was, and where they already are.
@@ -139,6 +145,7 @@ export function PeopleQueue({
   onShowAdd,
   onFind,
   paused = false,
+  knownTags = [],
 }: {
   // Whether the Queue tab is showing. The component stays mounted behind the People
   // tab so a slow import keeps running (and its result waits) while you look away.
@@ -158,6 +165,8 @@ export function PeopleQueue({
   onShowAdd: (open: boolean) => void;
   // The empty state's way out: open the Find panel.
   onFind?: () => void;
+  // Tags already on people in the network, offered in the paste's tag picker.
+  knownTags?: string[];
   // A contact panel is open over the page; its keys are its own.
   paused?: boolean;
 }) {
@@ -187,7 +196,9 @@ export function PeopleQueue({
   }, [waiting, setCandidates]);
   const [mutual, setMutual] = useState("");
   const [pickingMutual, setPickingMutual] = useState(false);
-  const [batchNote, setBatchNote] = useState("");
+  // Tags for everyone in this paste. Kept between pastes, since a run of pastes
+  // from one place (CMU alumni at five companies) usually shares them.
+  const [pasteTags, setPasteTags] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -240,7 +251,6 @@ export function PeopleQueue({
     setPasted(null);
     setMutual("");
     setPickingMutual(false);
-    setBatchNote("");
   };
 
   const closeAdd = () => {
@@ -264,7 +274,7 @@ export function PeopleQueue({
         body: JSON.stringify({
           text: pasted.text.slice(0, IMPORT_MAX_CHARS),
           mutual: mutual || null,
-          batchNote: batchNote.trim() || null,
+          tags: pasteTags,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -379,7 +389,7 @@ export function PeopleQueue({
     .filter(
       (c) =>
         (!q ||
-          `${c.name} ${c.company ?? ""} ${c.title ?? ""} ${c.mutual ?? ""} ${c.batchNote ?? ""}`.toLowerCase().includes(q)) &&
+          `${c.name} ${c.company ?? ""} ${c.title ?? ""} ${listOf(c.mutuals).join(" ") || (c.mutual ?? "")} ${listOf(c.tags).join(" ")} ${c.batchNote ?? ""}`.toLowerCase().includes(q)) &&
         (selectedCompanies.size === 0 || (!!c.company && selectedCompanies.has(c.company))),
     )
     .sort((a, b) => {
@@ -474,7 +484,7 @@ export function PeopleQueue({
     if (r.alreadyInNetwork)
       return (
         <>
-          {who} is already in your network.
+          {who} is already in your network{r.updated ? "; added this mutual and tags" : ""}.
           {r.contactId && (
             <button
               onClick={() => onOpenContact(r.contactId!)}
@@ -576,6 +586,14 @@ export function PeopleQueue({
                     </span>
                     {result.alreadyInNetwork > 0 && ` · ${result.alreadyInNetwork} already in your network`}
                     {result.alreadyQueued > 0 && ` · ${result.alreadyQueued} seen before`}
+                    {!!result.updated && (
+                      <>
+                        {" · "}
+                        <span className="text-fg-1">
+                          <span className="tabular-nums">{result.updated}</span> updated with this mutual or tags
+                        </span>
+                      </>
+                    )}
                     {result.truncated && " · only the first part of the page was read"}
                   </>
                 )}
@@ -695,14 +713,17 @@ export function PeopleQueue({
                       </button>
                     )}
                   </div>
-                  <input
-                    value={batchNote}
-                    onChange={(e) => setBatchNote(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && runImport()}
-                    placeholder={pasted.profile ? "Note, e.g. CMU alum" : "Batch note, e.g. Figma · CMU alum"}
-                    maxLength={60}
-                    className={INPUT}
-                  />
+                  {/* Tags for the whole paste: what these people are to you or
+                      where they come from ("cmu", "mhci alum"). Someone already
+                      known gets them added, with the mutual, rather than skipped. */}
+                  <div className="md:col-span-2">
+                    <p className="text-meta text-fg-3 mb-1">Tag everyone in this paste</p>
+                    <TagPicker
+                      value={pasteTags}
+                      onChange={setPasteTags}
+                      known={[...knownTags, ...candidates.flatMap((c) => listOf(c.tags))]}
+                    />
+                  </div>
                 </div>
               )}
             </>
@@ -1104,15 +1125,25 @@ function CandidateCard({
 
   // The meta line, the role card's location-and-pay line: who connects you (the
   // mutuals glyph and their name) and the batch note, which becomes how you met.
-  const meta = (c.batchNote || c.mutual) && (
+  // Every mutual (the first by name, the rest as "+1"), then the tags, then an
+  // older card's batch note. Two mutuals is overlap worth seeing at a glance.
+  const mutuals = listOf(c.mutuals).length ? listOf(c.mutuals) : c.mutual ? [c.mutual] : [];
+  const cardTags = listOf(c.tags);
+  const meta = (mutuals.length > 0 || cardTags.length > 0 || c.batchNote) && (
     <p className="mt-1 text-meta text-fg-3 flex items-center gap-1.5 min-w-0">
-      {c.mutual && (
-        <span className="flex items-center gap-1 shrink-0" title="Your mutual connection. Becomes their first mutual.">
-          <Users size={14} strokeWidth={1.5} absoluteStrokeWidth /> {c.mutual}
+      {mutuals.length > 0 && (
+        <span
+          className="flex items-center gap-1 shrink-0"
+          title={`Mutual${mutuals.length > 1 ? "s" : ""}: ${mutuals.join(", ")}. They become this person's mutuals.`}
+        >
+          <Users size={14} strokeWidth={1.5} absoluteStrokeWidth /> {mutuals[0]}
+          {mutuals.length > 1 && <span className="text-fg-2 tabular-nums">+{mutuals.length - 1}</span>}
         </span>
       )}
-      {c.mutual && c.batchNote && <span className="text-fg-4">·</span>}
-      {c.batchNote && <span className="truncate">{c.batchNote}</span>}
+      {mutuals.length > 0 && (cardTags.length > 0 || c.batchNote) && <span className="text-fg-4">·</span>}
+      {(cardTags.length > 0 || c.batchNote) && (
+        <span className="truncate">{cardTags.length > 0 ? cardTags.join(" · ") : c.batchNote}</span>
+      )}
     </p>
   );
 
@@ -1226,4 +1257,15 @@ function CandidateCard({
       </div>
     </div>
   );
+}
+
+/** A JSON string[] column (mutuals, tags), or nothing. */
+function listOf(json: string | null | undefined): string[] {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }

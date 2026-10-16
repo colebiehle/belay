@@ -13,6 +13,7 @@ import {
   PROFILE_LINK_SOURCE,
 } from "@/lib/people-import";
 import { contextBlock } from "@/lib/foundation";
+import { cleanTags, mergeIntoCandidate, mergeIntoContact } from "@/lib/people-merge";
 import { peopleSignalBlock } from "@/lib/people-signal";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,8 @@ export const maxDuration = 300;
  * Dedupe is here rather than in the prompt, against both tables: anyone already in
  * the network, and anyone ever queued in any status. The second one matters most:
  * a person you skipped must not come back the next time the same page is pasted.
+ * A known person is not re-added, but the paste's mutual and tags are merged into
+ * their record, so someone reached through two people shows both.
  */
 
 type Extracted = {
@@ -83,12 +86,15 @@ export async function POST(req: NextRequest) {
   if (!raw) return NextResponse.json({ error: "Paste a page of people first." }, { status: 400 });
   const text = raw.slice(0, IMPORT_MAX_CHARS);
   const mutual = str(body.mutual);
+  // The paste's tags replace the old free-text batch note, which is still read for
+  // requests that send one.
+  const tags = cleanTags(body.tags);
   const batchNote = str(body.batchNote);
 
   // One profile link on its own is one person, not a page: no extraction call, just
   // the profile's public title for the name and company.
   const lone = loneProfileUrl(raw);
-  if (lone) return addOneProfile(lone, mutual, batchNote);
+  if (lone) return addOneProfile(lone, mutual, tags, batchNote);
 
   // The logged-in user's own card is on every LinkedIn page (the nav's "Me", the
   // left rail's profile card), so name them to the prompt and drop them again below
@@ -174,19 +180,32 @@ ${text}
 
   const { matchContact, matchQueued } = await dedupeIndex();
 
+  // Someone already known is not added again, but what this paste knows about them
+  // is: its mutual and tags are merged into their record (lib/people-merge).
   let alreadyInNetwork = 0;
   let alreadyQueued = 0;
+  const toContacts: string[] = [];
+  const toCards: string[] = [];
   const fresh = people.filter((p) => {
-    if (matchContact(p)) {
+    const known = matchContact(p);
+    if (known) {
       alreadyInNetwork++;
+      toContacts.push(known.id);
       return false;
     }
-    if (matchQueued(p)) {
+    const queued = matchQueued(p);
+    if (queued) {
       alreadyQueued++;
+      toCards.push(queued.id);
       return false;
     }
     return true;
   });
+  let updated = 0;
+  if (mutual || tags.length) {
+    for (const id of toContacts) if (await mergeIntoContact(id, mutual, tags)) updated++;
+    for (const id of toCards) if (await mergeIntoCandidate(id, mutual, tags)) updated++;
+  }
 
   // What the page was, as the batch's heading. The batch note is separate on purpose:
   // it is what Add writes onto each person, and using it as the heading too put the
@@ -195,7 +214,16 @@ ${text}
   const batchId = `b${Date.now().toString(36)}`;
   if (fresh.length) {
     await prisma.personCandidate.createMany({
-      data: fresh.map((p) => ({ ...p, batchNote, mutual, source, batchId, status: "pending" })),
+      data: fresh.map((p) => ({
+        ...p,
+        batchNote,
+        mutual,
+        mutuals: mutual ? JSON.stringify([mutual]) : null,
+        tags: tags.length ? JSON.stringify(tags) : null,
+        source,
+        batchId,
+        status: "pending",
+      })),
     });
   }
 
@@ -209,6 +237,7 @@ ${text}
     added: fresh.length,
     alreadyInNetwork,
     alreadyQueued,
+    updated,
     source,
     truncated: raw.length > IMPORT_MAX_CHARS,
   });
@@ -270,7 +299,7 @@ async function dedupeIndex() {
  * company is left for the card's panel. Deduped like a page, so a link to someone
  * already in the network or already queued creates nothing.
  */
-async function addOneProfile(url: string, mutual: string | null, batchNote: string | null) {
+async function addOneProfile(url: string, mutual: string | null, tags: string[], batchNote: string | null) {
   const found = await lookupProfile(url);
   const name = str(found.name) ?? nameFromProfileUrl(url);
   if (!name) {
@@ -280,16 +309,18 @@ async function addOneProfile(url: string, mutual: string | null, batchNote: stri
     );
   }
   const person = { name, company: str(found.company), linkedinUrl: url };
-  const base = { found: 1, added: 0, alreadyInNetwork: 0, alreadyQueued: 0, source: PROFILE_LINK_SOURCE, truncated: false, single: true };
+  const base = { found: 1, added: 0, alreadyInNetwork: 0, alreadyQueued: 0, updated: 0, source: PROFILE_LINK_SOURCE, truncated: false, single: true };
 
   const { matchContact, matchQueued } = await dedupeIndex();
   const contact = matchContact(person);
   if (contact) {
-    return NextResponse.json({ ...base, alreadyInNetwork: 1, name: contact.name, contactId: contact.id });
+    const updated = (await mergeIntoContact(contact.id, mutual, tags)) ? 1 : 0;
+    return NextResponse.json({ ...base, alreadyInNetwork: 1, updated, name: contact.name, contactId: contact.id });
   }
   const queued = matchQueued(person);
   if (queued) {
-    return NextResponse.json({ ...base, alreadyQueued: 1, name: queued.name, status: queued.status });
+    const updated = (await mergeIntoCandidate(queued.id, mutual, tags)) ? 1 : 0;
+    return NextResponse.json({ ...base, alreadyQueued: 1, updated, name: queued.name, status: queued.status });
   }
 
   const made = await prisma.personCandidate.create({
@@ -298,6 +329,8 @@ async function addOneProfile(url: string, mutual: string | null, batchNote: stri
       title: null,
       batchNote,
       mutual,
+      mutuals: mutual ? JSON.stringify([mutual]) : null,
+      tags: tags.length ? JSON.stringify(tags) : null,
       source: PROFILE_LINK_SOURCE,
       batchId: `b${Date.now().toString(36)}`,
       status: "pending",
