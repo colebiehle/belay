@@ -196,8 +196,7 @@ export function PeopleQueue({
   }, [waiting, setCandidates]);
   const [mutual, setMutual] = useState("");
   const [pickingMutual, setPickingMutual] = useState(false);
-  // Tags for everyone in this paste. Kept between pastes, since a run of pastes
-  // from one place (CMU alumni at five companies) usually shares them.
+  // Tags for everyone in this paste. Cleared with the paste, like the mutual.
   const [pasteTags, setPasteTags] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -251,6 +250,7 @@ export function PeopleQueue({
     setPasted(null);
     setMutual("");
     setPickingMutual(false);
+    setPasteTags([]);
   };
 
   const closeAdd = () => {
