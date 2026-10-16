@@ -1,0 +1,71 @@
+/* Belay's tokens (docs/brand/STYLE_GUIDE.md), in the popup. */
+:root {
+  --canvas: #0d0e10;
+  --surface: #17191c;
+  --raised: #1e2023;
+  --lift: #282a2e;
+  --rope: #f67f3d;
+  --fg-1: #eceef0;
+  --fg-2: #b9bcc1;
+  --fg-3: #90949a;
+  --line: #2f3236;
+  --input: #63666b;
+  --alarm: #f0626e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  width: 320px;
+  padding: 12px;
+  background: var(--surface);
+  color: var(--fg-1);
+  font: 13px/18px system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+header { display: flex; justify-content: space-between; align-items: baseline; }
+.brand { font-weight: 700; letter-spacing: 0.12em; font-size: 11px; }
+.label { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--fg-3); }
+.meta { color: var(--fg-3); font-size: 12px; margin: 0; }
+.hint { margin-top: -6px; }
+.row { display: flex; gap: 4px; }
+input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--canvas);
+  color: var(--fg-1);
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  font: inherit;
+}
+input:focus { outline: none; border-color: var(--rope); box-shadow: inset 0 0 0 1px var(--rope); }
+button { font: inherit; cursor: pointer; }
+.icon {
+  width: 28px; height: 28px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--fg-3); font-size: 16px;
+}
+.icon:hover { background: var(--lift); color: var(--fg-1); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  height: 24px; padding: 0 8px; border-radius: 6px; border: 0;
+  background: transparent; color: var(--fg-3); font-size: 12px;
+}
+.chip:hover { color: var(--fg-1); background: var(--raised); }
+.chip[aria-pressed="true"] { background: var(--lift); color: var(--fg-1); }
+.chip.new { border: 1px dashed var(--line); }
+.chip-input { width: 110px; height: 24px; font-size: 12px; flex: none; }
+.primary {
+  height: 32px; border: 0; border-radius: 6px;
+  background: var(--rope); color: #111; font-weight: 600;
+}
+.primary:disabled { background: var(--lift); color: var(--fg-3); cursor: default; }
+.warn { margin: 6px 0 0; color: var(--alarm); font-size: 12px; }
+kbd { font: 11px ui-monospace, monospace; color: var(--fg-2); }
+ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--fg-2); }
+li .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li .s { color: var(--fg-3); white-space: nowrap; }
+li .s.fail { color: var(--alarm); }

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Send to Belay",
+  "version": "1.0.0",
+  "description": "Send the LinkedIn page you are on to Belay's People queue, with a mutual and tags.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:3001/*", "https://www.linkedin.com/*"],
+  "action": { "default_popup": "popup.html", "default_title": "Send to Belay" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "commands": {
+    "send-page": {
+      "suggested_key": { "default": "Alt+Shift+B", "mac": "Alt+Shift+B" },
+      "description": "Send this page to Belay with the current mutual and tags"
+    }
+  }
+}

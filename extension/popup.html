@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="brand">BELAY</span>
+      <span id="conn" class="meta"></span>
+    </header>
+
+    <section>
+      <label for="mutual" class="label">Mutual</label>
+      <div class="row">
+        <input id="mutual" list="people" placeholder="Whose connections are these?" autocomplete="off" />
+        <button id="clear-mutual" class="icon" title="No mutual" aria-label="Clear mutual">×</button>
+      </div>
+      <datalist id="people"></datalist>
+      <p id="warn" class="warn" hidden></p>
+    </section>
+
+    <section>
+      <p class="label">Tags</p>
+      <div id="tags" class="chips"></div>
+    </section>
+
+    <button id="send" class="primary">Send this page</button>
+    <p class="meta hint">Stays set until you change it · <kbd>⌥⇧B</kbd> sends without opening this</p>
+
+    <section>
+      <p class="label">Backlog</p>
+      <ul id="jobs"></ul>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

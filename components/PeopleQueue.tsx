@@ -177,6 +177,34 @@ export function PeopleQueue({
   // in what has landed (company, summary). Merge only: no card is added, removed or
   // reordered under you, so a card you are deciding stays put.
   const waiting = candidates.some((c) => !c.decided && c.linkedinUrl && !c.lookedUpAt);
+
+  // Pages sent from the browser extension (extension/, lib/capture-queue): how many
+  // are still being read, and a reload of the cards each time one finishes, so the
+  // queue grows while you keep browsing.
+  const [backlog, setBacklog] = useState(0);
+  const finished = useRef<number | null>(null);
+  // The page passes a new reload function every render; read the latest through a
+  // ref so the poll is not torn down and restarted on each one.
+  const reload = useRef(reloadCandidates);
+  useEffect(() => {
+    reload.current = reloadCandidates;
+  });
+  useEffect(() => {
+    if (!active) return;
+    const check = async () => {
+      const d = (await fetch("/api/people/capture")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)) as { jobs: { status: string }[] } | null;
+      if (!d) return;
+      setBacklog(d.jobs.filter((j) => j.status === "waiting" || j.status === "reading").length);
+      const done = d.jobs.filter((j) => j.status === "done").length;
+      if (finished.current !== null && done !== finished.current) void reload.current();
+      finished.current = done;
+    };
+    void check();
+    const t = setInterval(check, 4000);
+    return () => clearInterval(t);
+  }, [active]);
   useEffect(() => {
     if (!waiting) return;
     const t = setInterval(async () => {
@@ -730,6 +758,13 @@ export function PeopleQueue({
           )}
         </FormFrame>
       </Reveal>
+
+      {backlog > 0 && (
+        <p className="text-meta text-fg-3" aria-live="polite">
+          Reading <span className="text-fg-1 tabular-nums">{backlog}</span> page{backlog === 1 ? "" : "s"} sent from
+          the extension. Cards appear as each one finishes.
+        </p>
+      )}
 
       {/* Filter + sort, the job queue's row: search and sort, then company chips. */}
       {candidates.length > 0 && (
