@@ -150,12 +150,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. Phrasing they like, to write in (cues for the voice, not fixed lines): "I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI", "teach interaction design, where AI is in every student project", "I'm hoping to design AI products", "Would love to hear…".
+The voice is theirs: friendly, casual, warm, short, never a pitch or a template. Their own structure, which they like for being simple; follow it and keep notes this short when nothing more is needed:
+"Hey {first name}! I'm a recent MHCI grad, now teaching interaction design with AI tools at CMU. Would love to hear your take on AI in design, in your role {specific detail: what they do and where}."
 
-The structure, shown in their voice (models, not templates; the person-specific parts change every time):
-- With a mutual: "Hey Jeel! We're both connected with Nicole Willis. I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and teach interaction design, where AI is in every student project. Saw you went from wearables to leading design at Nvidia. Would love to hear if AI has changed how your team designs, or mostly the tools!"
-- An MHCI alum: "Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished MHCI too and now teach interaction design at CMU, where AI is in every student project. I'm hoping to design AI products and saw you lead onboarding design at Figma. Would love to hear if AI has changed how your team designs, or mostly the tools!"
-- No shared tie: "Hey Jeel! Your jump from wearables to leading design at Nvidia caught my eye. I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and teach interaction design, where AI is in every student project. I'm hoping to design AI products, so I'd love to hear if AI has changed how your team designs!"
+Filled in: "Hey Priya! I'm a recent MHCI grad, now teaching interaction design with AI tools at CMU. Would love to hear your take on AI in design, in your role leading onboarding design at Figma." (184)
+Optional, when there is room and it helps:
+- A mutual, after the line about them: "…at CMU, and we're both connected with Nicole Willis."
+- A narrower question: "…especially whether it's changed how your team works or mostly the tools."
+- A detail past their title: "…from your role leading design at Nvidia, after your path through wearables."
+For someone AI is the wrong topic for (a recruiter, someone outside product work), keep the first line and swap the ask for another angle below.
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
