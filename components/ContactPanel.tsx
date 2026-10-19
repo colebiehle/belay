@@ -80,7 +80,7 @@ const SCOPES: { key: string | null; label: string; hint: string }[] = [
   {
     key: "connect",
     label: "Drafting a connect note",
-    hint: `Personal, specific to them, ending on one easy question. Under ${CONNECT_NOTE_LIMIT} characters. Optional: "goal: … · hook: … · role: …"`,
+    hint: `Your template, with an ending written for this person. Under ${CONNECT_NOTE_LIMIT} characters.`,
   },
   {
     key: "followup",

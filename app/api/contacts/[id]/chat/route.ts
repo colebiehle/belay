@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { understandingBlock, contextBlock, FOUNDATION_KINDS } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
-import { identity, identityLine } from "@/lib/identity";
+import { identityLine } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -127,72 +127,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .filter(Boolean)
     .join("\n");
 
-  const me = await identity();
-  // The last few connect drafts written for other people, so a run of notes does
-  // not open the same way every time: sameness is what makes a note read as a template.
-  const recentNotes =
-    scope === "connect"
-      ? (
-          await prisma.chatMessage.findMany({
-            where: { cellKey: "connect", role: "assistant", contactId: { not: id } },
-            orderBy: { createdAt: "desc" },
-            take: 4,
-            select: { content: true },
-          })
-        )
-          .map((m) => m.content.replace(/\s+/g, " ").slice(0, 500))
-          .join("\n---\n")
-      : "";
   let task = "";
   switch (scope) {
     case "connect":
-      task = `Draft a LinkedIn connection note, ${CONNECT_NOTE_LIMIT} characters at most including spaces (aim for 200 to 280). Its jobs, in order: get accepted, then get a reply.
+      // The owner's own note, settled over a long back-and-forth (Oct 2026). The
+      // fixed part is theirs word for word; only the ending is written per person.
+      task = `Draft a LinkedIn connection note from their template. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
 
-Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
+The template, word for word. Only {first name} and {ending} change:
+"Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU in this AI era (exciting time). As I explore industry roles, I would love to connect and learn how AI is actually showing up in your work as {ending}!"
 
-The voice is theirs: relatable and conversational, like talking to someone, not writing. Plain everyday words ("it's been interesting", "pretty much changed how we all work", "how it's changed things for you"), never polished or buzzwordy ("in the age of AI", "leverage", "landscape", "excited to"). Never a pitch or a template. Their structure, in this order:
-1. Say hi: "Hey {first name}!"
-2. A quick attention grabber, the strongest true tie: "I'm a recent CMU MHCI grad" (for anyone), a mutual ("We're both connected with Nicole Willis"), a shared past employer, UCSD for UCSD alumni. Not "Fellow X here" or "X grad here".
-3. Context, said casually: they are teaching design at CMU right now, and it has been interesting with how much AI has changed the way everyone works.
-4. Interest in how AI has changed things for this person, tied to their role, team or company.
-5. That they are starting to look at industry roles, as the reason for reaching out now.
+{ending} is the personal part, and the note stands or falls on it. Always their current role and company; then, when anything beyond the title is known from what is below (their path, a project, their team, a talk), fold it in. Write it as a natural phrase, e.g.:
+- "someone who went from research into design on Figma's onboarding team"
+- "a designer on Google Health's UX team"
+- "a PM on Figma's AI team"
+Never invent a detail. When only their title and company are known, say so in one line under the drafts, so they can add something before sending.
 
-The vibe, in a note they wrote (a model for the tone and shape, not a template; the person-specific part changes every time):
-"Hey Priya! I'm a recent CMU MHCI grad and currently teaching design at CMU. It's been really interesting to see how AI has changed how we think about design. I'd love to hear how you're using it on the onboarding team at Figma, as I look at industry roles and teach rising designers!" (283)
-With a mutual, it goes right after the greeting: "Hey Jeel! We're both connected with Nicole Willis. I'm a recent CMU MHCI grad…", trimming elsewhere to stay under the limit.
-Point 5 can carry both reasons, as theirs does: their own move into industry and teaching rising designers. Both are true.
-For someone AI is the wrong topic for (a recruiter, someone outside product work), keep 1, 2, 3 and 5, and swap 4 for another angle below.
+Engineers: use "…learn how AI is changing the way you work with designers as {ending}!" instead, so the reason a designer is writing to them is clear.
 
-EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
-- "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
-- The relation: the shared program, school, mutual, field or community. This is the rapport.
-- One specific, true detail about this person, said as genuine recognition. Never praise something they have not actually seen; no generic praise ("impressive", "inspiring").
-- A light, specific, easy ask to connect and chat, about their advice or their story. Not "pick your brain", not a call, never a referral.
-- Honesty: never imply the outreach is only for students or research when they are also job hunting. Where the angle leans on teaching, a light "and for my own next step" keeps it straight.
-No sign-off; LinkedIn shows the name.
+Recruiters and talent people (in-house, hiring for design), a different note:
+"Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU, and I'm exploring product design roles, especially in AI tools. I saw you recruit for design at {company} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!"
 
-Then ONE angle, the one that fits this person best:
-- AI in practice (the default, and the conversation they genuinely want): they are a recent MHCI grad teaching interaction design in this age of AI, they want to design AI products in industry, and they want this person's take on AI and how it shows up in their design work, both the AI in what their team builds and the AI in how they work. Timely, and an opinion is easy to give. For designers, researchers, PMs and engineers at product companies. Tie it to this person's team, product or work ("saw you lead design on Nvidia's gaming platform"), never a generic "thoughts on AI".
-- Path: they are a few years ahead on the same road (MHCI or CMU into design or research at a company like the ones they want). Ask what they would do differently, or how they made a specific jump. Strong for alumni.
-- Teaching: they teach interaction design at CMU and want industry perspective in general to bring to their students (and to their own next step), when AI is not the right topic for this person.
-- Hiring bar: for managers, leads and recruiters. Their students (and they) are entering the market: what do they look for in junior designers right now?
-- Their work: when a specific launch, talk, post or project of theirs is known from the summary or notes. One question about one decision in it.
-- Congratulations: when a recent new role, promotion or launch is known. Lead with it.
-And, only when true and it fits, ONE offer: a guest critique in their CMU interaction design class (senior designers, mentors, people who speak or teach); their UI for AI work on AI interaction patterns (people working on AI products); pointing strong MHCI students their way (people who hire). Most notes will have no room for one; never force it.
+Do not mention a mutual; LinkedIn shows it. The one exception: when their notes say the mutual suggested reaching out, start with "{mutual} suggested I reach out!" after the greeting.
 
-Craft that raises replies:
-- Front-load the tie. The invitation preview shows only the first few words, so what you share comes right after the greeting, said plainly, never "Fellow X here":
-  - Same program: "I just finished MHCI too" (MHCI alumni), "a CMU grad too" (CMU outside MHCI), "a UCSD cog sci alum too" (UCSD).
-  - A mutual, when there is one: "We're both connected with Nicole Willis". Only say they introduced you, or that you know the mutual well, when that is true.
-  - A shared past employer or field: "We both worked at Mindswarms".
-  - No shared tie: lead with them instead, the specific detail first ("Your path from research into onboarding design at Figma caught my eye"), then who you are.
-- The question is narrow and answerable in a line or two, ideally a this-or-that or a "which" ("has AI changed how your team designs, or mostly the tools?", "which AI tools have actually stuck on your team?"), not a broad "your take on AI".
-- The detail goes past their job title when anything more is known (their path, a project, a talk); a title alone is something anyone could see.
-- No stock phrases: "in the age of AI", "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
+Over the limit? Cut in this order until it fits: "currently ", then " (exciting time)", then the extra detail in {ending} (keep role and company).
 
-Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reads like a copy of the recent notes listed below (their voice cues can recur; the sentences around them should not all be identical). If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+Before answering, check each draft: it is under the limit; the ending is true and specific to this person; nothing else in the template has been reworded.
 
-Give two versions with different angles, each labelled with its angle and its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.${recentNotes ? `\n\nRecent notes they drafted for other people (vary from these):\n${recentNotes}` : ""}`;
+Give two drafts with different endings, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
