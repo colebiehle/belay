@@ -162,8 +162,9 @@ EVERY note has, woven together lightly (they share sentences; there is no room f
 No sign-off; LinkedIn shows the name.
 
 Then ONE angle, the one that fits this person best:
-- Path: they are a few years ahead on the same road (MHCI or CMU into design or research at a company like the ones they want). Ask what they would do differently, or how they made a specific jump. The default for alumni.
-- Teaching: they teach interaction design at CMU and want industry perspective to bring to their students (and to their own next step). Good for practitioners whose path is less like theirs.
+- AI in practice: they teach AI for design at CMU (their students use AI tools to ideate, prototype and design) and want to hear how AI actually shows up in this person's day-to-day design work, for their students and for their own move into industry. Timely, and an opinion is easy to give. The default for designers, researchers, PMs and engineers at product companies; tie the question to this person's team or product ("how your team at Nvidia is using AI in the design process"), never a generic "thoughts on AI".
+- Path: they are a few years ahead on the same road (MHCI or CMU into design or research at a company like the ones they want). Ask what they would do differently, or how they made a specific jump. Strong for alumni.
+- Teaching: they teach interaction design at CMU and want industry perspective in general to bring to their students (and to their own next step), when AI is not the right topic for this person.
 - Hiring bar: for managers, leads and recruiters. Their students (and they) are entering the market: what do they look for in junior designers right now?
 - Their work: when a specific launch, talk, post or project of theirs is known from the summary or notes. One question about one decision in it.
 - Congratulations: when a recent new role, promotion or launch is known. Lead with it.
