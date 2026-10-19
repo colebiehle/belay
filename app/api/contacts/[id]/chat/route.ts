@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { understandingBlock, contextBlock, FOUNDATION_KINDS } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
-import { identityLine } from "@/lib/identity";
+import { identity, identityLine } from "@/lib/identity";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -127,24 +127,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .filter(Boolean)
     .join("\n");
 
+  const me = await identity();
   let task = "";
   switch (scope) {
     case "connect":
       task = `Draft a LinkedIn connection note. It has two jobs, in order: get accepted, then get a reply.
 
-Accepted: it must read as one person writing to one person, not outreach. Human, warm, plain, and specific to THEM: something only this person could receive. Anything that could be pasted to the next person on the list reads as spam and gets ignored.
-Replied: it ends on one easy, specific question about their work that they could answer in a line or two from their phone. That question is the call to action and the thread the conversation continues from. Not "can we chat", not a call, never a referral: a big ask in a first note lowers acceptance.
+The voice is theirs: friendly, casual, warm, like a message to a fellow alum, not outreach. It must never read as a template. Something only this person could receive, because a note that could go to the next person on the list reads as spam.
 
-Structure, ${CONNECT_NOTE_LIMIT} characters at most including spaces:
-1. "Hi {first name}," and straight in. No "hope you're well", no "I came across your profile".
-2. Why them, one sentence, the strongest true hook available: shared ground first (CMU or UCSD, a mutual, an event, a shared field), then something specific in their work or path, then the team or role they are pursuing there. Specific beats flattering; never praise a post or project they have not actually seen.
-3. Who they are, half a sentence, only the part that makes sense to this person ("I'm finishing my MHCI at CMU and design AI products").
-4. The question: about the person's own work or experience, easy, a little curious. Make it one they would enjoy answering.
-No sign-off; LinkedIn shows the name.
+The shape they like, as a model for tone and length, not a template to copy:
+"Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, a recent CMU MHCI grad now teaching interaction design at CMU. Saw you went from MHCI to leading onboarding design at Figma, which is close to the work I want to do. Would love to connect and hear how you made that jump!"
 
-They may give a line like "goal: … · hook: … · role: …". Use it; fill anything missing from what is known below. If there is no real hook, ask them for one in a single line instead of inventing it.
+1. "Hey {first name}!" then who they are in a few casual words, picking the part of their background that connects to THIS person (the MHCI program, teaching interaction design at CMU, the kind of design work they do).
+2. One specific, true detail about this person: their path, their team, a project or talk, the shared program or a mutual. The strongest one available. Never praise something they have not actually seen.
+3. A light, specific ask to connect and chat or hear about something particular to this person's path ("how you made that jump", "what the team is like", "what you wish you'd known going from MHCI to X"). Not "pick your brain", not a referral.
+No sign-off; LinkedIn shows the name. ${CONNECT_NOTE_LIMIT} characters at most including spaces; aim for 200 to 260.
 
-Give two versions, each with its character count: a warmer, more personal one and a more direct one. Then one line on which you would send and why.`;
+Vary the wording from note to note: the opener after "Hey {name}!", the verbs, and the ask. If there is no real hook, ask them for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+
+Give two versions, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
