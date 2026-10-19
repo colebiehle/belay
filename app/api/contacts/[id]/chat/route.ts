@@ -151,7 +151,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
 The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. The tone and length they like, as a model, not a template to copy:
-"Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, a recent CMU MHCI grad now teaching interaction design at CMU. Saw you went from MHCI to leading onboarding design at Figma, which is close to the work I want to do. Would love to connect and hear how you made that jump!"
+"Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products in industry, and saw you lead onboarding design at Figma. Would love to hear your take on AI and how it's showing up in your design work!"
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
@@ -162,7 +162,7 @@ EVERY note has, woven together lightly (they share sentences; there is no room f
 No sign-off; LinkedIn shows the name.
 
 Then ONE angle, the one that fits this person best:
-- AI in practice: they teach AI for design at CMU (their students use AI tools to ideate, prototype and design) and want to hear how AI actually shows up in this person's day-to-day design work, for their students and for their own move into industry. Timely, and an opinion is easy to give. The default for designers, researchers, PMs and engineers at product companies; tie the question to this person's team or product ("how your team at Nvidia is using AI in the design process"), never a generic "thoughts on AI".
+- AI in practice (the default, and the conversation they genuinely want): they are a recent MHCI grad teaching interaction design in this age of AI, they want to design AI products in industry, and they want this person's take on AI and how it shows up in their design work, both the AI in what their team builds and the AI in how they work. Timely, and an opinion is easy to give. For designers, researchers, PMs and engineers at product companies. Tie it to this person's team, product or work ("saw you lead design on Nvidia's gaming platform"), never a generic "thoughts on AI".
 - Path: they are a few years ahead on the same road (MHCI or CMU into design or research at a company like the ones they want). Ask what they would do differently, or how they made a specific jump. Strong for alumni.
 - Teaching: they teach interaction design at CMU and want industry perspective in general to bring to their students (and to their own next step), when AI is not the right topic for this person.
 - Hiring bar: for managers, leads and recruiters. Their students (and they) are entering the market: what do they look for in junior designers right now?
