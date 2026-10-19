@@ -151,7 +151,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
 The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. The tone and length they like, as a model, not a template to copy:
-"Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products in industry, and saw you lead onboarding design at Figma. Would love to hear your take on AI and how it's showing up in your design work!"
+"Hey Priya! Fellow MHCI here. I teach interaction design at CMU now, and AI is in every student project. I'm hoping to design AI products next. Curious: has AI changed how your onboarding team at Figma designs, or mostly just the tools?"
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
@@ -169,6 +169,12 @@ Then ONE angle, the one that fits this person best:
 - Their work: when a specific launch, talk, post or project of theirs is known from the summary or notes. One question about one decision in it.
 - Congratulations: when a recent new role, promotion or launch is known. Lead with it.
 And, only when true and it fits, ONE offer: a guest critique in their CMU interaction design class (senior designers, mentors, people who speak or teach); their UI for AI work on AI interaction patterns (people working on AI products); pointing strong MHCI students their way (people who hire). Most notes will have no room for one; never force it.
+
+Craft that raises replies:
+- Front-load the tie. The invitation preview shows only the first few words, so the shared thing ("Fellow MHCI here", "Nicole Willis's friend here", "Fellow CMU designer") comes right after the greeting.
+- The question is narrow and answerable in a line or two, ideally a this-or-that or a "which" ("has AI changed how your team designs, or mostly the tools?", "which AI tools have actually stuck on your team?"), not a broad "your take on AI".
+- The detail goes past their job title when anything more is known (their path, a project, a talk); a title alone is something anyone could see.
+- No stock phrases: "in this age of AI", "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
 
 Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reuses the openers or phrasing of the recent notes listed below. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
 
