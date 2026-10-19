@@ -131,19 +131,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let task = "";
   switch (scope) {
     case "connect":
-      task = `Draft a LinkedIn connection note. It has two jobs, in order: get accepted, then get a reply.
+      task = `Draft a LinkedIn connection note, ${CONNECT_NOTE_LIMIT} characters at most including spaces (aim for 200 to 280). Its jobs, in order: get accepted, then get a reply.
 
-The voice is theirs: friendly, casual, warm, like a message to a fellow alum, not outreach. It must never read as a template. Something only this person could receive, because a note that could go to the next person on the list reads as spam.
+Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The shape they like, as a model for tone and length, not a template to copy:
+The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. The tone and length they like, as a model, not a template to copy:
 "Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, a recent CMU MHCI grad now teaching interaction design at CMU. Saw you went from MHCI to leading onboarding design at Figma, which is close to the work I want to do. Would love to connect and hear how you made that jump!"
 
-1. "Hey {first name}!" then who they are in a few casual words, picking the part of their background that connects to THIS person (the MHCI program, teaching interaction design at CMU, the kind of design work they do).
-2. One specific, true detail about this person: their path, their team, a project or talk, the shared program or a mutual. The strongest one available. Never praise something they have not actually seen.
-3. A light, specific ask to connect and chat or hear about something particular to this person's path ("how you made that jump", "what the team is like", "what you wish you'd known going from MHCI to X"). Not "pick your brain", not a referral.
-No sign-off; LinkedIn shows the name. ${CONNECT_NOTE_LIMIT} characters at most including spaces; aim for 200 to 260.
+Weave these in, lightly; there is no room for all of them at full length, so let them share sentences:
+1. "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
+2. The relation: the shared program, school, mutual, field or community. This is the rapport.
+3. Why this person: one specific, true detail about their path, team or work, said as genuine recognition. Never praise something they have not actually seen; no generic praise ("impressive", "inspiring").
+4. Why hearing from them matters to them: what they would learn, framed as the other person's advice or story ("how you made that jump", "what you wish you'd known going from MHCI to X").
+5. Value for them, only when it is true and fits this person. For example, as an interaction design instructor at CMU they can invite practitioners to guest-critique student work, which gives designers and design leaders visibility with CMU and MHCI talent. Or news from the current MHCI program for an alum. Never invent an offer, and never force one in: most notes will not have room.
+End on a light, specific ask to connect and chat. Not "pick your brain", not a call, never a referral. No sign-off; LinkedIn shows the name.
 
-Vary the wording from note to note: the opener after "Hey {name}!", the verbs, and the ask. If there is no real hook, ask them for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+Before answering, run a premortem on each draft and rewrite until none of these is true: it could be sent to someone else with the names swapped; it does not say why this person; replying would take real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit. Vary the wording from note to note. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
 
 Give two versions, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
       break;
