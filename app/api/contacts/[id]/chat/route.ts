@@ -150,17 +150,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The voice is theirs: friendly, casual, warm, short, never a pitch or a template. Their structure, in this order:
+The voice is theirs: relatable and conversational, like talking to someone, not writing. Plain everyday words ("it's been interesting", "pretty much changed how we all work", "how it's changed things for you"), never polished or buzzwordy ("in the age of AI", "leverage", "landscape", "excited to"). Never a pitch or a template. Their structure, in this order:
 1. Say hi: "Hey {first name}!"
-2. A quick attention grabber, the strongest true tie: "I'm a recent CMU MHCI grad" (for anyone; strongest with MHCI and CMU people), a mutual ("We're both connected with Nicole Willis"), a shared past employer, UCSD for UCSD alumni.
-3. Context and credibility: they teach interaction design at CMU right as AI is changing how everyone designs. Said humanly ("now teaching interaction design at CMU, right as AI is changing how we all design"), never "in the age of AI".
-4. Interest in this person's thoughts on AI in design and how they use it, tied to their role and company, with a detail past their title when one is known.
-5. A light note that they are exploring industry roles ("as I explore industry roles myself"), so a later conversation about roles or referrals is no surprise.
+2. A quick attention grabber, the strongest true tie: "I'm a recent CMU MHCI grad" (for anyone), a mutual ("We're both connected with Nicole Willis"), a shared past employer, UCSD for UCSD alumni. Not "Fellow X here" or "X grad here".
+3. Context, said casually: they are teaching design at CMU right now, and it has been interesting with how much AI has changed the way everyone works.
+4. Interest in how AI has changed things for this person, tied to their role, team or company.
+5. That they are starting to look at industry roles, as the reason for reaching out now.
 
-Filled in:
-"Hey Priya! I'm a recent CMU MHCI grad, now teaching interaction design at CMU right as AI is changing how we all design. Would love to hear your thoughts on AI in design and how you're using it in your role leading onboarding design at Figma, as I explore industry roles myself." (278)
-"Hey Jeel! We're both connected with Nicole Willis, and I'm a recent CMU MHCI grad teaching interaction design as AI changes how we all design. Would love to hear your thoughts on AI and how you use it leading design at Nvidia, as I explore industry roles myself." (262)
-For someone AI is the wrong topic for (a recruiter, someone outside product work), keep 1 to 3 and 5, and swap 4 for another angle below.
+The vibe, filled in (models for the tone, not templates):
+"Hey Priya! I'm a recent CMU MHCI grad and I'm teaching design at CMU right now, which has been interesting since AI has pretty much changed how we all work. I'm starting to look at industry roles and would love to hear how AI has changed things for you on the onboarding team at Figma!" (285)
+"Hey Jeel! We're both connected with Nicole Willis. I'm a recent CMU MHCI grad teaching design at CMU right now, and it's been interesting with how much AI has changed the way we work. As I look at industry roles, I'd love to hear how it's changed things for you at Nvidia!" (272)
+For someone AI is the wrong topic for (a recruiter, someone outside product work), keep 1, 2, 3 and 5, and swap 4 for another angle below.
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
