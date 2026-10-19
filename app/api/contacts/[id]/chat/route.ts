@@ -157,9 +157,10 @@ The voice is theirs: relatable and conversational, like talking to someone, not 
 4. Interest in how AI has changed things for this person, tied to their role, team or company.
 5. That they are starting to look at industry roles, as the reason for reaching out now.
 
-The vibe, filled in (models for the tone, not templates):
-"Hey Priya! I'm a recent CMU MHCI grad and I'm teaching design at CMU right now, which has been interesting since AI has pretty much changed how we all work. I'm starting to look at industry roles and would love to hear how AI has changed things for you on the onboarding team at Figma!" (285)
-"Hey Jeel! We're both connected with Nicole Willis. I'm a recent CMU MHCI grad teaching design at CMU right now, and it's been interesting with how much AI has changed the way we work. As I look at industry roles, I'd love to hear how it's changed things for you at Nvidia!" (272)
+The vibe, in a note they wrote (a model for the tone and shape, not a template; the person-specific part changes every time):
+"Hey Priya! I'm a recent CMU MHCI grad and currently teaching design at CMU. It's been really interesting to see how AI has changed how we think about design. I'd love to hear how you're using it on the onboarding team at Figma, as I look at industry roles and teach rising designers!" (283)
+With a mutual, it goes right after the greeting: "Hey Jeel! We're both connected with Nicole Willis. I'm a recent CMU MHCI grad…", trimming elsewhere to stay under the limit.
+Point 5 can carry both reasons, as theirs does: their own move into industry and teaching rising designers. Both are true.
 For someone AI is the wrong topic for (a recruiter, someone outside product work), keep 1, 2, 3 and 5, and swap 4 for another angle below.
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
