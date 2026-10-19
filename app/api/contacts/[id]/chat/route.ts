@@ -150,9 +150,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. This is a note they wrote and like; keep its feel, flow and phrasing ("I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products"), and change the person-specific parts:
-"Hey Jeel! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products, and saw you went from wearables to leading design at Nvidia. Would love to hear if AI has changed how your team designs, or mostly just the tools!"
-With a mutual, the tie goes right after their name ("I'm ${(me.name || "").split(" ")[0] || "[first name]"}, we're both connected with Nicole Willis."), trimming elsewhere to stay under the limit.
+The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. Phrasing they like, to write in (cues for the voice, not fixed lines): "I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI", "teach interaction design, where AI is in every student project", "I'm hoping to design AI products", "Would love to hear…".
+
+The structure, shown in their voice (models, not templates; the person-specific parts change every time):
+- With a mutual: "Hey Jeel! We're both connected with Nicole Willis. I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and teach interaction design, where AI is in every student project. Saw you went from wearables to leading design at Nvidia. Would love to hear if AI has changed how your team designs, or mostly the tools!"
+- An MHCI alum: "Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished MHCI too and now teach interaction design at CMU, where AI is in every student project. I'm hoping to design AI products and saw you lead onboarding design at Figma. Would love to hear if AI has changed how your team designs, or mostly the tools!"
+- No shared tie: "Hey Jeel! Your jump from wearables to leading design at Nvidia caught my eye. I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and teach interaction design, where AI is in every student project. I'm hoping to design AI products, so I'd love to hear if AI has changed how your team designs!"
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
@@ -173,17 +176,17 @@ And, only when true and it fits, ONE offer: a guest critique in their CMU intera
 
 Craft that raises replies:
 - Front-load the tie. The invitation preview shows only the first few words, so what you share comes right after the greeting, said plainly, never "Fellow X here":
-  - Same program: their own line already says it ("I just finished CMU's MHCI"); for UCSD alumni add "a UCSD cog sci alum too".
+  - Same program: "I just finished MHCI too" (MHCI alumni), "a CMU grad too" (CMU outside MHCI), "a UCSD cog sci alum too" (UCSD).
   - A mutual, when there is one: "We're both connected with Nicole Willis". Only say they introduced you, or that you know the mutual well, when that is true.
   - A shared past employer or field: "We both worked at Mindswarms".
   - No shared tie: lead with them instead, the specific detail first ("Your path from research into onboarding design at Figma caught my eye"), then who you are.
 - The question is narrow and answerable in a line or two, ideally a this-or-that or a "which" ("has AI changed how your team designs, or mostly the tools?", "which AI tools have actually stuck on your team?"), not a broad "your take on AI".
 - The detail goes past their job title when anything more is known (their path, a project, a talk); a title alone is something anyone could see.
-- No stock phrases ("in this new age of AI" is theirs and fine): "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
+- No stock phrases: "in this age of AI", "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
 
-Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; its person-specific parts (the detail, the question) echo the recent notes listed below. Their own line about themselves stays the same every time; that is theirs, not repetition. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reads like a copy of the recent notes listed below (their voice cues can recur; the sentences around them should not all be identical). If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
 
-Give two versions with different angles, each labelled with its angle and its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.${recentNotes ? `\n\nRecent notes they drafted for other people (vary the detail and the question from these; keep their own line):\n${recentNotes}` : ""}`;
+Give two versions with different angles, each labelled with its angle and its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.${recentNotes ? `\n\nRecent notes they drafted for other people (vary from these):\n${recentNotes}` : ""}`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
