@@ -150,15 +150,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The voice is theirs: friendly, casual, warm, short, never a pitch or a template. Their own structure, which they like for being simple; follow it and keep notes this short when nothing more is needed:
-"Hey {first name}! I'm a recent MHCI grad, now teaching interaction design with AI tools at CMU. Would love to hear your take on AI in design, in your role {specific detail: what they do and where}."
+The voice is theirs: friendly, casual, warm, short, never a pitch or a template. Their structure, in this order:
+1. Say hi: "Hey {first name}!"
+2. A quick attention grabber, the strongest true tie: "I'm a recent CMU MHCI grad" (for anyone; strongest with MHCI and CMU people), a mutual ("We're both connected with Nicole Willis"), a shared past employer, UCSD for UCSD alumni.
+3. Context and credibility: they teach interaction design in the age of AI at CMU.
+4. Interest in this person's thoughts on AI in design and how they use it, tied to their role and company, with a detail past their title when one is known.
+5. A light note that they are exploring industry roles ("as I explore industry roles myself"), so a later conversation about roles or referrals is no surprise.
 
-Filled in: "Hey Priya! I'm a recent MHCI grad, now teaching interaction design with AI tools at CMU. Would love to hear your take on AI in design, in your role leading onboarding design at Figma." (184)
-Optional, when there is room and it helps:
-- A mutual, after the line about them: "…at CMU, and we're both connected with Nicole Willis."
-- A narrower question: "…especially whether it's changed how your team works or mostly the tools."
-- A detail past their title: "…from your role leading design at Nvidia, after your path through wearables."
-For someone AI is the wrong topic for (a recruiter, someone outside product work), keep the first line and swap the ask for another angle below.
+Filled in:
+"Hey Priya! I'm a recent CMU MHCI grad, now teaching interaction design in the age of AI at CMU. Would love to hear your thoughts on AI in design and how you're using it in your role leading onboarding design at Figma, as I explore industry roles myself." (253)
+"Hey Jeel! We're both connected with Nicole Willis, and I'm a recent CMU MHCI grad now teaching interaction design in the age of AI. Would love to hear your thoughts on AI in design and how you use it leading design at Nvidia, as I explore industry roles myself." (261)
+For someone AI is the wrong topic for (a recruiter, someone outside product work), keep 1 to 3 and 5, and swap 4 for another angle below.
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
@@ -185,7 +187,7 @@ Craft that raises replies:
   - No shared tie: lead with them instead, the specific detail first ("Your path from research into onboarding design at Figma caught my eye"), then who you are.
 - The question is narrow and answerable in a line or two, ideally a this-or-that or a "which" ("has AI changed how your team designs, or mostly the tools?", "which AI tools have actually stuck on your team?"), not a broad "your take on AI".
 - The detail goes past their job title when anything more is known (their path, a project, a talk); a title alone is something anyone could see.
-- No stock phrases: "in this age of AI", "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
+- No stock phrases ("in the age of AI" is theirs and fine): "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
 
 Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reads like a copy of the recent notes listed below (their voice cues can recur; the sentences around them should not all be identical). If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
 
