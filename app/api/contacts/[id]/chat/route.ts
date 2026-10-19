@@ -128,6 +128,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .join("\n");
 
   const me = await identity();
+  // The last few connect drafts written for other people, so a run of notes does
+  // not open the same way every time: sameness is what makes a note read as a template.
+  const recentNotes =
+    scope === "connect"
+      ? (
+          await prisma.chatMessage.findMany({
+            where: { cellKey: "connect", role: "assistant", contactId: { not: id } },
+            orderBy: { createdAt: "desc" },
+            take: 4,
+            select: { content: true },
+          })
+        )
+          .map((m) => m.content.replace(/\s+/g, " ").slice(0, 500))
+          .join("\n---\n")
+      : "";
   let task = "";
   switch (scope) {
     case "connect":
@@ -138,17 +153,25 @@ Write for the person receiving it: a busy professional reading it on their phone
 The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. The tone and length they like, as a model, not a template to copy:
 "Hey Priya! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, a recent CMU MHCI grad now teaching interaction design at CMU. Saw you went from MHCI to leading onboarding design at Figma, which is close to the work I want to do. Would love to connect and hear how you made that jump!"
 
-Weave these in, lightly; there is no room for all of them at full length, so let them share sentences:
-1. "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
-2. The relation: the shared program, school, mutual, field or community. This is the rapport.
-3. Why this person: one specific, true detail about their path, team or work, said as genuine recognition. Never praise something they have not actually seen; no generic praise ("impressive", "inspiring").
-4. Why hearing from them matters to them: what they would learn, framed as the other person's advice or story ("how you made that jump", "what you wish you'd known going from MHCI to X").
-5. Value for them, only when it is true and fits this person. For example, as an interaction design instructor at CMU they can invite practitioners to guest-critique student work, which gives designers and design leaders visibility with CMU and MHCI talent. Or news from the current MHCI program for an alum. Never invent an offer, and never force one in: most notes will not have room.
-End on a light, specific ask to connect and chat. Not "pick your brain", not a call, never a referral. No sign-off; LinkedIn shows the name.
+EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
+- "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
+- The relation: the shared program, school, mutual, field or community. This is the rapport.
+- One specific, true detail about this person, said as genuine recognition. Never praise something they have not actually seen; no generic praise ("impressive", "inspiring").
+- A light, specific, easy ask to connect and chat, about their advice or their story. Not "pick your brain", not a call, never a referral.
+- Honesty: never imply the outreach is only for students or research when they are also job hunting. Where the angle leans on teaching, a light "and for my own next step" keeps it straight.
+No sign-off; LinkedIn shows the name.
 
-Before answering, run a premortem on each draft and rewrite until none of these is true: it could be sent to someone else with the names swapped; it does not say why this person; replying would take real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit. Vary the wording from note to note. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+Then ONE angle, the one that fits this person best:
+- Path: they are a few years ahead on the same road (MHCI or CMU into design or research at a company like the ones they want). Ask what they would do differently, or how they made a specific jump. The default for alumni.
+- Teaching: they teach interaction design at CMU and want industry perspective to bring to their students (and to their own next step). Good for practitioners whose path is less like theirs.
+- Hiring bar: for managers, leads and recruiters. Their students (and they) are entering the market: what do they look for in junior designers right now?
+- Their work: when a specific launch, talk, post or project of theirs is known from the summary or notes. One question about one decision in it.
+- Congratulations: when a recent new role, promotion or launch is known. Lead with it.
+And, only when true and it fits, ONE offer: a guest critique in their CMU interaction design class (senior designers, mentors, people who speak or teach); their UI for AI work on AI interaction patterns (people working on AI products); pointing strong MHCI students their way (people who hire). Most notes will have no room for one; never force it.
 
-Give two versions, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
+Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reuses the openers or phrasing of the recent notes listed below. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
+
+Give two versions with different angles, each labelled with its angle and its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.${recentNotes ? `\n\nRecent notes they drafted for other people (do not repeat their openers or phrasing):\n${recentNotes}` : ""}`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
