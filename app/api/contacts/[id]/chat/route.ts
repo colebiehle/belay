@@ -150,8 +150,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 Write for the person receiving it: a busy professional reading it on their phone between meetings, deciding in two seconds. People reply when a note makes them feel recognised (specifically, not flattered), lets them talk about their own choices and story, asks for their advice rather than their help, reminds them of a community they belong to and pay forward, takes thirty seconds to answer, and, when it is true, offers them something too.
 
-The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. The tone and length they like, as a model, not a template to copy:
-"Hey Priya! I'm a recent MHCI grad, now teaching interaction design at CMU, and AI is in every student project. I'm hoping to design AI products next. Curious: has AI changed how your onboarding team at Figma designs, or mostly just the tools?"
+The voice is theirs: friendly, casual, warm, flowing like a message to a fellow alum, never a pitch or a template. This is a note they wrote and like; keep its feel, flow and phrasing ("I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products"), and change the person-specific parts:
+"Hey Jeel! I'm ${(me.name || "").split(" ")[0] || "[first name]"}, I just finished CMU's MHCI and now teach interaction design in this new age of AI. I'm hoping to design AI products, and saw you went from wearables to leading design at Nvidia. Would love to hear if AI has changed how your team designs, or mostly just the tools!"
+With a mutual, the tie goes right after their name ("I'm ${(me.name || "").split(" ")[0] || "[first name]"}, we're both connected with Nicole Willis."), trimming elsewhere to stay under the limit.
 
 EVERY note has, woven together lightly (they share sentences; there is no room for each at full length):
 - "Hey {first name}!" and who they are in a few casual words, picking the part of their background that connects to THIS person.
@@ -172,13 +173,13 @@ And, only when true and it fits, ONE offer: a guest critique in their CMU intera
 
 Craft that raises replies:
 - Front-load the tie. The invitation preview shows only the first few words, so what you share comes right after the greeting, said plainly, never "Fellow X here":
-  - Same program: "I'm a recent MHCI grad" (for MHCI alumni); a CMU alum outside MHCI: "I'm a recent CMU grad (MHCI)"; UCSD: "I'm a UCSD cog sci alum too".
+  - Same program: their own line already says it ("I just finished CMU's MHCI"); for UCSD alumni add "a UCSD cog sci alum too".
   - A mutual, when there is one: "We're both connected with Nicole Willis". Only say they introduced you, or that you know the mutual well, when that is true.
   - A shared past employer or field: "We both worked at Mindswarms".
   - No shared tie: lead with them instead, the specific detail first ("Your path from research into onboarding design at Figma caught my eye"), then who you are.
 - The question is narrow and answerable in a line or two, ideally a this-or-that or a "which" ("has AI changed how your team designs, or mostly the tools?", "which AI tools have actually stuck on your team?"), not a broad "your take on AI".
 - The detail goes past their job title when anything more is known (their path, a project, a talk); a title alone is something anyone could see.
-- No stock phrases: "in this age of AI", "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
+- No stock phrases ("in this new age of AI" is theirs and fine): "pick your brain", "I'd love to connect" as the whole ask, "passionate". At most one exclamation mark.
 
 Before answering, run a premortem on each draft and rewrite until none of these is true: it could go to someone else with the names swapped; it does not say why this person; replying takes real effort; it is all take; the praise is generic or about something they have not seen; it is stiff, formal or over the limit; it reuses the openers or phrasing of the recent notes listed below. If there is no real hook, ask for one in a single line instead of inventing it. They may give a line like "goal: … · hook: … · role: …"; use it and fill the rest from what is known below.
 
