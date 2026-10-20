@@ -8,17 +8,10 @@ import { stripHtmlKeepLinks } from "@/lib/html";
 /** The most of a paste the extractor reads. Past this the tail is dropped, and the box says so. */
 export const IMPORT_MAX_CHARS = 60_000;
 
-/**
- * Fit thresholds for big pastes (a 2,000-person group). At or below AUTO_SKIP_MAX_FIT
- * a card is set aside as soon as it is read, marked "auto: fit N", and never taught
- * to the fit scoring as a pass. Only cards at LOOKUP_MIN_FIT or above (or unscored)
- * get the web lookup, which is the expensive part. Fit judges field and company,
- * never school.
- */
-// Off (0) until the fit score judges the whole ecosystem (anyone at a target
-// company, any tech role, CMU people), not just product designers: at 3 it set
+// 1-3 now means clearly outside their world (FIT_RUBRIC). It was briefly off while
+// fit still meant "product designer at a target company", when a cutoff at 3 set
 // aside an Apple design producer, a Shopify product lead and an MHCI classmate.
-export const AUTO_SKIP_MAX_FIT = 0;
+export const AUTO_SKIP_MAX_FIT = 3;
 export const LOOKUP_MIN_FIT = 5;
 export const AUTO_SKIP_NOTE = "auto: fit";
 
@@ -32,6 +25,7 @@ export const FIT_RUBRIC = `fit: an integer 1 to 10, how worth this person is to 
   8-10: works at one of the user's target companies in any role (design, product, engineering, research, recruiting, design ops); or a designer, UX researcher or design leader anywhere; or a fellow CMU MHCI student or alum.
   6-7: in tech or a tech-adjacent role (PM, engineer, data, founder, product marketing, design-adjacent fields); CMU or UCSD faculty and staff; HCI and design academics.
   4-5: a loose but real link: a tech-adjacent role at an unrelated company, early-career people still finding their field, consultants who work on digital products. Anyone connected to CMU or UCSD (studied or works there, or listed on a CMU or UCSD community page) is never below 4, however unclear the link.
+  MBA students and graduates from strong programs: at least 5. They often move into product, strategy and founding roles, so their networks are worth building early.
   1-3: clearly outside their world: fields with no path to tech or design, such as law, medicine, dentistry, nursing, finance trading, real estate, K-12 teaching, trades; retired; or no role at all.
   Never lower a score for school prestige, location or seniority. When unsure, score in the middle, not low.
 fitReason: one short line, under 12 words, the fact the score turns on ("PM at a target company", "Dentist, outside tech"). Facts only, no advocacy.`;
