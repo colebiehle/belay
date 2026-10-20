@@ -1,3 +1,4 @@
+import { AUTO_SKIP_NOTE } from "@/lib/people-import";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -33,7 +34,9 @@ export async function peopleSignalBlock(): Promise<string> {
   // twenty bulk skips from one "Skip all" would otherwise push every typed reason out.
   const [reasoned, silent, added] = await Promise.all([
     prisma.personCandidate.findMany({
-      where: { status: "skipped", decisionNote: { not: null } },
+      // Auto-skips ("auto: fit N") are the fit score's own call, not yours: teaching
+      // them back to it would only make it more sure of itself.
+      where: { status: "skipped", decisionNote: { not: null }, NOT: { decisionNote: { startsWith: AUTO_SKIP_NOTE } } },
       select,
       orderBy: { decidedAt: "desc" },
       take: MAX_PASSED,

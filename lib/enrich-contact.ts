@@ -1,3 +1,4 @@
+import { LOOKUP_MIN_FIT } from "@/lib/people-import";
 import { prisma } from "@/lib/prisma";
 import { callClaudeWithToolsDetailed, extractJson } from "@/lib/claude";
 
@@ -188,6 +189,8 @@ async function enrichCandidate(id: string): Promise<void> {
   // Decided while it waited: a passed card needs nothing, and an added one is now a
   // Contact, which the Add queued for its own lookup.
   if (!c?.linkedinUrl || c.status !== "pending" || c.lookedUpAt) return;
+  // Queued before the threshold existed, or re-scored since: not worth the search.
+  if (c.fit !== null && c.fit < LOOKUP_MIN_FIT) return;
   const found = await lookupPerson({ name: c.name, linkedinUrl: c.linkedinUrl, headline: c.title ?? "", company: c.company ?? "" });
   if (!found) return;
   const data: { company?: string; summary?: string } = {};
@@ -205,7 +208,13 @@ async function enrichCandidate(id: string): Promise<void> {
  */
 export async function resumeCandidateLookups(): Promise<void> {
   const rows = await prisma.personCandidate.findMany({
-    where: { status: "pending", lookedUpAt: null, linkedinUrl: { not: null } },
+    // Only cards worth a lookup: fit at the threshold or above, or not scored.
+    where: {
+      status: "pending",
+      lookedUpAt: null,
+      linkedinUrl: { not: null },
+      OR: [{ fit: null }, { fit: { gte: LOOKUP_MIN_FIT } }],
+    },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: { id: true },
   });

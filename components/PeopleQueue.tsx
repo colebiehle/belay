@@ -12,6 +12,7 @@ import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { FormFrame, NoMatch, formLink, openInBackgroundTab } from "@/components/PageChrome";
 import { DEFAULT_STAGE } from "@/lib/contact-stages";
 import {
+  LOOKUP_MIN_FIT,
   compactPaste,
   countProfileLinks,
   IMPORT_MAX_CHARS,
@@ -176,7 +177,9 @@ export function PeopleQueue({
   // While any card is still waiting for its lookup, check every 8 seconds and fold
   // in what has landed (company, summary). Merge only: no card is added, removed or
   // reordered under you, so a card you are deciding stays put.
-  const waiting = candidates.some((c) => !c.decided && c.linkedinUrl && !c.lookedUpAt);
+  const lookupDue = (c: Candidate) =>
+    !c.decided && !!c.linkedinUrl && !c.lookedUpAt && (c.fit == null || c.fit >= LOOKUP_MIN_FIT);
+  const waiting = candidates.some(lookupDue);
 
   // Pages sent from the browser extension (extension/, lib/capture-queue): how many
   // are still being read, and a reload of the cards each time one finishes, so the
@@ -1204,7 +1207,9 @@ function CandidateCard({
     (c.summary || c.fitReason) && (
       <p className={`mt-2 text-body line-clamp-2 ${c.summary ? "text-fg-2" : "text-fg-1"}`} title={c.summary ?? undefined}>
         {c.summary ?? c.fitReason}
-        {!c.summary && c.linkedinUrl && !c.lookedUpAt && <span className="text-meta text-fg-3"> · looking them up</span>}
+        {!c.summary && c.linkedinUrl && !c.lookedUpAt && (c.fit == null || c.fit >= LOOKUP_MIN_FIT) && (
+          <span className="text-meta text-fg-3"> · looking them up</span>
+        )}
       </p>
     )
   );

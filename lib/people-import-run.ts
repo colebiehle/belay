@@ -5,6 +5,8 @@ import { callClaudeDetailed, extractJson } from "@/lib/claude";
 import { prisma } from "@/lib/prisma";
 import { identity } from "@/lib/identity";
 import {
+  AUTO_SKIP_MAX_FIT,
+  AUTO_SKIP_NOTE,
   IMPORT_MAX_CHARS,
   loneProfileUrl,
   nameFromProfileUrl,
@@ -229,6 +231,8 @@ ${text}
       const source = str(parsed.source)?.slice(0, 60) ?? batchNote ?? "Pasted page";
       const batchId = `b${Date.now().toString(36)}`;
       if (fresh.length) {
+        // Low fit is set aside on arrival (status skipped, "auto: fit N"), so a
+        // 2,000-person group does not become 2,000 cards to pass on.
         await prisma.personCandidate.createMany({
           data: fresh.map((p) => ({
             ...p,
@@ -238,7 +242,9 @@ ${text}
             tags: tags.length ? JSON.stringify(tags) : null,
             source,
             batchId,
-            status: "pending",
+            ...(p.fit !== null && p.fit <= AUTO_SKIP_MAX_FIT
+              ? { status: "skipped", decisionNote: `${AUTO_SKIP_NOTE} ${p.fit}`, decidedAt: new Date() }
+              : { status: "pending" }),
           })),
         });
       }

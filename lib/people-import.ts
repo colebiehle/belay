@@ -9,6 +9,17 @@ import { stripHtmlKeepLinks } from "@/lib/html";
 export const IMPORT_MAX_CHARS = 60_000;
 
 /**
+ * Fit thresholds for big pastes (a 2,000-person group). At or below AUTO_SKIP_MAX_FIT
+ * a card is set aside as soon as it is read, marked "auto: fit N", and never taught
+ * to the fit scoring as a pass. Only cards at LOOKUP_MIN_FIT or above (or unscored)
+ * get the web lookup, which is the expensive part. Fit judges field and company,
+ * never school.
+ */
+export const AUTO_SKIP_MAX_FIT = 3;
+export const LOOKUP_MIN_FIT = 5;
+export const AUTO_SKIP_NOTE = "auto: fit";
+
+/**
  * A LinkedIn profile link in the one shape dedupe can compare:
  * https://www.linkedin.com/in/<slug>/, lowercased slug, no query or locale suffix.
  * LinkedIn links the same person as /in/jane-doe, /in/jane-doe/?miniProfileUrn=…,
