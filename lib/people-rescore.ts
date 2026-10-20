@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { callClaudeDetailed, extractJson } from "@/lib/claude";
-import { FIT_RUBRIC } from "@/lib/people-import";
+import { FIT_RUBRIC, withSchoolFloor } from "@/lib/people-import";
 import { targetCompaniesLine } from "@/lib/target-list";
 
 /**
@@ -65,7 +65,8 @@ Return ONLY a JSON array, one entry per person, no preamble:
       let wrote = 0;
       for (const s of scored) {
         if (!s.id || !byId.has(s.id) || typeof s.fit !== "number") continue;
-        const fit = Math.max(1, Math.min(10, Math.round(s.fit)));
+        const c = byId.get(s.id)!;
+        const fit = withSchoolFloor(Math.max(1, Math.min(10, Math.round(s.fit))), c.title, c.company, c.summary) ?? 1;
         await prisma.personCandidate.update({
           where: { id: s.id },
           data: { fit, fitReason: typeof s.fitReason === "string" ? s.fitReason.slice(0, 120) : null },

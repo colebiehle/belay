@@ -25,6 +25,19 @@ export const LOOKUP_MIN_FIT = 7;
 export const AUTO_SKIP_NOTE = "auto: fit";
 
 /**
+ * CMU and UCSD people are kept for a manual look whatever the model made of them
+ * (FIT_RUBRIC), enforced here because a cheap model does not always apply it. By
+ * their own profile, not by the group they were found in: a CMU-named LinkedIn
+ * group also holds attorneys and wealth advisors with no tie to the program.
+ */
+const SCHOOL_TIE = /\b(cmu|carnegie mellon|mhci|hcii?|human[- ]computer interaction|ucsd|uc san diego)\b/i;
+export const SCHOOL_FLOOR = 4;
+export function withSchoolFloor(fit: number | null, ...profile: (string | null | undefined)[]): number | null {
+  if (fit === null) return null;
+  return profile.some((t) => t && SCHOOL_TIE.test(t)) ? Math.max(fit, SCHOOL_FLOOR) : fit;
+}
+
+/**
  * What fit means, shared by the paste import and the re-score. The owner's call
  * (Oct 2026): the network is everyone in their world, not just designers at target
  * companies, and the low end is only for people clearly outside it. CMU and UCSD

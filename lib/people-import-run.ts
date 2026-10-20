@@ -8,6 +8,7 @@ import {
   AUTO_SKIP_MAX_FIT,
   AUTO_SKIP_NOTE,
   FIT_RUBRIC,
+  withSchoolFloor,
   IMPORT_MAX_CHARS,
   loneProfileUrl,
   nameFromProfileUrl,
@@ -185,7 +186,8 @@ ${text}
       company: companyOf(str(p.company)),
       location: str(p.location),
       linkedinUrl: normalizeLinkedInUrl(str(p.linkedinUrl)),
-      fit: fitOf(p.fit),
+      // CMU and UCSD people (by their own headline) never fall below the floor.
+      fit: withSchoolFloor(fitOf(p.fit), str(p.title), str(p.company)),
       fitReason: str(p.fitReason)?.slice(0, 120) ?? null,
     }))
     .filter((p): p is typeof p & { name: string } => !!p.name)
