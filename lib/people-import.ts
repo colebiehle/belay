@@ -8,6 +8,13 @@ import { stripHtmlKeepLinks } from "@/lib/html";
 /** The most of a paste the extractor reads. Past this the tail is dropped, and the box says so. */
 export const IMPORT_MAX_CHARS = 60_000;
 
+/**
+ * Fit thresholds for big pastes (a 2,000-person group). At or below AUTO_SKIP_MAX_FIT
+ * a card is set aside as soon as it is read, marked "auto: fit N", and never taught
+ * to the fit scoring as a pass. Only cards at LOOKUP_MIN_FIT or above (or unscored)
+ * get the web lookup, which is the expensive part. Fit judges field and company,
+ * never school prestige (MBA programs aside, by the owner's choice).
+ */
 // 1-3 now means clearly outside their world (FIT_RUBRIC). It was briefly off while
 // fit still meant "product designer at a target company", when a cutoff at 3 set
 // aside an Apple design producer, a Shopify product lead and an MHCI classmate.
