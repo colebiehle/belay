@@ -34,6 +34,8 @@ export function ListCard({
   flash = false,
   onOpen,
   openTitle,
+  check,
+  footer,
 }: {
   logo: ReactNode;
   name: string;
@@ -45,9 +47,24 @@ export function ListCard({
   flash?: boolean;
   onOpen: () => void;
   openTitle?: string;
+  // A checkbox before the logo, for picking cards to act on together (People →
+  // Network's batch drafting). Above the open button, so ticking does not open it.
+  check?: { checked: boolean; onChange: () => void; label: string };
+  // Actions under the facts, above the open button (the drafted note's Copy,
+  // Open LinkedIn, Mark sent).
+  footer?: ReactNode;
 }) {
   return (
     <div data-list-card className={listCard(selected, flash)} aria-current={selected || undefined}>
+      {check && (
+        <input
+          type="checkbox"
+          checked={check.checked}
+          onChange={check.onChange}
+          aria-label={check.label}
+          className="relative z-[1] mt-3 h-4 w-4 shrink-0 accent-[var(--color-rope)] cursor-pointer"
+        />
+      )}
       {logo}
       <div className="min-w-0 flex-1">
         {/* The name row carries the stage control at its right end, so only the
@@ -98,6 +115,7 @@ export function ListCard({
             ))}
           </div>
         )}
+        {footer && <div className="relative z-[1] mt-2">{footer}</div>}
       </div>
     </div>
   );

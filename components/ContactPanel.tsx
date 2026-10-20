@@ -64,6 +64,10 @@ export type PanelContact = {
   dateAdded: string;
   // A background lookup (lib/enrich-contact) is still running for them.
   enriching?: boolean;
+  // The connection note drafted for them (People → Network, Draft notes), and when
+  // you marked it sent.
+  connectionNote?: string | null;
+  connectionNoteSentAt?: string | null;
 };
 
 /**

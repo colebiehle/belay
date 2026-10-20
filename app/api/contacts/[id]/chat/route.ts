@@ -5,6 +5,7 @@ import { understandingBlock, contextBlock, FOUNDATION_KINDS } from "@/lib/founda
 import { logJournal } from "@/lib/journal";
 import { CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
 import { identityLine } from "@/lib/identity";
+import { buildNote, firstName, openerFor } from "@/lib/connect-template";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -127,6 +128,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .filter(Boolean)
     .join("\n");
 
+  // The opener follows the person's group (lib/connect-template), as batch drafting does.
+  const templateLine = buildNote({
+    firstName: firstName(contact.name),
+    group: openerFor(relTags, `${contact.title ?? ""} ${contact.role ?? ""} ${contact.howMet ?? ""} ${contact.profileText ?? ""}`),
+    kind: "standard",
+    ending: "{ending}",
+  });
   let task = "";
   switch (scope) {
     case "connect":
@@ -134,8 +142,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // fixed part is theirs word for word; only the ending is written per person.
       task = `Draft a LinkedIn connection note from their template. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
 
-The template, word for word. Only {first name} and {ending} change:
-"Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU in this AI era (exciting time). As I explore industry roles, I would love to connect and learn how AI is actually showing up in your work as {ending}!"
+The template for this person (their group decides the opener), word for word. Only {ending} changes:
+"${templateLine}"
 
 {ending} is the personal part, and the note stands or falls on it. Always their current role and company; then, when anything beyond the title is known from what is below (their path, a project, their team, a talk), fold it in. Write it as a natural phrase, e.g.:
 - "someone who went from research into design on Figma's onboarding team"
