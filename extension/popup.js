@@ -149,6 +149,7 @@ $("send").onclick = async () => {
   }, 2500);
 };
 
+$("ver").textContent = `v${chrome.runtime.getManifest().version}`;
 loadBelay();
 loadJobs();
 setInterval(loadJobs, 3000);

@@ -15,9 +15,15 @@ export async function capturePage() {
   // Long lists (group members, connections) keep only the rows near the screen in
   // the page, so capturing at the end gets the last screenful. Each person's row is
   // collected as it goes by instead, keyed by their profile link.
+  // Where the list lives: an open dialog first (some group member lists open as an
+  // overlay outside <main>), else the page's main area, else the whole body.
+  const root = () =>
+    [...document.querySelectorAll('[role="dialog"], .artdeco-modal')].find((d) => d.querySelector('a[href*="/in/"]')) ||
+    document.querySelector("main") ||
+    document.body;
   const rows = new Map();
   const collect = () => {
-    for (const a of document.querySelectorAll('main a[href*="/in/"]')) {
+    for (const a of root().querySelectorAll('a[href*="/in/"]')) {
       const href = (a.getAttribute("href") || "").split("?")[0];
       if (!href || rows.has(href)) continue;
       const row = a.closest("li") || a.parentElement?.parentElement?.parentElement || a;
@@ -28,7 +34,7 @@ export async function capturePage() {
   let lastCount = -1;
   for (let i = 0; i < 200 && still < 4; i++) {
     collect();
-    const more = [...document.querySelectorAll("main button")].find((b) =>
+    const more = [...root().querySelectorAll("button")].find((b) =>
       /^\s*(show more results|show more|load more)\s*$/i.test(b.textContent || ""),
     );
     if (more && !more.disabled) {
@@ -39,15 +45,25 @@ export async function capturePage() {
     }
     // Scroll the last row into view as well as the window: some lists scroll inside
     // their own container, which window.scrollTo never moves.
-    const links = document.querySelectorAll('main a[href*="/in/"]');
-    links[links.length - 1]?.scrollIntoView({ block: "end" });
+    const links = root().querySelectorAll('a[href*="/in/"]');
+    const last = links[links.length - 1];
+    last?.scrollIntoView({ block: "end" });
+    // And the list's own scrolling box to its very bottom: an overlay's list loads
+    // more only when that box, not the window, reaches the end.
+    for (let el = last?.parentElement; el && el !== document.body; el = el.parentElement) {
+      const o = getComputedStyle(el).overflowY;
+      if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) {
+        el.scrollTop = el.scrollHeight;
+        break;
+      }
+    }
     window.scrollTo(0, document.body.scrollHeight);
     await wait(1200);
     still = rows.size === lastCount ? still + 1 : 0;
     lastCount = rows.size;
   }
   collect();
-  const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : (document.querySelector("main") || document.body).outerHTML;
+  const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : root().outerHTML;
   return { url: location.href, title: document.title, html, people: rows.size };
 }
 
