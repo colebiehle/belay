@@ -20,13 +20,20 @@ export async function capturePage() {
   // LinkedIn can keep an earlier view's <main> in the page, hidden, while it shows
   // the new one, so pick the visible candidate holding the most profile links.
   const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  // Some lists (a group's members) have no profile links at all, only rows, so the
+  // score counts rows as well as links.
   const root = () => {
-    const candidates = [...document.querySelectorAll('[role="dialog"], .artdeco-modal, main')].filter(visible);
+    const candidates = [...document.querySelectorAll('[role="dialog"], .artdeco-modal, main, [role="main"]')].filter(visible);
     const best = candidates
-      .map((el) => [el, el.querySelectorAll('a[href*="/in/"]').length])
+      .map((el) => [el, el.querySelectorAll('a[href*="/in/"]').length * 10 + el.querySelectorAll("li").length])
       .sort((a, b) => b[1] - a[1])[0];
-    return best && best[1] > 0 ? best[0] : document.querySelector("main") || document.body;
+    return best && best[1] > 0 ? best[0] : document.body;
   };
+  // Row text, for lists whose rows carry no profile link: each row's visible text
+  // ("Reed Warner · 2nd / Economics and HOD Major @ Vanderbilt University"), kept
+  // as it scrolls past.
+  const texts = new Map();
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const rows = new Map();
   const collect = () => {
     for (const a of root().querySelectorAll('a[href*="/in/"]')) {
@@ -35,7 +42,15 @@ export async function capturePage() {
       const row = a.closest("li") || a.parentElement?.parentElement?.parentElement || a;
       rows.set(href, row.outerHTML);
     }
+    for (const li of root().querySelectorAll("li")) {
+      if (li.querySelector('a[href*="/in/"]')) continue;
+      const t = (li.innerText || "").replace(/\n{2,}/g, "\n").trim();
+      if (t.length < 12 || t.length > 600) continue;
+      const key = t.slice(0, 120);
+      if (!texts.has(key)) texts.set(key, `<li>${esc(t).replace(/\n/g, "<br>")}</li>`);
+    }
   };
+  const count = () => rows.size + texts.size;
   let still = 0;
   let lastCount = -1;
   for (let i = 0; i < 200 && still < 4; i++) {
@@ -52,7 +67,8 @@ export async function capturePage() {
     // Scroll the last row into view as well as the window: some lists scroll inside
     // their own container, which window.scrollTo never moves.
     const links = root().querySelectorAll('a[href*="/in/"]');
-    const last = links[links.length - 1];
+    const items = root().querySelectorAll("li");
+    const last = links[links.length - 1] || items[items.length - 1];
     last?.scrollIntoView({ block: "end" });
     // And the list's own scrolling box to its very bottom: an overlay's list loads
     // more only when that box, not the window, reaches the end.
@@ -65,8 +81,8 @@ export async function capturePage() {
     }
     window.scrollTo(0, document.body.scrollHeight);
     await wait(1200);
-    still = rows.size === lastCount ? still + 1 : 0;
-    lastCount = rows.size;
+    still = count() === lastCount ? still + 1 : 0;
+    lastCount = count();
   }
   collect();
   // What the page looked like, so a short capture can be diagnosed from Belay.
@@ -89,8 +105,9 @@ export async function capturePage() {
     bodyText: (document.body.innerText || "").length,
     bodySample: (document.body.innerText || "").slice(0, 600),
   };
-  const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : root().outerHTML;
-  return { url: location.href, title: document.title, html, people: rows.size, debug };
+  const html =
+    count() > 0 ? `<main>${[...rows.values()].join("\n")}<ul>${[...texts.values()].join("\n")}</ul></main>` : root().outerHTML;
+  return { url: location.href, title: document.title, html, people: count(), debug };
 }
 
 export async function getSettings() {
