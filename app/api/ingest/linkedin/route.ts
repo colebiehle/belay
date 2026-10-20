@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
+import { admitRoles } from "@/lib/role-prescreen";
 import {
   canonicalCompany,
   isDesignRole,
-  isFoundingRole,
   passesStatedRules,
   isExcludedCompany,
   isReachableLevel,
@@ -133,11 +132,6 @@ export async function POST() {
     }
   }
 
-  // Company-blind source: the queue only takes roles from companies on the
-  // target list. See isTrackedEmployer for why, and why manual URL adds bypass
-  // it. This gate is what lets the arm keep its reach (Google, Apple, Microsoft
-  // and Meta have no fetchable feed) without its noise.
-  const tierMap = await buildTierMap();
 
   // Same gates as every other intake path, cheapest first.
   const beforeTrackedGate = [...seen.values()]
@@ -151,10 +145,14 @@ export async function POST() {
     .filter((c) => passesStatedRules(c.title, c.company))
     .filter((c) => isFreshPosting(c.posted));
 
-  const candidates = beforeTrackedGate.filter(
-    (c) => isTrackedEmployer(c.company, tierMap) || isFoundingRole(c.title),
-  );
-  const untracked = beforeTrackedGate.length - candidates.length;
+  // Tracked, watched and founding roles pass; the rest get a cheap pre-screen
+  // against your criteria (lib/role-prescreen). The target list alone turned away
+  // 60-70 design roles a day here.
+  const { admitted: candidates, turnedAway: untracked } = await admitRoles(beforeTrackedGate, (c) => ({
+    company: c.company,
+    title: c.title,
+    location: c.location,
+  }));
 
   let added = 0;
   let detailFetches = 0;
@@ -213,7 +211,7 @@ export async function POST() {
     addedRows.push({ company: c.company, roleTitle: c.title });
   }
 
-  const summary = `LinkedIn: scanned ${scanned} listings, ${candidates.length} passed filters, ${untracked} skipped as untracked employers, ${added} new.`;
+  const summary = `LinkedIn: scanned ${scanned} listings, ${candidates.length} passed filters, ${untracked} turned away by the pre-screen, ${added} new.`;
   if (added > 0) {
     await logJournal({
       // No "ingest" type exists; a scan is a machine-run event, which is what

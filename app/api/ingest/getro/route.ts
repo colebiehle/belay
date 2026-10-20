@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
+import { admitRoles } from "@/lib/role-prescreen";
 import {
   canonicalCompany,
   isDesignRole,
-  isFoundingRole,
   passesStatedRules,
   isExcludedCompany,
   isReachableLevel,
   isFreshPosting,
 } from "@/lib/role-filter";
-import { COMP_FLOOR_USD } from "@/lib/search-config";
 import { logJournal } from "@/lib/journal";
 
 // Most VC portfolio job boards run on Getro, whose search API is public and
@@ -62,24 +60,11 @@ function money(cents?: number | null): number | null {
 }
 
 // Startups are welcome in the queue, they were only unwelcome in the tier list.
-// So the portfolio-board arm gates on pay rather than on the target list: these
-// boards are already quality-filtered by a top-tier VC having invested, and this
-// is the one arm that reliably carries a band, which makes "pays well" checkable
-// rather than a guess.
+// These boards are already quality-filtered by a top-tier VC having invested, and
+// this is the one arm that reliably carries a pay band.
 //
-// The floor is checked against the TOP of a stated band, so a range clears it if its
-// upper bound does. Zero by default, meaning no floor: see SEARCH_COMP_FLOOR_USD
-// in lib/search-config.ts. An undisclosed band never qualifies when a floor is set,
-// not as a judgement about the company but because there is nothing to check.
-
-function compTop(j: GetroJob): number | null {
-  return money(j.compensation_amount_max_cents) ?? money(j.compensation_amount_min_cents);
-}
-
-function paysWell(j: GetroJob): boolean {
-  const top = compTop(j);
-  return top !== null && top >= COMP_FLOOR_USD;
-}
+// The band goes to the pre-screen (lib/role-prescreen) as part of each role, which
+// is where pay now counts.
 
 function compRange(j: GetroJob): string {
   const lo = money(j.compensation_amount_min_cents);
@@ -145,18 +130,16 @@ export async function POST() {
 
   let added = 0;
   const addedRows: { company: string; roleTitle: string }[] = [];
-  // Company-blind source: gate on the target list. See isTrackedEmployer.
-  const tierMap = await buildTierMap();
-  let untracked = 0;
+  // Company-blind source: tracked, watched and founding roles pass, and the rest
+  // get the cheap pre-screen against your criteria, pay included (lib/role-prescreen).
+  const { admitted, turnedAway: untracked } = await admitRoles(candidates, ({ job }) => ({
+    company: canonicalCompany(job.organization!.name!),
+    title: job.title ?? "",
+    comp: compRange(job),
+  }));
 
-  for (const { job, network } of candidates) {
+  for (const { job, network } of admitted) {
     const company = canonicalCompany(job.organization!.name!);
-    // On the target list, paying above the floor (see COMP_FLOOR_USD), or a
-    // founding role.
-    if (!isTrackedEmployer(company, tierMap) && !paysWell(job) && !isFoundingRole(job.title ?? "")) {
-      untracked += 1;
-      continue;
-    }
     const roleTitle = job.title!;
     const existing = await prisma.job.findFirst({
       where: { OR: [{ jobUrl: job.url! }, { AND: [{ company }, { roleTitle }] }] },
@@ -185,7 +168,7 @@ export async function POST() {
     addedRows.push({ company, roleTitle });
   }
 
-  const summary = `Portfolio boards: scanned ${scanned} listings across ${NETWORKS.length} networks, ${candidates.length} passed filters, ${untracked} skipped as untracked and below the comp floor, ${added} new.`;
+  const summary = `Portfolio boards: scanned ${scanned} listings across ${NETWORKS.length} networks, ${candidates.length} passed filters, ${untracked} turned away by the pre-screen, ${added} new.`;
   if (added > 0) {
     await logJournal({ type: "ai_run", surface: "ingest/getro", summary, meta: { added, scanned, untracked } });
   }

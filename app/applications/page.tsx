@@ -181,6 +181,14 @@ export default function ApplicationsPage() {
   // Ingest button state
   const [ingesting, setIngesting] = useState(false);
   const [ingestMsg, setIngestMsg] = useState<string | null>(null);
+  // Null while Gmail works; the reason when it does not (lib/gmail gmailStatus).
+  const [gmailDown, setGmailDown] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/ingest/status")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setGmailDown(d?.gmail && !d.gmail.ok ? d.gmail.message : null))
+      .catch(() => {});
+  }, []);
 
   // Pipeline state
   const [apps, setApps] = useState<Application[]>([]);
@@ -634,6 +642,17 @@ export default function ApplicationsPage() {
         }
         actions={
           <>
+            {/* A source that has stopped working, said quietly where scans are
+                started. Only when something is wrong; otherwise nothing. */}
+            {gmailDown && !ingestMsg && (
+              <span
+                className="flex items-center gap-1 text-meta text-fg-3"
+                title={`${gmailDown}. Your job alert emails are not being read until it is reconnected: run python3 private/scripts/gmail_reauth.py in the Belay folder.`}
+              >
+                <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                Job alert emails disconnected
+              </span>
+            )}
             {ingestMsg && (
               // A failed scan is alarm, and alarm always carries a glyph so it is never
               // told from rope by hue alone.

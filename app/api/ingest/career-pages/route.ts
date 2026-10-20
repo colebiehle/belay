@@ -14,6 +14,7 @@ import {
   canonicalCompany,
 } from "@/lib/role-filter";
 import { ATS_BOARDS, MANUAL_ONLY } from "@/lib/ats-boards";
+import { WATCH_COMPANIES } from "@/lib/watch-companies";
 import { stripHtml, stripHtmlKeepLinks } from "@/lib/html";
 import { identityLine } from "@/lib/identity";
 
@@ -476,6 +477,18 @@ export async function POST(req?: NextRequest) {
         domain: c.domain,
         tier: c.tier,
       })),
+    // The watch list: scanned like a tier 3 target through its job feed, never
+    // shown as one (lib/watch-companies).
+    ...WATCH_COMPANIES.filter((w) => !companies.some((c) => c.name.toLowerCase() === w.name.toLowerCase())).map(
+      (w): ScanSource => ({
+        kind: "company",
+        displayName: w.name,
+        baseUrl: w.careersUrl,
+        attributedCompany: w.name,
+        domain: w.domain,
+        tier: 3,
+      }),
+    ),
     ...sites
       .filter((s) => s.url)
       .map((s): ScanSource => ({
@@ -508,7 +521,10 @@ export async function POST(req?: NextRequest) {
 
   for (const src of sources) {
     // ATS fast path: structured JSON, no Claude call, no HTML parsing.
-    const board = src.attributedCompany ? ATS_BOARDS[src.displayName.toLowerCase()] : undefined;
+    const board = src.attributedCompany
+      ? ATS_BOARDS[src.displayName.toLowerCase()] ??
+        WATCH_COMPANIES.find((w) => w.name.toLowerCase() === src.displayName.toLowerCase())?.board
+      : undefined;
     if (board) {
       const listings = await fetchAtsListings(src.attributedCompany!, board, src.tier <= 1);
       if (listings) {

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
+import { isWatchedCompany } from "@/lib/watch-companies";
 
 /**
  * Roles left in the queue more than a week after they were posted (or found, when
@@ -14,6 +15,10 @@ import { buildTierMap, tierFor } from "@/lib/company-tier";
  * Run whenever the queue is read; it is one query and a no-op most of the time.
  */
 export const QUEUE_FRESH_DAYS = 7;
+// Roles from companies off your list (and off the watch list) that scored at or
+// below this once enriched are cleared too: they came in on a cheap pre-screen,
+// and the full read is the one that counts.
+export const UNLISTED_MIN_FIT = 5;
 const KEEP_THROUGH_TIER = 2;
 
 export async function expireStaleQueue(): Promise<number> {
@@ -21,7 +26,7 @@ export async function expireStaleQueue(): Promise<number> {
   const [pending, tiers] = await Promise.all([
     prisma.job.findMany({
       where: { verdict: null },
-      select: { id: true, company: true, datePosted: true, dateFound: true },
+      select: { id: true, company: true, datePosted: true, dateFound: true, fitScore: true },
     }),
     buildTierMap(),
   ]);
@@ -31,7 +36,18 @@ export async function expireStaleQueue(): Promise<number> {
     const tier = tierFor(j.company, tiers);
     return !(tier !== null && tier <= KEEP_THROUGH_TIER);
   });
-  if (!stale.length) return 0;
+  const weak = pending.filter((j) => {
+    if (stale.includes(j)) return false;
+    if (!j.fitScore || j.fitScore > UNLISTED_MIN_FIT) return false;
+    return tierFor(j.company, tiers) === null && !isWatchedCompany(j.company);
+  });
+  if (weak.length) {
+    await prisma.job.updateMany({
+      where: { id: { in: weak.map((j) => j.id) }, verdict: null },
+      data: { verdict: "Archived", verdictAt: new Date(), verdictNotes: "Expired: low fit at a company off your list" },
+    });
+  }
+  if (!stale.length) return weak.length;
   const { count } = await prisma.job.updateMany({
     where: { id: { in: stale.map((j) => j.id) }, verdict: null },
     data: {
@@ -40,5 +56,5 @@ export async function expireStaleQueue(): Promise<number> {
       verdictNotes: `Expired: no decision within ${QUEUE_FRESH_DAYS} days of posting`,
     },
   });
-  return count;
+  return count + weak.length;
 }

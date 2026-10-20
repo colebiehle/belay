@@ -21,6 +21,20 @@ export class GmailAuthError extends Error {
   }
 }
 
+/**
+ * Whether Gmail can be read right now, without reading anything: one token refresh.
+ * For the Roles page's source line, so a lapsed sign-in shows the day it lapses
+ * rather than as a line in a log nobody opens (it was off for ten days in Oct 2026).
+ */
+export async function gmailStatus(): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    await accessToken();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export type AlertJob = {
   roleTitle: string;
   company: string;

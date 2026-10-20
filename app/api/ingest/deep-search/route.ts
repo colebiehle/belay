@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { buildTierMap, isTrackedEmployer } from "@/lib/company-tier";
-import { canonicalCompany, isFoundingRole } from "@/lib/role-filter";
+import { canonicalCompany } from "@/lib/role-filter";
 import { callClaudeWithToolsDetailed, extractJson } from "@/lib/claude";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
@@ -122,17 +121,13 @@ If you find fewer than 5 strong matches, return what you found — don't pad wit
   }
 
   let added = 0;
-  // Company-blind, like the LinkedIn and portfolio-board arms, so it takes the
-  // same target-list gate. See isTrackedEmployer.
-  const tierMap = await buildTierMap();
-  let untracked = 0;
+  // No company gate here: this search is already run against your criteria by a
+  // model reading the postings, which is a stricter screen than the pre-screen the
+  // other company-blind arms use. A role at a company you have not heard of is the
+  // point of this arm.
   const inserted: { company: string; roleTitle: string }[] = [];
   for (const r of results) {
     if (!r.company || !r.roleTitle || !r.jobUrl) continue;
-    if (!isTrackedEmployer(canonicalCompany(r.company), tierMap) && !isFoundingRole(r.roleTitle)) {
-      untracked += 1;
-      continue;
-    }
     // Normalised like every other arm. An un-normalised variant skips the
     // auto-ingest guard, fails to dedupe against the board's own copy of the same
     // role, and misses that company's reapplication cooldown.
@@ -173,7 +168,7 @@ If you find fewer than 5 strong matches, return what you found — don't pad wit
   return NextResponse.json({
     ok: true,
     added,
-    summary: `Deep search found ${results.length} candidates, ${untracked} skipped as untracked employers, ${added} new.`,
+    summary: `Deep search found ${results.length} candidates, ${added} new.`,
     results: inserted,
   });
 }
