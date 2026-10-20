@@ -160,7 +160,9 @@ The page:
 ${text}
 """`;
 
-  const { text: out, timedOut } = await callClaudeDetailed(prompt, 280_000);
+  // Haiku: pulling names and headlines off a page and a rough fit is bulk work, and a
+  // 2,000-person group is ~30 of these calls.
+  const { text: out, timedOut } = await callClaudeDetailed(prompt, 280_000, "haiku");
   const parsed = extractJson<Extracted>(out, "object");
   if (!parsed || !Array.isArray(parsed.people)) {
     return NextResponse.json(

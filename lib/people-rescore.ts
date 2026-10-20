@@ -59,7 +59,7 @@ ${list}
 
 Return ONLY a JSON array, one entry per person, no preamble:
 [{ "id": "...", "fit": 7, "fitReason": "..." }]`;
-      const { text } = await callClaudeDetailed(prompt, 240_000);
+      const { text } = await callClaudeDetailed(prompt, 240_000, "haiku");
       const scored = extractJson<{ id?: string; fit?: number; fitReason?: string }[]>(text, "array") ?? [];
       const byId = new Map(batch.map((c) => [c.id, c] as const));
       let wrote = 0;

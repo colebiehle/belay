@@ -61,8 +61,10 @@ export function callClaude(prompt: string, timeoutMs = 120_000): Promise<string>
 // Same call, but reports whether the run was killed by the timeout. Callers that
 // summarise results for the UI need this: a timed-out run returns partial or empty
 // stdout, which is indistinguishable from "the model found nothing" unless asked.
-export function callClaudeDetailed(prompt: string, timeoutMs = 120_000): Promise<ClaudeResult> {
-  return runClaude(["-p"], prompt, timeoutMs);
+// `model` picks a cheaper model for bulk, mechanical work ("haiku": reading a page of
+// people, scoring fit); everything else runs on the CLI's default.
+export function callClaudeDetailed(prompt: string, timeoutMs = 120_000, model?: string): Promise<ClaudeResult> {
+  return runClaude(model ? ["-p", "--model", model] : ["-p"], prompt, timeoutMs);
 }
 
 // Constraint prepended to every callClaudeWithTools invocation. Without this,

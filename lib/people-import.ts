@@ -19,7 +19,9 @@ export const IMPORT_MAX_CHARS = 60_000;
 // fit still meant "product designer at a target company", when a cutoff at 3 set
 // aside an Apple design producer, a Shopify product lead and an MHCI classmate.
 export const AUTO_SKIP_MAX_FIT = 3;
-export const LOOKUP_MIN_FIT = 5;
+// 7: only the strongest cards are looked up while they wait in the queue (each
+// lookup is several web searches); everyone else is looked up when added.
+export const LOOKUP_MIN_FIT = 7;
 export const AUTO_SKIP_NOTE = "auto: fit";
 
 /**
