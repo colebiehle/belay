@@ -17,10 +17,16 @@ export async function capturePage() {
   // collected as it goes by instead, keyed by their profile link.
   // Where the list lives: an open dialog first (some group member lists open as an
   // overlay outside <main>), else the page's main area, else the whole body.
-  const root = () =>
-    [...document.querySelectorAll('[role="dialog"], .artdeco-modal')].find((d) => d.querySelector('a[href*="/in/"]')) ||
-    document.querySelector("main") ||
-    document.body;
+  // LinkedIn can keep an earlier view's <main> in the page, hidden, while it shows
+  // the new one, so pick the visible candidate holding the most profile links.
+  const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  const root = () => {
+    const candidates = [...document.querySelectorAll('[role="dialog"], .artdeco-modal, main')].filter(visible);
+    const best = candidates
+      .map((el) => [el, el.querySelectorAll('a[href*="/in/"]').length])
+      .sort((a, b) => b[1] - a[1])[0];
+    return best && best[1] > 0 ? best[0] : document.querySelector("main") || document.body;
+  };
   const rows = new Map();
   const collect = () => {
     for (const a of root().querySelectorAll('a[href*="/in/"]')) {
@@ -75,6 +81,13 @@ export async function capturePage() {
     listItems: r.querySelectorAll("li").length,
     textLength: (r.innerText || "").length,
     sampleText: (r.innerText || "").slice(0, 1500),
+    href: location.href,
+    mains: document.querySelectorAll("main").length,
+    visibleMains: [...document.querySelectorAll("main")].filter(visible).length,
+    iframes: [...document.querySelectorAll("iframe")].map((f) => (f.src || "(no src)").slice(0, 120)).slice(0, 10),
+    shadowHosts: [...document.querySelectorAll("*")].filter((el) => el.shadowRoot).length,
+    bodyText: (document.body.innerText || "").length,
+    bodySample: (document.body.innerText || "").slice(0, 600),
   };
   const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : root().outerHTML;
   return { url: location.href, title: document.title, html, people: rows.size, debug };
