@@ -298,6 +298,29 @@ export function PeopleQueue({
     setImporting(true);
     setImportError(null);
     setResult(null);
+    // A paste longer than one read (a few hundred group members) goes to the capture
+    // backlog instead, which splits it into parts; the queue fills as each finishes.
+    if (pasted.text.length > IMPORT_MAX_CHARS) {
+      try {
+        const res = await fetch("/api/people/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: pasted.text, title: "Pasted page", mutual: mutual || null, tags: pasteTags }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.job) setImportError(data?.error ?? "Could not queue that paste. Try again.");
+        else {
+          clearImport();
+          setResult(null);
+          setImportError(null);
+        }
+      } catch {
+        setImportError("Can't reach Belay on this machine. Is `npm run dev` running?");
+      } finally {
+        setImporting(false);
+      }
+      return;
+    }
     try {
       const res = await fetch("/api/people/import", {
         method: "POST",
@@ -670,10 +693,10 @@ export function PeopleQueue({
                       </p>
                     )}
                     {pasted.text.length > IMPORT_MAX_CHARS && (
-                      <p className="flex items-center gap-1 text-meta text-alarm mt-0.5">
-                        <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0" />
-                        Long page: only the first {IMPORT_MAX_CHARS.toLocaleString()} characters are read. Paste the
-                        rest in a second go.
+                      <p className="text-meta text-fg-3 mt-0.5">
+                        Long page: it will be read in{" "}
+                        <span className="tabular-nums">{Math.ceil(pasted.text.length / (IMPORT_MAX_CHARS - 5_000))}</span> parts in
+                        the background, and cards appear as each finishes.
                       </p>
                     )}
                   </div>
@@ -764,8 +787,8 @@ export function PeopleQueue({
 
       {backlog > 0 && (
         <p className="text-meta text-fg-3" aria-live="polite">
-          Reading <span className="text-fg-1 tabular-nums">{backlog}</span> page{backlog === 1 ? "" : "s"} sent from
-          the extension. Cards appear as each one finishes.
+          Reading <span className="text-fg-1 tabular-nums">{backlog}</span> page{backlog === 1 ? "" : "s"} in the
+          background. Cards appear as each one finishes.
         </p>
       )}
 

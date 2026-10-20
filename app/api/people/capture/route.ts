@@ -12,11 +12,13 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  if (!str(body.html) && !str(body.url)) {
+  if (!str(body.html) && !str(body.url) && !str(body.text)) {
     return NextResponse.json({ error: "Nothing was captured from that page." }, { status: 400 });
   }
   const job = enqueueCapture({
     html: str(body.html),
+    text: str(body.text),
+    debug: body.debug ?? undefined,
     url: str(body.url),
     title: str(body.title),
     mutual: str(body.mutual),

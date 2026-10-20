@@ -22,6 +22,7 @@ export type CaptureJob = {
   updated?: number;
   source?: string;
   error?: string;
+  debug?: unknown;
 };
 
 type Payload = { text: string; mutual: string | null; tags: string[] };
@@ -33,6 +34,10 @@ const CONCURRENCY = 2;
 
 export function enqueueCapture(input: {
   html?: string | null;
+  // Already-compacted text, from the paste box when a paste is too long for one read.
+  text?: string | null;
+  // What the extension saw on the page, for diagnosing a short capture.
+  debug?: unknown;
   url?: string | null;
   title?: string | null;
   mutual?: string | null;
@@ -41,7 +46,7 @@ export function enqueueCapture(input: {
   const url = input.url ?? "";
   // A single profile is one person: send its link, which the import treats as one.
   const profile = normalizeLinkedInUrl(url);
-  const text = profile && !input.html ? profile : compactPaste({ html: input.html ?? "" });
+  const text = input.text ?? (profile && !input.html ? profile : compactPaste({ html: input.html ?? "" }));
   const title = (input.title ?? "").replace(/\s*\|\s*LinkedIn\s*$/i, "").slice(0, 80) || "LinkedIn page";
   // A long list (a group's 800 members) is more than one read can take, so it is
   // split at line breaks into parts that each fit, read like separate pages.
@@ -53,6 +58,7 @@ export function enqueueCapture(input: {
       title: parts.length > 1 ? `${title} (part ${i + 1} of ${parts.length})` : title,
       status: "waiting",
       sentAt: new Date().toISOString(),
+      debug: input.debug,
     };
     jobs.unshift(job);
     payloads.set(job.id, { text: part, mutual: input.mutual ?? null, tags: input.tags ?? [] });

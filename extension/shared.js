@@ -63,8 +63,21 @@ export async function capturePage() {
     lastCount = rows.size;
   }
   collect();
+  // What the page looked like, so a short capture can be diagnosed from Belay.
+  const r = root();
+  const anchors = [...r.querySelectorAll("a[href]")];
+  const debug = {
+    root: r === document.body ? "body" : r.tagName.toLowerCase() + (r.getAttribute("role") ? `[${r.getAttribute("role")}]` : ""),
+    anchors: anchors.length,
+    profileLinks: r.querySelectorAll('a[href*="/in/"]').length,
+    docProfileLinks: document.querySelectorAll('a[href*="/in/"]').length,
+    sampleHrefs: [...new Set(anchors.map((a) => (a.getAttribute("href") || "").split("?")[0]))].slice(0, 40),
+    listItems: r.querySelectorAll("li").length,
+    textLength: (r.innerText || "").length,
+    sampleText: (r.innerText || "").slice(0, 1500),
+  };
   const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : root().outerHTML;
-  return { url: location.href, title: document.title, html, people: rows.size };
+  return { url: location.href, title: document.title, html, people: rows.size, debug };
 }
 
 export async function getSettings() {
