@@ -7,6 +7,7 @@ import { identity } from "@/lib/identity";
 import {
   AUTO_SKIP_MAX_FIT,
   AUTO_SKIP_NOTE,
+  FIT_RUBRIC,
   IMPORT_MAX_CHARS,
   loneProfileUrl,
   nameFromProfileUrl,
@@ -15,6 +16,7 @@ import {
   PROFILE_LINK_SOURCE,
 } from "@/lib/people-import";
 import { contextBlock } from "@/lib/foundation";
+import { targetCompaniesLine } from "@/lib/target-list";
 import { cleanTags, mergeIntoCandidate, mergeIntoContact } from "@/lib/people-merge";
 import { peopleSignalBlock } from "@/lib/people-signal";
 
@@ -119,9 +121,10 @@ export async function runImport(body: Record<string, unknown>): Promise<NextResp
   // Ranking rides on the extraction call rather than a second one: the model has
   // already read every headline to pull the names out, and a second pass over the
   // same page would double the wait on an import that can already take a minute.
-  const [profile, signal] = await Promise.all([
+  const [profile, signal, targets] = await Promise.all([
     contextBlock({ include: [...FIT_KINDS], maxCharsPerKind: 1200 }),
     peopleSignalBlock(),
+    targetCompaniesLine(),
   ]);
 
   const prompt = `Below is the text of a LinkedIn page that lists people, copied with select-all and paste. It could be someone's connections, a company's People tab, a people search, "people also viewed" or similar. Profile links appear in square brackets after the text they were attached to, like "Jane Doe [https://www.linkedin.com/in/jane-doe/]".
@@ -140,8 +143,8 @@ For each person:
 - company: the current employer, only when the headline says so ("Product Designer at Figma" -> Figma; "Design @ Stripe" -> Stripe; "Designer | Airbnb" -> Airbnb) or a "Current:" line names it. null if unclear. Never guess from a school.
 - location: as shown, or null.
 - linkedinUrl: the /in/ link attached to their name, or null if none.
-- fit: an integer 1 to 10, how worth adding this person is to ${myName ?? "the user"}'s network for their job search, judged from the headline against their profile and criteria below. High: works at a target company, does the kind of design work they want or leads the people who do, or is a step or two ahead on the same path. Middle: adjacent (a nearby discipline, a company that is not a target but is the right kind). Low: unrelated field, recruiters for unrelated roles, students, or anything their criteria or past passes rule out. Use the whole range; a page where everyone is a 7 is not ranked.
-- fitReason: one short line, under 12 words, the fact the score turns on ("Design lead at a target company", "Engineer, not design"). Facts from the headline, no advocacy.
+- ${FIT_RUBRIC.replace(/\n/g, "\n  ")}
+- If the page itself is a CMU or UCSD community (a CMU or UCSD group, an alumni page, a CMU program's connections), everyone on it counts as connected to CMU or UCSD.
 
 Also give "source": a 2 to 5 word label for what this page is, e.g. "Figma People tab", "Search: product designer", "Jane Doe's connections".
 
@@ -150,7 +153,7 @@ Return ONLY valid JSON, no preamble, no code fences:
 { "source": "...", "people": [ { "name": "...", "title": "...", "company": "...", "location": "...", "linkedinUrl": "...", "fit": 7, "fitReason": "..." } ] }
 
 Never invent a person, a title or a link that is not on the page. An empty list is a valid answer.
-${profile ? `\nTheir profile and search criteria, for the fit score only:\n${profile}\n` : ""}${signal ? `\n${signal}\n` : ""}
+${targets ? `\n${targets}\n` : ""}${profile ? `\nTheir profile and search criteria, for the fit score only:\n${profile}\n` : ""}${signal ? `\n${signal}\n` : ""}
 
 The page:
 """

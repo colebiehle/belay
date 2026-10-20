@@ -23,6 +23,20 @@ export const LOOKUP_MIN_FIT = 5;
 export const AUTO_SKIP_NOTE = "auto: fit";
 
 /**
+ * What fit means, shared by the paste import and the re-score. The owner's call
+ * (Oct 2026): the network is everyone in their world, not just designers at target
+ * companies, and the low end is only for people clearly outside it. CMU and UCSD
+ * people are kept for a manual look even when the link is unclear.
+ */
+export const FIT_RUBRIC = `fit: an integer 1 to 10, how worth this person is to the user's network, judged by whether they are part of the world the user works in, not by whether they are a designer.
+  8-10: works at one of the user's target companies in any role (design, product, engineering, research, recruiting, design ops); or a designer, UX researcher or design leader anywhere; or a fellow CMU MHCI student or alum.
+  6-7: in tech or a tech-adjacent role (PM, engineer, data, founder, product marketing, design-adjacent fields); CMU or UCSD faculty and staff; HCI and design academics.
+  4-5: a loose but real link: a tech-adjacent role at an unrelated company, early-career people still finding their field, consultants who work on digital products. Anyone connected to CMU or UCSD (studied or works there, or listed on a CMU or UCSD community page) is never below 4, however unclear the link.
+  1-3: clearly outside their world: fields with no path to tech or design, such as law, medicine, dentistry, nursing, finance trading, real estate, K-12 teaching, trades; retired; or no role at all.
+  Never lower a score for school prestige, location or seniority. When unsure, score in the middle, not low.
+fitReason: one short line, under 12 words, the fact the score turns on ("PM at a target company", "Dentist, outside tech"). Facts only, no advocacy.`;
+
+/**
  * A LinkedIn profile link in the one shape dedupe can compare:
  * https://www.linkedin.com/in/<slug>/, lowercased slug, no query or locale suffix.
  * LinkedIn links the same person as /in/jane-doe, /in/jane-doe/?miniProfileUrn=…,
