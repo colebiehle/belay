@@ -28,6 +28,7 @@ export type CaptureJob = {
 type Payload = { text: string; mutual: string | null; tags: string[] };
 
 const jobs: CaptureJob[] = [];
+const PART_CHARS = Math.min(15_000, IMPORT_MAX_CHARS - 5_000);
 const payloads = new Map<string, Payload>();
 let workers = 0;
 const CONCURRENCY = 2;
@@ -48,9 +49,11 @@ export function enqueueCapture(input: {
   const profile = normalizeLinkedInUrl(url);
   const text = input.text ?? (profile && !input.html ? profile : compactPaste({ html: input.html ?? "" }));
   const title = (input.title ?? "").replace(/\s*\|\s*LinkedIn\s*$/i, "").slice(0, 80) || "LinkedIn page";
-  // A long list (a group's 800 members) is more than one read can take, so it is
-  // split at line breaks into parts that each fit, read like separate pages.
-  const parts = splitText(text, IMPORT_MAX_CHARS - 5_000);
+  // A long list (a group's 2,000 members) is more than one read can take, so it is
+  // split at line breaks into parts. Small ones: the read writes every person back
+  // out with a fit score, and ~275 people a part (55,000 characters) ran past its
+  // four-and-a-half minutes. ~75 a part finishes in about one.
+  const parts = splitText(text, PART_CHARS);
   const made = parts.map((part, i) => {
     const job: CaptureJob = {
       id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
@@ -107,8 +110,28 @@ async function work() {
         const res = await runImport({ text: p?.text ?? "", mutual: p?.mutual, tags: p?.tags });
         const d = await res.json().catch(() => ({}));
         if (!res.ok || d.error) {
-          job.status = "failed";
-          job.error = d.error ?? `HTTP ${res.status}`;
+          // A part that ran out of time is split in half and both halves go back in
+          // line, rather than losing those people.
+          const text = p?.text ?? "";
+          if (/too long/i.test(d.error ?? "") && text.length > 3_000) {
+            const half = splitText(text, Math.ceil(text.length / 2) + 200);
+            half.forEach((h, i) => {
+              const retry: CaptureJob = {
+                id: `${job.id}${i ? "b" : "a"}`,
+                url: job.url,
+                title: `${job.title} (retry ${i + 1} of ${half.length})`,
+                status: "waiting",
+                sentAt: new Date().toISOString(),
+              };
+              jobs.unshift(retry);
+              payloads.set(retry.id, { ...(p as Payload), text: h });
+            });
+            job.status = "failed";
+            job.error = "Too long; split in half and retried";
+          } else {
+            job.status = "failed";
+            job.error = d.error ?? `HTTP ${res.status}`;
+          }
         } else {
           job.status = "done";
           job.found = d.found;
