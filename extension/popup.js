@@ -134,11 +134,11 @@ $("clear-mutual").onclick = () => save({ mutual: "" });
 $("send").onclick = async () => {
   const btn = $("send");
   btn.disabled = true;
-  btn.textContent = "Capturing…";
+  btn.textContent = "Scrolling and capturing…";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    await sendTab(tab);
-    btn.textContent = "Sent ✓";
+    const job = await sendTab(tab);
+    btn.textContent = job.people ? `Sent ${job.people} people ✓` : "Sent ✓";
     loadJobs();
   } catch (e) {
     btn.textContent = e.message || "Could not send";
@@ -146,7 +146,7 @@ $("send").onclick = async () => {
   setTimeout(() => {
     btn.disabled = false;
     btn.textContent = "Send this page";
-  }, 1200);
+  }, 2500);
 };
 
 loadBelay();

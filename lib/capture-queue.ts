@@ -1,4 +1,4 @@
-import { compactPaste, normalizeLinkedInUrl } from "@/lib/people-import";
+import { IMPORT_MAX_CHARS, compactPaste, normalizeLinkedInUrl } from "@/lib/people-import";
 import { runImport } from "@/lib/people-import-run";
 
 /**
@@ -42,18 +42,40 @@ export function enqueueCapture(input: {
   // A single profile is one person: send its link, which the import treats as one.
   const profile = normalizeLinkedInUrl(url);
   const text = profile && !input.html ? profile : compactPaste({ html: input.html ?? "" });
-  const job: CaptureJob = {
-    id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-    url,
-    title: (input.title ?? "").replace(/\s*\|\s*LinkedIn\s*$/i, "").slice(0, 80) || "LinkedIn page",
-    status: "waiting",
-    sentAt: new Date().toISOString(),
-  };
-  jobs.unshift(job);
-  jobs.splice(50);
-  payloads.set(job.id, { text, mutual: input.mutual ?? null, tags: input.tags ?? [] });
+  const title = (input.title ?? "").replace(/\s*\|\s*LinkedIn\s*$/i, "").slice(0, 80) || "LinkedIn page";
+  // A long list (a group's 800 members) is more than one read can take, so it is
+  // split at line breaks into parts that each fit, read like separate pages.
+  const parts = splitText(text, IMPORT_MAX_CHARS - 5_000);
+  const made = parts.map((part, i) => {
+    const job: CaptureJob = {
+      id: `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      url,
+      title: parts.length > 1 ? `${title} (part ${i + 1} of ${parts.length})` : title,
+      status: "waiting",
+      sentAt: new Date().toISOString(),
+    };
+    jobs.unshift(job);
+    payloads.set(job.id, { text: part, mutual: input.mutual ?? null, tags: input.tags ?? [] });
+    return job;
+  });
+  jobs.splice(60);
   pump();
-  return job;
+  return made[0];
+}
+
+function splitText(text: string, max: number): string[] {
+  if (text.length <= max) return [text];
+  const out: string[] = [];
+  let cur = "";
+  for (const line of text.split("\n")) {
+    if (cur.length + line.length + 1 > max && cur) {
+      out.push(cur);
+      cur = "";
+    }
+    cur += (cur ? "\n" : "") + line;
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 export function captureJobs(): CaptureJob[] {

@@ -10,26 +10,45 @@ export const BELAY = "http://localhost:3001";
 export async function capturePage() {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   if (/^\/in\/[^/]+\/?$/.test(location.pathname)) {
-    return { url: location.href.split("?")[0], title: document.title, html: null };
+    return { url: location.href.split("?")[0], title: document.title, html: null, people: 1 };
   }
-  let lastHeight = 0;
-  for (let i = 0; i < 25; i++) {
-    window.scrollTo(0, document.body.scrollHeight);
-    await wait(700);
-    const more = [...document.querySelectorAll("button")].find((b) =>
-      /show more results/i.test(b.textContent || ""),
+  // Long lists (group members, connections) keep only the rows near the screen in
+  // the page, so capturing at the end gets the last screenful. Each person's row is
+  // collected as it goes by instead, keyed by their profile link.
+  const rows = new Map();
+  const collect = () => {
+    for (const a of document.querySelectorAll('main a[href*="/in/"]')) {
+      const href = (a.getAttribute("href") || "").split("?")[0];
+      if (!href || rows.has(href)) continue;
+      const row = a.closest("li") || a.parentElement?.parentElement?.parentElement || a;
+      rows.set(href, row.outerHTML);
+    }
+  };
+  let still = 0;
+  let lastCount = -1;
+  for (let i = 0; i < 200 && still < 4; i++) {
+    collect();
+    const more = [...document.querySelectorAll("main button")].find((b) =>
+      /^\s*(show more results|show more|load more)\s*$/i.test(b.textContent || ""),
     );
     if (more && !more.disabled) {
       more.click();
-      await wait(1200);
+      await wait(1500);
+      still = 0;
       continue;
     }
-    const h = document.body.scrollHeight;
-    if (h === lastHeight) break;
-    lastHeight = h;
+    // Scroll the last row into view as well as the window: some lists scroll inside
+    // their own container, which window.scrollTo never moves.
+    const links = document.querySelectorAll('main a[href*="/in/"]');
+    links[links.length - 1]?.scrollIntoView({ block: "end" });
+    window.scrollTo(0, document.body.scrollHeight);
+    await wait(1200);
+    still = rows.size === lastCount ? still + 1 : 0;
+    lastCount = rows.size;
   }
-  const main = document.querySelector("main") || document.body;
-  return { url: location.href, title: document.title, html: main.outerHTML };
+  collect();
+  const html = rows.size > 0 ? `<main>${[...rows.values()].join("\n")}</main>` : (document.querySelector("main") || document.body).outerHTML;
+  return { url: location.href, title: document.title, html, people: rows.size };
 }
 
 export async function getSettings() {
@@ -50,7 +69,7 @@ export async function sendTab(tab) {
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || `Belay answered ${res.status}`);
-  return d.job;
+  return { ...d.job, people: result.people };
 }
 
 // LinkedIn's search network filter: F is 1st, S is 2nd, O is 3rd+. All of it is

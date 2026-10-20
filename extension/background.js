@@ -6,8 +6,9 @@ chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "send-page") return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   try {
-    await sendTab(tab);
-    flash(tab.id, "✓", "#3a3d42");
+    const job = await sendTab(tab);
+    // The badge shows how many people went, so a short capture is noticed.
+    flash(tab.id, job.people ? String(job.people) : "✓", "#3a3d42");
   } catch {
     flash(tab.id, "!", "#c4473a");
   }
