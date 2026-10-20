@@ -47,8 +47,8 @@ export const FIT_RUBRIC = `fit: an integer 1 to 10, how worth this person is to 
   8-10: works at one of the user's target companies in any role (design, product, engineering, research, recruiting, design ops); or a designer, UX researcher or design leader anywhere; or a fellow CMU MHCI student or alum.
   6-7: in tech or a tech-adjacent role (PM, engineer, data, founder, product marketing, design-adjacent fields); CMU or UCSD faculty and staff; HCI and design academics.
   4-5: a loose but real link: a tech-adjacent role at an unrelated company, early-career people still finding their field, consultants who work on digital products. Anyone connected to CMU or UCSD (studied or works there, or listed on a CMU or UCSD community page) is never below 4, however unclear the link.
-  MBA students and graduates from strong programs: at least 5. They often move into product, strategy and founding roles, so their networks are worth building early.
-  1-3: clearly outside their world: fields with no path to tech or design, such as law, medicine, dentistry, nursing, finance trading, real estate, K-12 teaching, trades; retired; or no role at all.
+  Connectors, at least 5: recruiters and talent people (especially in tech or design), founders and co-founders of any company, venture capital and angel investors, and MBA students and graduates from strong programs. They are not in the user's field, but they hire, make intros and see roles before they are posted, and they matter for starting a company or going back to school.
+  1-3: clearly outside their world: fields with no path to tech or design, such as law, medicine, dentistry, nursing, real estate, K-12 teaching, trades, and finance that is not investing in startups (banking operations, insurance, accounting); retired; or no role at all.
   Never lower a score for school prestige, location or seniority. When unsure, score in the middle, not low.
 fitReason: one short line, under 12 words, the fact the score turns on ("PM at a target company", "Dentist, outside tech"). Facts only, no advocacy.`;
 
