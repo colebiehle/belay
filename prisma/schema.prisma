@@ -246,6 +246,12 @@ model Contact {
   forwardable           String?
   connectionNote        String?
   connectionNoteSentAt  DateTime?
+  // Which version of the note this was ("template:cmu", "template:ucsd:engineer",
+  // "custom"), so acceptance and reply rates can be compared by version.
+  connectionNoteVariant String?
+  // Why a drafted note needs a look before sending ("Already a CMU colleague"),
+  // from the drafter's read of their profile. Null when the template fits.
+  connectionNoteFlag    String?
   connectedAt           DateTime?
   dateAdded             DateTime  @default(now())
   lastChat              DateTime?

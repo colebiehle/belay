@@ -2,7 +2,7 @@
 
 import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
-import { Check, Clock, Copy, ExternalLink, Plus, Search } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Flag, Plus, Search } from "lucide-react";
 import { button, emptyBox, input, listGrid, toggle } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
@@ -106,6 +106,16 @@ export default function NetworkingPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [drafting, setDrafting] = useState<{ done: number; total: number } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // How sent notes are landing (lib/note-stats), for the line above the groups.
+  type Rate = { sent: number; accepted: number; replied: number };
+  const [stats, setStats] = useState<{ all: Rate; byVariant: Record<string, Rate> } | null>(null);
+  useEffect(() => {
+    fetch("/api/contacts/note-stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setStats)
+      .catch(() => {});
+  }, [contacts]);
+  const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "–");
   const togglePick = (id: string) =>
     setPicked((prev) => {
       const next = new Set(prev);
@@ -562,6 +572,24 @@ export default function NetworkingPage() {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* How the notes are landing: of those marked sent, how many accepted
+                  and replied, overall, with each version's numbers on hover. Only
+                  once something has been sent. */}
+              {stats && stats.all.sent > 0 && (
+                <p
+                  className="text-meta text-fg-3"
+                  title={Object.entries(stats.byVariant)
+                    .map(([v, r]) => `${v}: ${r.sent} sent, ${pct(r.accepted, r.sent)} accepted, ${pct(r.replied, r.sent)} replied`)
+                    .join("\n")}
+                >
+                  Notes sent <span className="tabular-nums text-fg-1">{stats.all.sent}</span>
+                  <span className="text-fg-4 mx-1.5">·</span>
+                  accepted <span className="tabular-nums text-fg-1">{pct(stats.all.accepted, stats.all.sent)}</span>
+                  <span className="text-fg-4 mx-1.5">·</span>
+                  replied <span className="tabular-nums text-fg-1">{pct(stats.all.replied, stats.all.sent)}</span>
+                </p>
+              )}
+
               {/* The batch bar: how many are picked, and Draft notes. While a run
                   goes, its progress instead. Fixed at the bottom so it is in reach
                   however far down the list you picked from. */}
@@ -750,6 +778,14 @@ export default function NetworkingPage() {
                               // profile, paste and send there, then mark it sent here.
                               stageNow === "Drafted" && c.connectionNote ? (
                                 <div className="space-y-1.5">
+                                  {/* The drafter's read of their profile: why this one
+                                      needs a look before it goes. */}
+                                  {c.connectionNoteFlag && (
+                                    <p className="flex items-start gap-1 text-meta text-fg-1">
+                                      <Flag size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 mt-px text-fg-3" />
+                                      {c.connectionNoteFlag}
+                                    </p>
+                                  )}
                                   <p className="text-meta text-fg-2 line-clamp-3" title={c.connectionNote}>
                                     {c.connectionNote}
                                   </p>

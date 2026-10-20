@@ -12,7 +12,7 @@
 
 export const NOTE_LIMIT = 300;
 
-export type NoteKind = "standard" | "engineer" | "recruiter";
+export type NoteKind = "standard" | "engineer" | "recruiter" | "design_recruiter";
 
 const CMU = /\b(cmu|carnegie mellon|mhci)\b/i;
 
@@ -44,9 +44,12 @@ export function buildNote(p: {
   short?: string;
   company?: string;
 }): string {
-  if (p.kind === "recruiter") {
+  if (p.kind === "recruiter" || p.kind === "design_recruiter") {
     const opener = p.group === "cmu" ? OPENERS.cmu(true) : OPENERS[p.group]();
-    return `Hey ${p.firstName}! ${opener}, and I'm exploring product design roles, especially in AI tools. I saw you recruit for design${p.company ? ` at ${p.company}` : ""} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!`;
+    // "for design" only when they actually recruit for design; a business recruiter
+    // at Figma recruits at Figma.
+    const what = p.kind === "design_recruiter" ? "recruit for design" : "recruit";
+    return `Hey ${p.firstName}! ${opener}, and I'm exploring product design roles, especially in AI tools. I saw you ${what}${p.company ? ` at ${p.company}` : ""} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!`;
   }
   const ask =
     p.kind === "engineer"

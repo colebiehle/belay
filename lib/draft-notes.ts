@@ -47,14 +47,14 @@ async function drain() {
   }
 }
 
-type Ending = { id?: string; kind?: NoteKind; ending?: string; short?: string };
+type Ending = { id?: string; kind?: NoteKind; ending?: string; short?: string; custom?: string | null; flag?: string | null };
 
 async function draftBatch(ids: string[]): Promise<number> {
   const people = await prisma.contact.findMany({
     where: { id: { in: ids } },
     select: {
       id: true, name: true, company: true, title: true, role: true, profileText: true,
-      relationship: true, howMet: true, stage: true, stageHistory: true,
+      relationship: true, howMet: true, stage: true, stageHistory: true, notes: true, warmth: true,
     },
   });
   if (!people.length) return 0;
@@ -67,11 +67,15 @@ async function draftBatch(ids: string[]): Promise<number> {
         title: p.title || p.role || null,
         company: p.company || null,
         summary: p.profileText?.slice(0, 500) ?? null,
+        group: parseList(p.relationship),
+        howMet: p.howMet || null,
+        warmth: p.warmth || null,
+        yourNote: p.notes?.slice(0, 200) || null,
       }),
     )
     .join("\n");
 
-  const prompt = `For each person below, write the personal ending of a LinkedIn connection note. The rest of the note is fixed:
+  const prompt = `For each person below, read their profile first, then write the personal ending of their LinkedIn connection note. The rest of the note is fixed:
 "Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU in this AI era (exciting time). As I explore industry roles, I would love to connect and learn how AI is actually showing up in your work as {ending}!"
 
 The ending names their current role and company as a natural phrase, and adds one true detail beyond the title when the summary gives one (their path, team or a project). Examples:
@@ -82,13 +86,17 @@ Keep it under 90 characters. Never invent a detail; with only a title and compan
 
 Also give:
 - "short": the ending with just role and company, under 50 characters, used if the full one does not fit.
-- "kind": "recruiter" for recruiters and talent people, "engineer" for software engineers and engineering roles, otherwise "standard".
+- "kind": "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
+
+Then check the fixed note actually makes sense for this person, reading it as they would. It does not when, for example: they are someone the user already knows (a CMU colleague or professor, someone their notes or warmth say is close), so "I'm a recent CMU MHCI grad" would be odd; they are a student; their work has nothing to do with product or AI, so "how AI is actually showing up in your work" is a strange question; or they are senior enough that the ask should be different. When it does not make sense:
+- "custom": a full note of your own, under 300 characters, keeping the same shape (friendly hello, the shared tie, who the user is in a line, why them, a light ask) in the same casual voice, adapted to this person. Otherwise null.
+- "flag": one short line for the user on why it needs a look ("Already a CMU colleague; wrote a personal note"). Also flag, without a custom note, anything else worth checking before sending (an unclear current role, a title that looks out of date). Otherwise null.
 
 People, one JSON object per line:
 ${list}
 
 Return ONLY a JSON array, no preamble:
-[{ "id": "...", "kind": "standard", "ending": "...", "short": "..." }]`;
+[{ "id": "...", "kind": "standard", "ending": "...", "short": "...", "custom": null, "flag": null }]`;
 
   const { text } = await callClaudeDetailed(prompt, 180_000);
   const out = extractJson<Ending[]>(text, "array") ?? [];
@@ -98,15 +106,16 @@ Return ONLY a JSON array, no preamble:
   for (const e of out) {
     const p = e.id ? byId.get(e.id) : undefined;
     if (!p || typeof e.ending !== "string" || !e.ending.trim()) continue;
-    const kind: NoteKind = e.kind === "engineer" || e.kind === "recruiter" ? e.kind : "standard";
-    const note = buildNote({
-      firstName: firstName(p.name),
-      group: openerFor(parseList(p.relationship), `${p.title ?? ""} ${p.role ?? ""} ${p.howMet ?? ""} ${p.profileText ?? ""}`),
-      kind,
-      ending: e.ending,
-      short: e.short,
-      company: p.company,
-    });
+    const kind: NoteKind =
+      e.kind === "engineer" || e.kind === "recruiter" || e.kind === "design_recruiter" ? e.kind : "standard";
+    const group = openerFor(parseList(p.relationship), `${p.title ?? ""} ${p.role ?? ""} ${p.howMet ?? ""} ${p.profileText ?? ""}`);
+    const custom = typeof e.custom === "string" && e.custom.trim() && e.custom.trim().length <= 300 ? e.custom.trim() : null;
+    const note =
+      custom ??
+      buildNote({ firstName: firstName(p.name), group, kind, ending: e.ending, short: e.short, company: p.company });
+    // The version, for comparing acceptance and reply rates (lib/note-stats).
+    const variant = custom ? "custom" : `template:${group}${kind === "standard" ? "" : `:${kind}`}`;
+    const flag = typeof e.flag === "string" && e.flag.trim() ? e.flag.trim().slice(0, 160) : null;
     // Drafted, unless they are already further along (a note for someone you have
     // already sent to replaces the text, not the stage).
     const stage = p.stage ?? "Identified";
@@ -119,6 +128,8 @@ Return ONLY a JSON array, no preamble:
       where: { id: p.id },
       data: {
         connectionNote: note,
+        connectionNoteVariant: variant,
+        connectionNoteFlag: flag,
         ...(moveToDrafted
           ? { stage: "Drafted", stageHistory: JSON.stringify([...(Array.isArray(history) ? history : []), { stage: "Drafted", at: now }]) }
           : {}),

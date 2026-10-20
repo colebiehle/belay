@@ -68,6 +68,8 @@ export type PanelContact = {
   // you marked it sent.
   connectionNote?: string | null;
   connectionNoteSentAt?: string | null;
+  connectionNoteVariant?: string | null;
+  connectionNoteFlag?: string | null;
 };
 
 /**
