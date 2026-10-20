@@ -15,7 +15,10 @@ export const IMPORT_MAX_CHARS = 60_000;
  * get the web lookup, which is the expensive part. Fit judges field and company,
  * never school.
  */
-export const AUTO_SKIP_MAX_FIT = 3;
+// Off (0) until the fit score judges the whole ecosystem (anyone at a target
+// company, any tech role, CMU people), not just product designers: at 3 it set
+// aside an Apple design producer, a Shopify product lead and an MHCI classmate.
+export const AUTO_SKIP_MAX_FIT = 0;
 export const LOOKUP_MIN_FIT = 5;
 export const AUTO_SKIP_NOTE = "auto: fit";
 
