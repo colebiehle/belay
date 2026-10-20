@@ -109,6 +109,8 @@ export async function capturePage() {
     textLength: (r.innerText || "").length,
     sampleText: (r.innerText || "").slice(0, 1500),
     href: location.href,
+    topFrame: window === window.top,
+    version: "1.6.0",
     mains: document.querySelectorAll("main").length,
     visibleMains: [...document.querySelectorAll("main")].filter(visible).length,
     iframes: [...document.querySelectorAll("iframe")].map((f) => (f.src || "(no src)").slice(0, 120)).slice(0, 10),
@@ -130,7 +132,14 @@ export async function sendTab(tab) {
   if (!tab?.url?.startsWith("https://www.linkedin.com/")) {
     throw new Error("Open a LinkedIn page first.");
   }
-  const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: capturePage });
+  // Every frame, not just the top page: LinkedIn's newer pages (a group's members)
+  // draw inside an embedded frame, and the top page holds only a shell around it.
+  // The frame that found the most people wins.
+  const runs = await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: capturePage });
+  const results = runs.map((r) => r.result).filter(Boolean);
+  const result = results.sort((a, b) => (b.people || 0) - (a.people || 0))[0];
+  if (!result) throw new Error("Could not read this page.");
+  result.debug = { ...(result.debug || {}), frames: results.map((r) => ({ url: (r.debug?.href || "").slice(0, 100), people: r.people })) };
   const { mutual, tags } = await getSettings();
   const res = await fetch(`${BELAY}/api/people/capture`, {
     method: "POST",
