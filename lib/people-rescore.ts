@@ -9,22 +9,23 @@ import { targetCompaniesLine } from "@/lib/target-list";
  * background; `rescoreStatus` reports progress.
  */
 
-const BATCH = 60;
+const BATCH = 40;
 let state: { running: boolean; done: number; total: number; failed: number } = { running: false, done: 0, total: 0, failed: 0 };
 
 export function rescoreStatus() {
   return state;
 }
 
-export function startRescore(): boolean {
+export function startRescore(maxFit?: number): boolean {
   if (state.running) return false;
-  void run();
+  void run(maxFit);
   return true;
 }
 
-async function run() {
+async function run(maxFit?: number) {
+  // maxFit: only cards at or below it, for a second pass over the low end.
   const cards = await prisma.personCandidate.findMany({
-    where: { status: "pending" },
+    where: { status: "pending", ...(maxFit ? { OR: [{ fit: null }, { fit: { lte: maxFit } }] } : {}) },
     select: { id: true, name: true, title: true, company: true, location: true, summary: true, source: true, mutuals: true, mutual: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
