@@ -170,12 +170,17 @@ async function cardWorker() {
   try {
     while (cardWaiting.length) {
       const id = cardWaiting.shift()!;
+      // Marked looked up only when a search actually ran (found or not), so a failure
+      // is not retried forever. A card skipped for its fit is left unmarked: it used
+      // to be marked too, and when a re-score later lifted it past the bar it was
+      // never looked up.
+      let ran = false;
       try {
-        await enrichCandidate(id);
+        ran = await enrichCandidate(id);
       } catch {
-        // Marked as looked up regardless, below, so a failure is not retried forever.
+        ran = true;
       } finally {
-        await prisma.personCandidate.update({ where: { id }, data: { lookedUpAt: new Date() } }).catch(() => {});
+        if (ran) await prisma.personCandidate.update({ where: { id }, data: { lookedUpAt: new Date() } }).catch(() => {});
         cardPending.delete(id);
       }
     }
@@ -184,15 +189,16 @@ async function cardWorker() {
   }
 }
 
-async function enrichCandidate(id: string): Promise<void> {
+/** True when a search ran; false when the card was not eligible. */
+async function enrichCandidate(id: string): Promise<boolean> {
   const c = await prisma.personCandidate.findUnique({ where: { id } });
   // Decided while it waited: a passed card needs nothing, and an added one is now a
   // Contact, which the Add queued for its own lookup.
-  if (!c?.linkedinUrl || c.status !== "pending" || c.lookedUpAt) return;
+  if (!c?.linkedinUrl || c.status !== "pending" || c.lookedUpAt) return false;
   // Queued before the threshold existed, or re-scored since: not worth the search.
-  if (c.fit !== null && c.fit < LOOKUP_MIN_FIT) return;
+  if (c.fit !== null && c.fit < LOOKUP_MIN_FIT) return false;
   const found = await lookupPerson({ name: c.name, linkedinUrl: c.linkedinUrl, headline: c.title ?? "", company: c.company ?? "" });
-  if (!found) return;
+  if (!found) return true;
   const data: { company?: string; summary?: string } = {};
   // The lookup's company wins on a card: the card's came from the paste, which
   // often reads a location or a school into it ("Carnegie Mellon University - San
@@ -200,6 +206,7 @@ async function enrichCandidate(id: string): Promise<void> {
   if (found.company && found.company !== c.company) data.company = found.company;
   if (found.summary) data.summary = found.summary;
   if (Object.keys(data).length) await prisma.personCandidate.update({ where: { id }, data });
+  return true;
 }
 
 /**

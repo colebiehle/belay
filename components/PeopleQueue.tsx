@@ -239,6 +239,7 @@ export function PeopleQueue({
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState<Sort>("fit");
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
 
   // --- Triage ---------------------------------------------------------------
   const [cursor, setCursor] = useState(0);
@@ -438,13 +439,22 @@ export function PeopleQueue({
   const time = (c: Candidate) => new Date(c.createdAt).getTime() || 0;
   const picked = (c: Candidate) => (c.source === PROFILE_LINK_SOURCE ? 1 : 0);
   const q = filter.trim().toLowerCase();
-  const queueCompanies = [...new Set(candidates.map((c) => c.company).filter((c): c is string => !!c))].sort();
+  // Chips for your target companies only: big pastes brought hundreds of employers,
+  // and a chip row of all of them is not a filter. Any other company is still one
+  // search away.
+  const targetNames = new Map(companies.map((co) => [co.name.toLowerCase(), co.name] as const));
+  const queueCompanies = [
+    ...new Set(candidates.map((c) => targetNames.get((c.company ?? "").toLowerCase())).filter((c): c is string => !!c)),
+  ].sort();
+  // And the groups you tag pastes with (mhci, ucsd, mburg), to triage one at a time.
+  const queueTags = [...new Set(candidates.flatMap((c) => listOf(c.tags)))].sort();
   const ordered = candidates
     .filter(
       (c) =>
         (!q ||
           `${c.name} ${c.company ?? ""} ${c.title ?? ""} ${listOf(c.mutuals).join(" ") || (c.mutual ?? "")} ${listOf(c.tags).join(" ")} ${c.batchNote ?? ""}`.toLowerCase().includes(q)) &&
-        (selectedCompanies.size === 0 || (!!c.company && selectedCompanies.has(c.company))),
+        (selectedCompanies.size === 0 || selectedCompanies.has(targetNames.get((c.company ?? "").toLowerCase()) ?? "")) &&
+        (selectedTags.size === 0 || listOf(c.tags).some((t) => selectedTags.has(t))),
     )
     .sort((a, b) => {
       if (sort === "newest") return time(b) - time(a) || a.name.localeCompare(b.name);
@@ -837,6 +847,22 @@ export function PeopleQueue({
             }}
             onClear={() => setSelectedCompanies(new Set())}
           />
+          {queueTags.length > 0 && (
+            <ChipFilterRow
+              items={queueTags}
+              selected={selectedTags}
+              onToggle={(t) => {
+                setSelectedTags((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(t)) next.delete(t);
+                  else next.add(t);
+                  return next;
+                });
+                setCursor(0);
+              }}
+              onClear={() => setSelectedTags(new Set())}
+            />
+          )}
         </div>
       )}
 
@@ -854,7 +880,7 @@ export function PeopleQueue({
       ) : ordered.length === 0 ? (
         <NoMatch
           query={filter}
-          onlyQuery={selectedCompanies.size === 0}
+          onlyQuery={selectedCompanies.size === 0 && selectedTags.size === 0}
           onClear={() => {
             setFilter("");
             setSelectedCompanies(new Set());
