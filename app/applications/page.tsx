@@ -6,6 +6,7 @@ import { CompanyLogo, domainFromEnrichment, logoFromEnrichment } from "@/compone
 import { TierBadge } from "@/components/TierBadge";
 import { StageSelect } from "@/components/StageChip";
 import { ListCard, TimingLine } from "@/components/ListCard";
+import { calendarDays } from "@/lib/dates";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
@@ -1038,6 +1039,16 @@ function JobCard({
   const tags = cleanTags(enrichment?.tags ?? enrichment?.keyPoints);
 
   const tokens = metaTokens(job);
+  // Only tier 1 and 2 roles are still here past a week (lib/expire-queue keeps
+  // them): late, a referral is what still gets one read, so the card says so.
+  const lateDays = daysAgo(job.datePosted ?? job.dateFound);
+  if (lateDays !== null && lateDays > 7 && job.companyTier != null && job.companyTier <= 2) {
+    tokens.splice(1, 0, {
+      text: "Late: try a referral",
+      title: "Posted over a week ago. At a target company, a referral still gets it read.",
+      tone: "text-fg-2",
+    });
+  }
 
   // One action, two ways to reach it. Writing the reason and filing the card are the
   // same gesture because they happen together: Enter files it, and the button is the
@@ -1340,6 +1351,19 @@ function PipelineCard({
         at={stageAt}
         title={`Moved to ${app.status} on ${stageAt.toLocaleDateString()}. From the stage change in its history.`}
       />,
+    );
+  }
+  // Accepted but not sent: from day 3 the card says to send it, because early
+  // applicants are the ones who get read. Rope: it is the next move (STYLE_GUIDE 2.1).
+  // The opened-form stall below takes over once there is one.
+  // Counted the way the date line above counts (calendar days from the stage
+  // change), so the two never disagree.
+  const acceptedAge = applying && stageAt ? calendarDays(stageAt) : null;
+  if (acceptedAge !== null && acceptedAge >= 3 && !(openedAge !== null && openedAge >= 7)) {
+    lines.push(
+      <span key="soon" className="text-rope truncate" title="Accepted but not sent. Early applicants get read first.">
+        Apply soon
+      </span>,
     );
   }
   if (openedAge !== null && openedAge >= 7) {

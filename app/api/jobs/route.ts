@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
+import { expireStaleQueue } from "@/lib/expire-queue";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -10,6 +11,9 @@ export async function GET(req: NextRequest) {
     filter === "pending" ? { verdict: null }
     : filter === "passed" ? { verdict: "Pass" }
     : {};
+
+  // Roles past a week without a decision leave the queue first (lib/expire-queue).
+  if (filter !== "passed") await expireStaleQueue();
 
   const [jobs, tierMap] = await Promise.all([
     prisma.job.findMany({
