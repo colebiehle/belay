@@ -19,13 +19,24 @@ export async function capturePage() {
   // overlay outside <main>), else the page's main area, else the whole body.
   // LinkedIn can keep an earlier view's <main> in the page, hidden, while it shows
   // the new one, so pick the visible candidate holding the most profile links.
+  // LinkedIn's newer pages render inside a shadow root, which querySelectorAll does
+  // not enter: everything below searches through shadow roots too.
+  const deepAll = (sel, start = document) => {
+    const out = [];
+    const walk = (node) => {
+      out.push(...node.querySelectorAll(sel));
+      for (const el of node.querySelectorAll("*")) if (el.shadowRoot) walk(el.shadowRoot);
+    };
+    walk(start);
+    return out;
+  };
   const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   // Some lists (a group's members) have no profile links at all, only rows, so the
   // score counts rows as well as links.
   const root = () => {
-    const candidates = [...document.querySelectorAll('[role="dialog"], .artdeco-modal, main, [role="main"]')].filter(visible);
+    const candidates = deepAll('[role="dialog"], .artdeco-modal, main, [role="main"]').filter(visible);
     const best = candidates
-      .map((el) => [el, el.querySelectorAll('a[href*="/in/"]').length * 10 + el.querySelectorAll("li").length])
+      .map((el) => [el, deepAll('a[href*="/in/"]', el).length * 10 + deepAll("li", el).length])
       .sort((a, b) => b[1] - a[1])[0];
     return best && best[1] > 0 ? best[0] : document.body;
   };
@@ -36,13 +47,13 @@ export async function capturePage() {
   const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const rows = new Map();
   const collect = () => {
-    for (const a of root().querySelectorAll('a[href*="/in/"]')) {
+    for (const a of deepAll('a[href*="/in/"]', root())) {
       const href = (a.getAttribute("href") || "").split("?")[0];
       if (!href || rows.has(href)) continue;
       const row = a.closest("li") || a.parentElement?.parentElement?.parentElement || a;
       rows.set(href, row.outerHTML);
     }
-    for (const li of root().querySelectorAll("li")) {
+    for (const li of deepAll("li", root())) {
       if (li.querySelector('a[href*="/in/"]')) continue;
       const t = (li.innerText || "").replace(/\n{2,}/g, "\n").trim();
       if (t.length < 12 || t.length > 600) continue;
@@ -55,7 +66,7 @@ export async function capturePage() {
   let lastCount = -1;
   for (let i = 0; i < 200 && still < 4; i++) {
     collect();
-    const more = [...root().querySelectorAll("button")].find((b) =>
+    const more = deepAll("button", root()).find((b) =>
       /^\s*(show more results|show more|load more)\s*$/i.test(b.textContent || ""),
     );
     if (more && !more.disabled) {
@@ -66,8 +77,8 @@ export async function capturePage() {
     }
     // Scroll the last row into view as well as the window: some lists scroll inside
     // their own container, which window.scrollTo never moves.
-    const links = root().querySelectorAll('a[href*="/in/"]');
-    const items = root().querySelectorAll("li");
+    const links = deepAll('a[href*="/in/"]', root());
+    const items = deepAll("li", root());
     const last = links[links.length - 1] || items[items.length - 1];
     last?.scrollIntoView({ block: "end" });
     // And the list's own scrolling box to its very bottom: an overlay's list loads
@@ -87,14 +98,14 @@ export async function capturePage() {
   collect();
   // What the page looked like, so a short capture can be diagnosed from Belay.
   const r = root();
-  const anchors = [...r.querySelectorAll("a[href]")];
+  const anchors = deepAll("a[href]", r);
   const debug = {
     root: r === document.body ? "body" : r.tagName.toLowerCase() + (r.getAttribute("role") ? `[${r.getAttribute("role")}]` : ""),
     anchors: anchors.length,
-    profileLinks: r.querySelectorAll('a[href*="/in/"]').length,
-    docProfileLinks: document.querySelectorAll('a[href*="/in/"]').length,
+    profileLinks: deepAll('a[href*="/in/"]', r).length,
+    docProfileLinks: deepAll('a[href*="/in/"]').length,
     sampleHrefs: [...new Set(anchors.map((a) => (a.getAttribute("href") || "").split("?")[0]))].slice(0, 40),
-    listItems: r.querySelectorAll("li").length,
+    listItems: deepAll("li", r).length,
     textLength: (r.innerText || "").length,
     sampleText: (r.innerText || "").slice(0, 1500),
     href: location.href,
