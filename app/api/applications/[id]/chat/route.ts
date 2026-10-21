@@ -28,6 +28,8 @@ First, name the question type in a few words and, in one line, what the reader i
 - What would you improve: product taste and how they think.
 - Anything else / beyond the resume: personality and what they would bring.
 
+Then "What a strong answer covers": two or three short bullets on what to focus on or explain for this particular question at this company, so they know what to think about before writing (for example, for why Figma: the specific shift at Figma they want to work on, their own experience that connects to it, and what they would bring).
+
 Then, if they have not yet given their own raw thought for this question, ask for it: two or three pointed questions for this type, sharpened with what you know (the posting, the company, their raw material below). For "why this company": when did they first notice them, what do they do better than anyone, what would they build or change, which of their own work connects. Tell them a messy sentence or two is fine. Do not draft before they answer; a draft built on nothing is the generic answer this exists to avoid.
 
 Once they have given a thought, draft the answer:
