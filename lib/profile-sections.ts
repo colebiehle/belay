@@ -145,7 +145,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "writein",
-    title: "For write-in questions",
+    title: "For app questions",
     usedFor:
       "Raw material for \"why us\" and \"tell us about\" questions. A sentence or two each, in your own words: Belay builds answers from these, so they sound like you and say something no one else could.",
     questions: [
