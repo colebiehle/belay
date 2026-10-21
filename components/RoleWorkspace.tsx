@@ -311,6 +311,8 @@ export function RoleWorkspace({
   // into the form by the extension's Fill again.
   const qa = qaList;
   const [qaDrafts, setQaDrafts] = useState<Record<number, string>>({});
+  // The inline "+ Add question" field, null while closed.
+  const [newQuestion, setNewQuestion] = useState<string | null>(null);
   const saveQa = (i: number, answer: string) => {
     const next = qa.map((q, k) => (k === i ? { ...q, answer } : q));
     onUpdate(app.id, { applicationQA: JSON.stringify(next) });
@@ -1068,16 +1070,53 @@ export function RoleWorkspace({
             </div>
 
             {/* The form's write-in questions, filed by the extension's "Work through
-                these in Belay". Each is worked on in the chat (focused on that
-                question) and settled here; Fill again puts the answers in the form. */}
-            {qa.length > 0 && (
+                these in Belay" or added by hand. Each is worked on in the chat
+                (focused on that question) and settled here; Fill again puts the
+                answers in the form. Always rendered, like Interviews and Files. */}
+            {(
               <div className="space-y-3">
-                <h3 className={sectionHead}>
-                  <span className="t-section">Write-in questions</span>
-                  <span className="text-meta tabular-nums text-fg-3">
-                    {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
-                  </span>
-                </h3>
+                <div className={sectionHead}>
+                  <h3 className="t-section">Write-in questions</h3>
+                  {qa.length > 0 && (
+                    <span className="text-meta tabular-nums text-fg-3">
+                      {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
+                    </span>
+                  )}
+                  {newQuestion === null && (
+                    <button onClick={() => setNewQuestion("")} className={button("quiet", "compact")}>
+                      <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add question
+                    </button>
+                  )}
+                </div>
+                {newQuestion !== null && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const q = newQuestion.trim();
+                      if (q) onUpdate(app.id, { applicationQA: JSON.stringify([...qa, { question: q, answer: "" }]) });
+                      setNewQuestion(null);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      autoFocus
+                      value={newQuestion}
+                      onChange={(e) => setNewQuestion(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation();
+                          setNewQuestion(null);
+                        }
+                      }}
+                      placeholder="Paste the question as the form words it"
+                      aria-label="New write-in question"
+                      className={field("compact")}
+                    />
+                    <button type="submit" disabled={!newQuestion.trim()} className={button("primary", "compact")}>
+                      Add
+                    </button>
+                  </form>
+                )}
                 {qa.map((q, i) => (
                   <div key={i} className="space-y-1.5">
                     <p className="text-body text-fg-1">{q.question}</p>
