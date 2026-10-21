@@ -7,6 +7,41 @@ import { identityLine } from "@/lib/identity";
 
 // GET ?cellKey=resume|coverLetter|qa#N returns the cell-scoped thread;
 // without it returns the whole-application thread (cellKey=null).
+
+// Profile → "For write-in questions", plus the story fields: the raw material
+// write-in answers are built from (lib/profile-sections).
+const WRITE_IN_KEYS = [
+  "design_belief", "ai_in_your_work", "teaching_insight", "product_admired",
+  "hardest_decision", "setback", "next_growth", "beyond_resume", "proudest_work", "ai_experience",
+];
+
+// The write-in coach (Oct 2026). The thinking comes from them; this
+// shapes it. Readers are founders and hiring managers skimming in ~30 seconds,
+// most answers they see are generic or AI-written, and they are checking effort,
+// specific motivation, judgment and taste, communication, and culture.
+const WRITE_IN_GUIDE = `Help them answer one write-in question on an application so it reads as theirs and stands out from the generic and AI-written answers the reader sees all day.
+
+First, name the question type in a few words and, in one line, what the reader is really checking with it:
+- Why this company: specific motivation, that they understand what this company does and want that, not any job.
+- Why this role: what they would do even unprompted, and what they want to grow in.
+- A project they are proud of: judgment, the hard decision and the tradeoff, and relevance to this team.
+- What would you improve: product taste and how they think.
+- Anything else / beyond the resume: personality and what they would bring.
+
+Then, if they have not yet given their own raw thought for this question, ask for it: two or three pointed questions for this type, sharpened with what you know (the posting, the company, their raw material below). For "why this company": when did they first notice them, what do they do better than anyone, what would they build or change, which of their own work connects. Tell them a messy sentence or two is fine. Do not draft before they answer; a draft built on nothing is the generic answer this exists to avoid.
+
+Once they have given a thought, draft the answer:
+- The first sentence answers the question directly, with something specific.
+- One piece of evidence: their own work (from their raw material or background), an opinion about the product, or a specific fact about the company. Never generic praise ("innovative", "mission-driven", "industry-leading").
+- One line tying it to this team or role. Then stop; no summary sentence.
+- In their words and voice: keep their phrasing wherever it works. Short, plain, a little casual. Under the stated limit, usually well under it.
+- None of the tells of AI writing: no "I'm passionate about", "excited to", "leverage", "delve", "not just X but Y", lists of three, em dashes, a closing summary, or every sentence equally polished.
+- Never invent a fact, a project, a number or a feeling they did not give.
+
+Before showing it, test it: would the reader remember one specific thing about them after 30 seconds? Could another applicant have written it? Does any sentence sound like AI? If it fails, ask them one more question instead of padding.
+
+Show the draft on its own between two lines of three dashes (---), nothing else between them, then its word count and one line on what makes it theirs. When they are happy, tell them to press "Use last draft" on the question.`;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -205,8 +240,28 @@ export async function POST(
         const items = JSON.parse(app.applicationQA) as { question: string; answer: string }[];
         const item = items[idx];
         if (item) {
-          cellLabel = `Q&A: ${item.question.slice(0, 80)}`;
-          cellContent = `Q: ${item.question}\nA: ${item.answer}`;
+          cellLabel = `Write-in question: ${item.question.slice(0, 80)}`;
+          // Their raw material (Profile → For write-in questions, and their story),
+          // and what Belay knows about the company, so a draft can be specific.
+          const [raw, dossier] = await Promise.all([
+            prisma.answerBank.findMany({
+              where: { questionKey: { in: WRITE_IN_KEYS }, answer: { not: "" } },
+              select: { question: true, answer: true },
+            }),
+            prisma.material.findFirst({
+              where: { kind: "company_dossier", title: { contains: app.job.company } },
+              select: { content: true },
+            }),
+          ]);
+          cellContent = [
+            `The question: ${item.question}`,
+            item.answer?.trim() ? `Their current draft:\n${item.answer}` : "No draft yet.",
+            raw.length ? `Their own raw material (from their Profile):\n${raw.map((r) => `- ${r.question}: ${r.answer.slice(0, 500)}`).join("\n")}` : "",
+            dossier?.content ? `What Belay knows about ${app.job.company}:\n${dossier.content.slice(0, 2500)}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+          cellGuidance = WRITE_IN_GUIDE;
         }
       } catch { /* ignore */ }
     }

@@ -52,7 +52,8 @@ export const SECTIONS: Section[] = [
     title: "Basics",
     usedFor: "How Belay introduces you, and the first lines of every form.",
     questions: [
-      answer("full_name", "Full name", { example: "Alex Rivera" }),
+      answer("full_name", "Full name", { hint: "Your legal name, as forms want it.", example: "Alex Rivera" }),
+      answer("preferred_name", "Preferred name", { hint: "What you go by, if different.", example: "Alex" }),
       answer("headline", "Headline", { hint: "One line: who you are professionally.", example: "Product designer working on AI tools" }),
       answer("pronouns", "Pronouns", { example: "they/them", noFill: true }),
       answer("email", "Email", { example: "you@example.com" }),

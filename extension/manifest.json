@@ -1,15 +1,37 @@
 {
   "manifest_version": 3,
   "name": "Send to Belay",
-  "version": "1.6.0",
-  "description": "Send the LinkedIn page you are on to Belay's People queue, with a mutual and tags.",
-  "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://localhost:3001/*", "https://www.linkedin.com/*"],
-  "action": { "default_popup": "popup.html", "default_title": "Send to Belay" },
-  "background": { "service_worker": "background.js", "type": "module" },
+  "version": "1.7.0",
+  "description": "Send LinkedIn pages to Belay's People queue, and fill job applications from your Belay Profile.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:3001/*",
+    "https://www.linkedin.com/*",
+    "https://*.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://jobs.ashbyhq.com/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://*.workable.com/*",
+    "https://*.smartrecruiters.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Send to Belay"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "commands": {
     "send-page": {
-      "suggested_key": { "default": "Alt+Shift+B", "mac": "Alt+Shift+B" },
+      "suggested_key": {
+        "default": "Alt+Shift+B",
+        "mac": "Alt+Shift+B"
+      },
       "description": "Send this page to Belay with the current mutual and tags"
     }
   }

@@ -60,6 +60,9 @@ type App = {
   statusHistory: string | null;
   referrerId: string | null;
   portalUrl: string | null;
+  // JSON [{ question, answer }]: the form's write-in questions, filed by the
+  // extension, with your answers as you settle them.
+  applicationQA?: string | null;
   applyStartedAt: string | null;
   // A free-text line of your own about this role. Distinct from noteList, which is
   // titled notes about events; this is the standing description the generated
@@ -237,11 +240,16 @@ export function RoleWorkspace({
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const qaList = parseJson<{ question: string; answer: string }[]>(app.applicationQA ?? null, []);
   // Scopes that only make sense at a stage appear at that stage, so the chip row
   // stays short early on and grows as the application actually progresses.
   const scopes = [
     ...SCOPES,
     ...SCOPES_LATE.filter((sc) => sc.from.includes(app.status)).map(({ key, label, hint }) => ({ key, label, hint })),
+    // The write-in question being worked on, when one is.
+    ...(scope?.startsWith("qa#")
+      ? [{ key: scope, label: `Question ${Number(scope.slice(3)) + 1}`, hint: qaList[Number(scope.slice(3))]?.question ?? "" }]
+      : []),
   ];
   const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
   const logoDomain = getLogoDomain(
@@ -298,6 +306,26 @@ export function RoleWorkspace({
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The write-in questions (applicationQA) and their answers, edited here and put
+  // into the form by the extension's Fill again.
+  const qa = qaList;
+  const [qaDrafts, setQaDrafts] = useState<Record<number, string>>({});
+  const saveQa = (i: number, answer: string) => {
+    const next = qa.map((q, k) => (k === i ? { ...q, answer } : q));
+    onUpdate(app.id, { applicationQA: JSON.stringify(next) });
+  };
+  const workOnQuestion = (i: number) => {
+    setTab("chat");
+    setScope(`qa#${i}`);
+    if (messages.length > 0) setMarkers((m) => ({ ...m, [messages.length]: `Question ${i + 1}` }));
+  };
+  // The draft is set off between "---" lines in the coach's reply; take just that.
+  const lastReply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+  const lastDraft = (() => {
+    const parts = lastReply.split(/^\s*---\s*$/m);
+    return (parts.length >= 3 ? parts[1] : lastReply).trim();
+  })();
 
   const switchScope = (next: string | null) => {
     if (next === scope) return;
@@ -888,6 +916,55 @@ export function RoleWorkspace({
                   : `Find people at ${app.job.company} →`}
               </a>
             </div>
+
+            {/* The form's write-in questions, filed by the extension's "Work through
+                these in Belay". Each is worked on in the chat (focused on that
+                question) and settled here; Fill again puts the answers in the form. */}
+            {qa.length > 0 && (
+              <div className="space-y-3">
+                <h3 className={sectionHead}>
+                  <span className="t-section">Write-in questions</span>
+                  <span className="text-meta tabular-nums text-fg-3">
+                    {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
+                  </span>
+                </h3>
+                {qa.map((q, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <p className="text-body text-fg-1">{q.question}</p>
+                    <AutoResizeTextarea
+                      value={qaDrafts[i] ?? q.answer}
+                      onChange={(e) => setQaDrafts((d) => ({ ...d, [i]: e.target.value }))}
+                      onBlur={() => {
+                        if (qaDrafts[i] !== undefined && qaDrafts[i] !== q.answer) saveQa(i, qaDrafts[i]);
+                      }}
+                      placeholder="Your answer. Work on it with Claude, then use the draft or write your own."
+                      aria-label={`Answer to: ${q.question}`}
+                      className={textarea()}
+                    />
+                    <div className="flex items-center gap-1 -ml-2.5">
+                      <button onClick={() => workOnQuestion(i)} className={button("quiet", "compact")}>
+                        Work on it with Claude
+                      </button>
+                      {scope === `qa#${i}` && lastDraft && (
+                        <button
+                          onClick={() => {
+                            setQaDrafts((d) => ({ ...d, [i]: lastDraft }));
+                            saveQa(i, lastDraft);
+                          }}
+                          className={button("quiet", "compact")}
+                          title="Put the chat's latest draft in this answer"
+                        >
+                          Use last draft
+                        </button>
+                      )}
+                      <span className="ml-auto text-meta tabular-nums text-fg-3">
+                        {(qaDrafts[i] ?? q.answer).trim().split(/\s+/).filter(Boolean).length} words
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* How this role got here, first, because it is the answer to the question
                 the panel is usually opened with. Every stage change is already appended

@@ -1,4 +1,5 @@
 import { BELAY, getSettings, networkFilter, sendTab } from "./shared.js";
+import { fillForm } from "./autofill.js";
 
 const $ = (id) => document.getElementById(id);
 const STARTERS = ["mentor", "peer"];
@@ -150,6 +151,63 @@ $("send").onclick = async () => {
 };
 
 $("ver").textContent = `v${chrome.runtime.getManifest().version}`;
+// Fill this application: your Profile into the form's standard fields, every frame
+// (Greenhouse forms often sit in an embedded frame on the company's own site).
+$("fill").onclick = async () => {
+  const btn = $("fill");
+  const out = $("fill-report");
+  btn.disabled = true;
+  btn.textContent = "Filling…";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const profile = await fetch(`${BELAY}/api/profile/autofill`).then((r) => r.json());
+    // Answers you have settled for this form's write-ins, if Belay knows the role.
+    const saved = await fetch(
+      `${BELAY}/api/applications/questions?url=${encodeURIComponent(tab.url || "")}&title=${encodeURIComponent(tab.title || "")}`,
+    )
+      .then((r) => r.json())
+      .catch(() => ({ answers: [] }));
+    profile.__answers = saved.answers || [];
+    const runs = await chrome.scripting.executeScript({ target: { tabId: tab.id, allFrames: true }, func: fillForm, args: [profile] });
+    const res = runs.map((r) => r.result).filter(Boolean);
+    const filled = res.flatMap((r) => r.filled);
+    const missing = [...new Set(res.flatMap((r) => r.missing))];
+    const questions = [...new Set(res.flatMap((r) => r.questions))];
+    const li = (t) => `<li>${t.replace(/</g, "&lt;").slice(0, 90)}</li>`;
+    out.innerHTML =
+      `<p>Filled <b>${filled.length}</b> field${filled.length === 1 ? "" : "s"}. Check them before you submit.</p>` +
+      (missing.length ? `<p class="muted">Not in your Profile yet:</p><ul>${missing.slice(0, 8).map(li).join("")}</ul>` : "") +
+      (questions.length
+        ? `<p class="muted">Write-in questions to answer:</p><ul>${questions.slice(0, 8).map(li).join("")}</ul><button id="work" class="secondary">Work through these in Belay</button>`
+        : "");
+    out.hidden = false;
+    // Send the questions to the role in Belay and open it there.
+    const work = document.getElementById("work");
+    if (work)
+      work.onclick = async () => {
+        work.disabled = true;
+        const d = await fetch(`${BELAY}/api/applications/questions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: tab.url, title: tab.title, questions }),
+        })
+          .then((r) => r.json())
+          .catch(() => ({ error: "Belay isn't running" }));
+        if (d.appId) chrome.tabs.create({ url: `${BELAY}/applications?app=${d.appId}` });
+        else {
+          work.textContent = d.error || "Could not find this role in Belay";
+          work.disabled = false;
+        }
+      };
+    btn.textContent = "Fill again";
+  } catch (e) {
+    out.innerHTML = `<p class="muted">${e.message || "Could not fill this page."}</p>`;
+    out.hidden = false;
+    btn.textContent = "Fill this application";
+  }
+  btn.disabled = false;
+};
+
 loadBelay();
 loadJobs();
 setInterval(loadJobs, 3000);
