@@ -178,7 +178,7 @@ $("fill").onclick = async () => {
       `<p>Filled <b>${filled.length}</b> field${filled.length === 1 ? "" : "s"}. Check them before you submit.</p>` +
       (missing.length ? `<p class="muted">Not in your Profile yet:</p><ul>${missing.slice(0, 8).map(li).join("")}</ul>` : "") +
       (questions.length
-        ? `<p class="muted">Write-in questions to answer:</p><ul>${questions.slice(0, 8).map(li).join("")}</ul><button id="work" class="secondary">Work through these in Belay</button>`
+        ? `<p class="muted">App questions to answer:</p><ul>${questions.slice(0, 8).map(li).join("")}</ul><button id="work" class="secondary">Work through these in Belay</button>`
         : "");
     out.hidden = false;
     // Send the questions to the role in Belay and open it there.

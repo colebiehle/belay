@@ -1076,7 +1076,7 @@ export function RoleWorkspace({
             {(
               <div className="space-y-3">
                 <div className={sectionHead}>
-                  <h3 className="t-section">Write-in questions</h3>
+                  <h3 className="t-section">App questions</h3>
                   {qa.length > 0 && (
                     <span className="text-meta tabular-nums text-fg-3">
                       {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
