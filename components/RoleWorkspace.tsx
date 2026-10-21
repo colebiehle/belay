@@ -917,55 +917,6 @@ export function RoleWorkspace({
               </a>
             </div>
 
-            {/* The form's write-in questions, filed by the extension's "Work through
-                these in Belay". Each is worked on in the chat (focused on that
-                question) and settled here; Fill again puts the answers in the form. */}
-            {qa.length > 0 && (
-              <div className="space-y-3">
-                <h3 className={sectionHead}>
-                  <span className="t-section">Write-in questions</span>
-                  <span className="text-meta tabular-nums text-fg-3">
-                    {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
-                  </span>
-                </h3>
-                {qa.map((q, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <p className="text-body text-fg-1">{q.question}</p>
-                    <AutoResizeTextarea
-                      value={qaDrafts[i] ?? q.answer}
-                      onChange={(e) => setQaDrafts((d) => ({ ...d, [i]: e.target.value }))}
-                      onBlur={() => {
-                        if (qaDrafts[i] !== undefined && qaDrafts[i] !== q.answer) saveQa(i, qaDrafts[i]);
-                      }}
-                      placeholder="Your answer. Work on it with Claude, then use the draft or write your own."
-                      aria-label={`Answer to: ${q.question}`}
-                      className={textarea()}
-                    />
-                    <div className="flex items-center gap-1 -ml-2.5">
-                      <button onClick={() => workOnQuestion(i)} className={button("quiet", "compact")}>
-                        Work on it with Claude
-                      </button>
-                      {scope === `qa#${i}` && lastDraft && (
-                        <button
-                          onClick={() => {
-                            setQaDrafts((d) => ({ ...d, [i]: lastDraft }));
-                            saveQa(i, lastDraft);
-                          }}
-                          className={button("quiet", "compact")}
-                          title="Put the chat's latest draft in this answer"
-                        >
-                          Use last draft
-                        </button>
-                      )}
-                      <span className="ml-auto text-meta tabular-nums text-fg-3">
-                        {(qaDrafts[i] ?? q.answer).trim().split(/\s+/).filter(Boolean).length} words
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* How this role got here, first, because it is the answer to the question
                 the panel is usually opened with. Every stage change is already appended
                 with a timestamp by the PATCH route, and it was being recorded
@@ -1115,6 +1066,55 @@ export function RoleWorkspace({
                 </form>
               )}
             </div>
+
+            {/* The form's write-in questions, filed by the extension's "Work through
+                these in Belay". Each is worked on in the chat (focused on that
+                question) and settled here; Fill again puts the answers in the form. */}
+            {qa.length > 0 && (
+              <div className="space-y-3">
+                <h3 className={sectionHead}>
+                  <span className="t-section">Write-in questions</span>
+                  <span className="text-meta tabular-nums text-fg-3">
+                    {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
+                  </span>
+                </h3>
+                {qa.map((q, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <p className="text-body text-fg-1">{q.question}</p>
+                    <AutoResizeTextarea
+                      value={qaDrafts[i] ?? q.answer}
+                      onChange={(e) => setQaDrafts((d) => ({ ...d, [i]: e.target.value }))}
+                      onBlur={() => {
+                        if (qaDrafts[i] !== undefined && qaDrafts[i] !== q.answer) saveQa(i, qaDrafts[i]);
+                      }}
+                      placeholder="Your answer. Work on it with Claude, then use the draft or write your own."
+                      aria-label={`Answer to: ${q.question}`}
+                      className={textarea()}
+                    />
+                    <div className="flex items-center gap-1 -ml-2.5">
+                      <button onClick={() => workOnQuestion(i)} className={button("quiet", "compact")}>
+                        Work on it with Claude
+                      </button>
+                      {scope === `qa#${i}` && lastDraft && (
+                        <button
+                          onClick={() => {
+                            setQaDrafts((d) => ({ ...d, [i]: lastDraft }));
+                            saveQa(i, lastDraft);
+                          }}
+                          className={button("quiet", "compact")}
+                          title="Put the chat's latest draft in this answer"
+                        >
+                          Use last draft
+                        </button>
+                      )}
+                      <span className="ml-auto text-meta tabular-nums text-fg-3">
+                        {(qaDrafts[i] ?? q.answer).trim().split(/\s+/).filter(Boolean).length} words
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Interviews. Same shape as Referral and Files: a heading, its add, a
                 list. It exists because nothing anywhere held a date — the activity
