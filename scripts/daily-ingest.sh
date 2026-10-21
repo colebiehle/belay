@@ -59,6 +59,15 @@ find_port() { for p in 3001 3000; do alive "$p" && { echo "$p"; return 0; }; don
 
 say "--- daily ingest starting ---"
 
+# A run that starts the moment the Mac wakes can beat the network back: Gmail, LinkedIn
+# and the portfolio boards all came back "fetch failed" or empty on 2026-10-21. Wait
+# for the internet (up to ten minutes) before scanning.
+for i in $(seq 1 60); do
+  if curl -s -m 5 -o /dev/null https://www.google.com; then break; fi
+  [ "$i" = "1" ] && say "no network yet; waiting for it"
+  sleep 10
+done
+
 PORT=$(find_port) || PORT=""
 if [ -z "$PORT" ]; then
   say "no dev server responding; starting one"
