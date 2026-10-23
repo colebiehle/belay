@@ -148,10 +148,10 @@ The template for this person (their group decides the opener), word for word. On
 "${templateLine}"
 
 - {who}: their role at their company, at their real level: "a designer at Figma", "a PM at Google Health", "a design leader at Stripe", "Figma's head of design". Never undersell a senior person as "a designer".
-- {focus}: what they work on, two to five words ("onboarding", "patient care", "design systems"). Only when it is clear from what is below; otherwise drop ", especially for problems like {focus}" and say in one line under the drafts that you left it out, so they can add one. A vague or wrong focus is worse than none.
+- {focus}: what they work on, two to five words ("onboarding", "patient care", "design systems"). Only when it is clear from what is below; otherwise drop ", especially in your work on {focus}" and say in one line under the drafts that you left it out, so they can add one. A vague or wrong focus is worse than none.
 - {aside}: a short parenthetical about something real they did or lead (a launch, a talk, a project) when it is named below ("the Make launch looked great"). Otherwise drop " ({aside})". Never claim to have seen something that is not below.
 
-Engineers: "…hear how {who} is actually using AI alongside designers, especially for problems like {focus}!"
+Engineers: "…hear how {who} is actually using AI alongside designers, especially in your work on {focus}!"
 
 Recruiters and talent people (in-house), a different note: the same opener, then ", and I'm exploring product design roles, especially in AI tools. I saw you recruit at {company} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!" ("recruit for design" when they recruit for design).
 
