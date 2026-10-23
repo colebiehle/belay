@@ -133,36 +133,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     firstName: firstName(contact.name),
     group: openerFor(relTags, `${contact.title ?? ""} ${contact.role ?? ""} ${contact.howMet ?? ""} ${contact.profileText ?? ""}`),
     kind: "standard",
-    ending: "{ending}",
+    who: "{who}",
+    focus: "{focus}",
+    aside: "{aside}",
   });
   let task = "";
   switch (scope) {
     case "connect":
-      // The owner's own note, settled over a long back-and-forth (Oct 2026). The
-      // fixed part is theirs word for word; only the ending is written per person.
+      // The owner's own note (settled Oct 23 2026). The fixed part is theirs word for
+      // word; only who they are, their focus and an optional aside change.
       task = `Draft a LinkedIn connection note from their template. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
 
-The template for this person (their group decides the opener), word for word. Only {ending} changes:
+The template for this person (their group decides the opener), word for word. Only {who}, {focus} and {aside} change:
 "${templateLine}"
 
-{ending} is the personal part, and the note stands or falls on it. Always their current role and company; then, when anything beyond the title is known from what is below (their path, a project, their team, a talk), fold it in. It follows "your work", written as a natural phrase, e.g.:
-- "since moving from research into design on Figma's onboarding team"
-- "on Google Health's UX team"
-- "as a PM on Figma's AI team"
-Never invent a detail. When only their title and company are known, say so in one line under the drafts, so they can add something before sending.
+- {who}: their role at their company, at their real level: "a designer at Figma", "a PM at Google Health", "a design leader at Stripe", "Figma's head of design". Never undersell a senior person as "a designer".
+- {focus}: what they work on, two to five words ("onboarding", "patient care", "design systems"). Only when it is clear from what is below; otherwise drop ", especially for problems like {focus}" and say in one line under the drafts that you left it out, so they can add one. A vague or wrong focus is worse than none.
+- {aside}: a short parenthetical about something real they did or lead (a launch, a talk, a project) when it is named below ("the Make launch looked great"). Otherwise drop " ({aside})". Never claim to have seen something that is not below.
 
-Engineers: use "…I'd love to connect and hear how AI is changing the way you work with designers {ending}!" instead, so the reason a designer is writing to them is clear.
+Engineers: "…hear how {who} is actually using AI alongside designers, especially for problems like {focus}!"
 
-Recruiters and talent people (in-house, hiring for design), a different note:
-"Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU, and I'm exploring product design roles, especially in AI tools. I saw you recruit for design at {company} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!"
+Recruiters and talent people (in-house), a different note: the same opener, then ", and I'm exploring product design roles, especially in AI tools. I saw you recruit at {company} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!" ("recruit for design" when they recruit for design).
 
 Do not mention a mutual; LinkedIn shows it. The one exception: when their notes say the mutual suggested reaching out, start with "{mutual} suggested I reach out!" after the greeting.
 
-Over the limit? Cut in this order until it fits: " (exciting time)", then the extra detail in {ending} (keep role and company).
+Over the limit? Cut the aside first, then the focus.
 
-Before answering, check each draft: it is under the limit; the ending is true and specific to this person; nothing else in the template has been reworded.
+Before answering, check each draft: it is under the limit; who, focus and aside are true and specific to this person; nothing else in the template has been reworded.
 
-Give two drafts with different endings, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
+Give two drafts (with different focus or aside choices where there is room), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;

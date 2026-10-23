@@ -6,7 +6,7 @@ import { parseList } from "@/lib/people-merge";
 /**
  * Batch drafting of connection notes: pick people on the Network page, and each
  * gets a note in their Drafted stage, ready to copy. The model writes only the
- * personal ending, eight people a call; lib/connect-template assembles the note in
+ * personal parts (who, focus, aside), eight people a call; lib/connect-template assembles the note in
  * the owner's words. Runs in the background; `draftStatus` reports progress.
  */
 
@@ -47,7 +47,15 @@ async function drain() {
   }
 }
 
-type Ending = { id?: string; kind?: NoteKind; ending?: string; short?: string; custom?: string | null; flag?: string | null };
+type Ending = {
+  id?: string;
+  kind?: NoteKind;
+  who?: string;
+  focus?: string | null;
+  aside?: string | null;
+  custom?: string | null;
+  flag?: string | null;
+};
 
 async function draftBatch(ids: string[]): Promise<number> {
   const people = await prisma.contact.findMany({
@@ -75,28 +83,25 @@ async function draftBatch(ids: string[]): Promise<number> {
     )
     .join("\n");
 
-  const prompt = `For each person below, read their profile first, then write the personal ending of their LinkedIn connection note. The rest of the note is fixed:
-"Hey {first name}! I'm a recent CMU MHCI grad, teaching design at CMU through this AI era (exciting time). Now that I'm moving into industry, I'd love to connect and hear how AI is actually showing up in your work {ending}!"
+  const prompt = `For each person below, read their profile first, then supply the personal parts of their LinkedIn connection note. The rest of the note is fixed:
+"Hey {first name}! I'm a recent MHCI grad, now teaching interaction design at CMU in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how {who} is actually using AI, especially for problems like {focus} ({aside})!"
 
-The ending follows "your work" and names their role and company as a natural phrase, adding one true detail beyond the title when the summary gives one (their path, team or a project). That detail is what keeps the note from reading as mass outreach, so find one when you can. Examples:
-- "on Figma's onboarding team"
-- "as a PM on Google Health's AI team"
-- "since moving from research into onboarding design at Figma"
-Keep it under 90 characters. Never invent a detail; with only a title and company, use those. Lowercase start, no final punctuation.
+- "who": their role at their company, at their real level, as a phrase that fits "hear how ___ is actually using AI": "a designer at Figma", "a PM at Google Health", "a design leader at Stripe", "Figma's head of design". Never undersell a senior person as "a designer".
+- "focus": what they work on, in two to five words, fitting "especially for problems like ___": "onboarding", "patient care", "design systems", "AI agents for support teams". Only when their title or summary makes it clear; otherwise null. A vague or wrong focus is worse than none, so do not guess.
+- "aside": a short parenthetical, four to eight words, about something real and specific they did or lead (a launch, a talk, an article, a project) when the summary names one: "the Make launch looked great". Otherwise null. Never claim to have seen something that is not in what is below.
 
 Also give:
-- "short": the ending with just role and company, under 50 characters ("at Figma", "as a PM at Google"), used if the full one does not fit.
 - "kind": "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
 
 Then check the fixed note actually makes sense for this person, reading it as they would. It does not when, for example: they are someone the user already knows (a CMU colleague or professor, someone their notes or warmth say is close), so "I'm a recent CMU MHCI grad" would be odd; they are a student; their work has nothing to do with product or AI, so "how AI is actually showing up in your work" is a strange question; or they are senior enough that the ask should be different. When it does not make sense:
 - "custom": a full note of your own, under 300 characters, keeping the same shape (friendly hello, the shared tie, who the user is in a line, why them, a light ask) in the same casual voice, adapted to this person. Otherwise null.
-- "flag": one short line for the user on why it needs a look ("Already a CMU colleague; wrote a personal note"). Also flag, without a custom note, anything else worth checking before sending (an unclear current role, a title that looks out of date). Otherwise null.
+- "flag": one short line for the user on why it needs a look ("Already a CMU colleague; wrote a personal note"). Also flag, without a custom note, anything else worth checking before sending: no clear focus ("No clear focus; add one if you know it"), an unclear current role, a title that looks out of date. Otherwise null.
 
 People, one JSON object per line:
 ${list}
 
 Return ONLY a JSON array, no preamble:
-[{ "id": "...", "kind": "standard", "ending": "...", "short": "...", "custom": null, "flag": null }]`;
+[{ "id": "...", "kind": "standard", "who": "...", "focus": null, "aside": null, "custom": null, "flag": null }]`;
 
   const { text } = await callClaudeDetailed(prompt, 180_000);
   const out = extractJson<Ending[]>(text, "array") ?? [];
@@ -105,14 +110,14 @@ Return ONLY a JSON array, no preamble:
   let wrote = 0;
   for (const e of out) {
     const p = e.id ? byId.get(e.id) : undefined;
-    if (!p || typeof e.ending !== "string" || !e.ending.trim()) continue;
+    if (!p || typeof e.who !== "string" || !e.who.trim()) continue;
     const kind: NoteKind =
       e.kind === "engineer" || e.kind === "recruiter" || e.kind === "design_recruiter" ? e.kind : "standard";
     const group = openerFor(parseList(p.relationship), `${p.title ?? ""} ${p.role ?? ""} ${p.howMet ?? ""} ${p.profileText ?? ""}`);
     const custom = typeof e.custom === "string" && e.custom.trim() && e.custom.trim().length <= 300 ? e.custom.trim() : null;
     const note =
       custom ??
-      buildNote({ firstName: firstName(p.name), group, kind, ending: e.ending, short: e.short, company: p.company });
+      buildNote({ firstName: firstName(p.name), group, kind, who: e.who, focus: e.focus, aside: e.aside, company: p.company });
     // The version, for comparing acceptance and reply rates (lib/note-stats).
     const variant = custom ? "custom" : `template:${group}${kind === "standard" ? "" : `:${kind}`}`;
     const flag = typeof e.flag === "string" && e.flag.trim() ? e.flag.trim().slice(0, 160) : null;
