@@ -76,16 +76,16 @@ async function draftBatch(ids: string[]): Promise<number> {
     .join("\n");
 
   const prompt = `For each person below, read their profile first, then write the personal ending of their LinkedIn connection note. The rest of the note is fixed:
-"Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU in this AI era (exciting time). As I explore industry roles, I would love to connect and learn how AI is actually showing up in your work as {ending}!"
+"Hey {first name}! I'm a recent CMU MHCI grad, teaching design at CMU through this AI era (exciting time). Now that I'm moving into industry, I'd love to connect and hear how AI is actually showing up in your work {ending}!"
 
-The ending names their current role and company as a natural phrase, and adds one true detail beyond the title when the summary gives one (their path, team or a project). Examples:
-- "a designer on Figma's onboarding team"
-- "someone who went from research into design on Figma's onboarding team"
-- "a PM on Google Health's AI team"
+The ending follows "your work" and names their role and company as a natural phrase, adding one true detail beyond the title when the summary gives one (their path, team or a project). That detail is what keeps the note from reading as mass outreach, so find one when you can. Examples:
+- "on Figma's onboarding team"
+- "as a PM on Google Health's AI team"
+- "since moving from research into onboarding design at Figma"
 Keep it under 90 characters. Never invent a detail; with only a title and company, use those. Lowercase start, no final punctuation.
 
 Also give:
-- "short": the ending with just role and company, under 50 characters, used if the full one does not fit.
+- "short": the ending with just role and company, under 50 characters ("at Figma", "as a PM at Google"), used if the full one does not fit.
 - "kind": "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
 
 Then check the fixed note actually makes sense for this person, reading it as they would. It does not when, for example: they are someone the user already knows (a CMU colleague or professor, someone their notes or warmth say is close), so "I'm a recent CMU MHCI grad" would be odd; they are a student; their work has nothing to do with product or AI, so "how AI is actually showing up in your work" is a strange question; or they are senior enough that the ask should be different. When it does not make sense:

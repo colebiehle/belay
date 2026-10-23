@@ -145,20 +145,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 The template for this person (their group decides the opener), word for word. Only {ending} changes:
 "${templateLine}"
 
-{ending} is the personal part, and the note stands or falls on it. Always their current role and company; then, when anything beyond the title is known from what is below (their path, a project, their team, a talk), fold it in. Write it as a natural phrase, e.g.:
-- "someone who went from research into design on Figma's onboarding team"
-- "a designer on Google Health's UX team"
-- "a PM on Figma's AI team"
+{ending} is the personal part, and the note stands or falls on it. Always their current role and company; then, when anything beyond the title is known from what is below (their path, a project, their team, a talk), fold it in. It follows "your work", written as a natural phrase, e.g.:
+- "since moving from research into design on Figma's onboarding team"
+- "on Google Health's UX team"
+- "as a PM on Figma's AI team"
 Never invent a detail. When only their title and company are known, say so in one line under the drafts, so they can add something before sending.
 
-Engineers: use "…learn how AI is changing the way you work with designers as {ending}!" instead, so the reason a designer is writing to them is clear.
+Engineers: use "…I'd love to connect and hear how AI is changing the way you work with designers {ending}!" instead, so the reason a designer is writing to them is clear.
 
 Recruiters and talent people (in-house, hiring for design), a different note:
 "Hey {first name}! I'm a recent CMU MHCI grad, currently teaching design at CMU, and I'm exploring product design roles, especially in AI tools. I saw you recruit for design at {company} and would love to connect and be on your radar if anything fits. Happy to share my portfolio!"
 
 Do not mention a mutual; LinkedIn shows it. The one exception: when their notes say the mutual suggested reaching out, start with "{mutual} suggested I reach out!" after the greeting.
 
-Over the limit? Cut in this order until it fits: "currently ", then " (exciting time)", then the extra detail in {ending} (keep role and company).
+Over the limit? Cut in this order until it fits: " (exciting time)", then the extra detail in {ending} (keep role and company).
 
 Before answering, check each draft: it is under the limit; the ending is true and specific to this person; nothing else in the template has been reworded.
 

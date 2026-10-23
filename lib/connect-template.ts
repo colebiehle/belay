@@ -1,51 +1,66 @@
 /**
  * The connection note, in the owner's words (settled Oct 2026 over a long
- * back-and-forth). Code assembles it; the model only writes the personal ending,
- * so the wording cannot drift and the length is counted exactly.
+ * back-and-forth, then revised after a premortem on Oct 23). Code assembles it;
+ * the model only writes the personal ending, so the wording cannot drift and the
+ * length is counted exactly.
+ *
+ * The throughline: I have been on the academic side of this AI shift; now I am
+ * moving into industry; so I want to hear how it actually shows up in your work.
+ * "Moving into industry" rather than "exploring roles" (a transition, not a job
+ * hunt), and "hear" rather than "learn" (curiosity, not a lesson owed).
  *
  * Opener by the person's group, from their tags (and their headline for CMU):
- *   CMU and MHCI, and anyone else: "I'm a recent CMU MHCI grad, currently teaching design at CMU"
- *   UCSD (tag ucsd):               "I'm a UCSD Cog Sci alum ('22), now a recent CMU MHCI grad teaching design at CMU"
- *   High school (tag mburg):       "I'm a Mercersburg alum ('18), now a recent CMU MHCI grad teaching design at CMU"
- * Engineers get an ask about working with designers; recruiters get a different note.
+ *   CMU and anyone else: "I'm a recent CMU MHCI grad, teaching design at CMU"
+ *                        (MHCI alumni: "I'm a recent CMU MHCI grad too, ...")
+ *   UCSD (tag ucsd):     "I'm a UCSD Cog Sci alum ('22), now a recent CMU MHCI grad teaching design at CMU"
+ *   High school (mburg): "I'm a Mercersburg alum ('18), now a recent CMU MHCI grad teaching design at CMU"
+ * Engineers get a question about working with designers; recruiters get a
+ * different note.
  */
 
 export const NOTE_LIMIT = 300;
 
 export type NoteKind = "standard" | "engineer" | "recruiter" | "design_recruiter";
+export type NoteGroup = "cmu" | "mhci" | "ucsd" | "mburg";
 
 const CMU = /\b(cmu|carnegie mellon|mhci)\b/i;
+const MHCI = /\bmhci\b|master of human-computer interaction/i;
 
-export function openerFor(tags: string[], profile: string): "cmu" | "ucsd" | "mburg" {
+export function openerFor(tags: string[], profile: string): NoteGroup {
   const t = new Set(tags.map((x) => x.toLowerCase()));
-  if (t.has("mhci") || t.has("cmu") || CMU.test(profile)) return "cmu";
+  // Fellow MHCI alumni get "too": the shared program is a bond, not a credential.
+  if (t.has("mhci") || MHCI.test(profile)) return "mhci";
+  if (t.has("cmu") || CMU.test(profile)) return "cmu";
   if (t.has("ucsd")) return "ucsd";
   if (t.has("mburg") || t.has("mercersburg")) return "mburg";
   return "cmu";
 }
 
-const OPENERS = {
-  cmu: (currently: boolean) => `I'm a recent CMU MHCI grad, ${currently ? "currently " : ""}teaching design at CMU`,
-  ucsd: () => "I'm a UCSD Cog Sci alum ('22), now a recent CMU MHCI grad teaching design at CMU",
-  mburg: () => "I'm a Mercersburg alum ('18), now a recent CMU MHCI grad teaching design at CMU",
+const OPENERS: Record<NoteGroup, string> = {
+  cmu: "I'm a recent CMU MHCI grad, teaching design at CMU",
+  mhci: "I'm a recent CMU MHCI grad too, teaching design at CMU",
+  ucsd: "I'm a UCSD Cog Sci alum ('22), now a recent CMU MHCI grad teaching design at CMU",
+  mburg: "I'm a Mercersburg alum ('18), now a recent CMU MHCI grad teaching design at CMU",
 };
 
 /**
- * The note for one person. `ending` is the personal part ("a designer on Figma's
- * onboarding team"); `short` is a shorter fallback ending (role and company only)
- * used when the full one does not fit. Cuts, in order, until it fits: "currently",
- * "(exciting time)", then the short ending.
+ * The note for one person. `ending` is the personal part, a phrase that follows
+ * "your work" ("on Figma's onboarding team", "as a PM on Google Health's AI team",
+ * "since moving from research into design at Figma"); `short` is a shorter
+ * fallback (role and company only) used when the full one does not fit. Cuts, in
+ * order, until it fits: "(exciting time)", then the short ending.
  */
 export function buildNote(p: {
   firstName: string;
-  group: "cmu" | "ucsd" | "mburg";
+  group: NoteGroup;
   kind: NoteKind;
   ending: string;
   short?: string;
   company?: string;
 }): string {
   if (p.kind === "recruiter" || p.kind === "design_recruiter") {
-    const opener = p.group === "cmu" ? OPENERS.cmu(true) : OPENERS[p.group]();
+    // Recruiters are the one audience where saying you are looking is the point.
+    const opener = OPENERS[p.group === "mhci" ? "cmu" : p.group];
     // "for design" only when they actually recruit for design; a business recruiter
     // at Figma recruits at Figma.
     const what = p.kind === "design_recruiter" ? "recruit for design" : "recruit";
@@ -53,18 +68,16 @@ export function buildNote(p: {
   }
   const ask =
     p.kind === "engineer"
-      ? "I would love to connect and learn how AI is changing the way you work with designers as"
-      : "I would love to connect and learn how AI is actually showing up in your work as";
-  const tries: [boolean, boolean, string][] = [
-    [true, true, p.ending],
-    [false, true, p.ending],
-    [false, false, p.ending],
-    [false, false, p.short || p.ending],
+      ? "I'd love to connect and hear how AI is changing the way you work with designers"
+      : "I'd love to connect and hear how AI is actually showing up in your work";
+  const tries: [boolean, string][] = [
+    [true, p.ending],
+    [false, p.ending],
+    [false, p.short || p.ending],
   ];
   let note = "";
-  for (const [currently, aside, ending] of tries) {
-    const opener = p.group === "cmu" ? OPENERS.cmu(currently) : OPENERS[p.group]();
-    note = `Hey ${p.firstName}! ${opener} in this AI era${aside ? " (exciting time)" : ""}. As I explore industry roles, ${ask} ${ending.trim().replace(/[.!]+$/, "")}!`;
+  for (const [aside, ending] of tries) {
+    note = `Hey ${p.firstName}! ${OPENERS[p.group]} through this AI era${aside ? " (exciting time)" : ""}. Now that I'm moving into industry, ${ask} ${ending.trim().replace(/[.!]+$/, "")}!`;
     if (note.length <= NOTE_LIMIT) return note;
   }
   return note;
