@@ -84,10 +84,10 @@ async function draftBatch(ids: string[]): Promise<number> {
     .join("\n");
 
   const prompt = `For each person below, read their profile first, then supply the personal parts of their LinkedIn connection note. The rest of the note is fixed:
-"Hey {first name}! I'm a recent MHCI grad, now teaching interaction design at CMU in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how {who} is actually using AI, especially for problems like {focus} ({aside})!"
+"Hey {first name}! I'm a recent MHCI grad, currently teaching interaction design at CMU in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how {who} is actually using AI, especially in your work on {focus} ({aside})!"
 
 - "who": their role at their company, at their real level, as a phrase that fits "hear how ___ is actually using AI": "a designer at Figma", "a PM at Google Health", "a design leader at Stripe", "Figma's head of design". Never undersell a senior person as "a designer".
-- "focus": what they work on, in two to five words, fitting "especially for problems like ___": "onboarding", "patient care", "design systems", "AI agents for support teams". Only when their title or summary makes it clear; otherwise null. A vague or wrong focus is worse than none, so do not guess.
+- "focus": what they work on, in two to five words, fitting "especially in your work on ___": "onboarding", "creator and viewer experiences", "design systems", "AI agents for support teams". Only when their title or summary makes it clear; otherwise null. A vague or wrong focus is worse than none, so do not guess.
 - "aside": a short parenthetical, four to eight words, about something real and specific they did or lead (a launch, a talk, an article, a project) when the summary names one: "the Make launch looked great". Otherwise null. Never claim to have seen something that is not in what is below.
 
 Also give:

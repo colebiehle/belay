@@ -6,14 +6,14 @@
  *
  * Shape: hi, the shared tie, what I'm doing now (teaching interaction design in
  * this interesting era of AI), the transition (back to industry), and why them
- * (how a {role} at {company} is actually using AI, especially for {their focus}).
+ * (how a {role} at {company} is actually using AI, especially in your work on {focus}).
  *
- *   MHCI alumni:        "I'm a recent MHCI grad, now teaching interaction design at CMU"
- *   Other CMU people:   "I'm a recent CMU MHCI grad, now teaching interaction design at CMU"
+ *   MHCI alumni:        "I'm a recent MHCI grad, currently teaching interaction design at CMU"
+ *   Other CMU people:   "I'm a recent CMU MHCI grad, currently teaching interaction design at CMU"
  *   UCSD (tag ucsd):    "I'm a UCSD Cog Sci alum ('22), now teaching interaction design at Carnegie Mellon"
  *   Mercersburg (mburg):"I'm a Mercersburg alum ('18), now teaching interaction design at Carnegie Mellon"
- *   No shared tie:      "I'm currently teaching interaction design at Carnegie Mellon"
- * CMU for insiders, Carnegie Mellon for everyone else. Engineers get a question
+ *   No shared tie:      the CMU MHCI line, as a credential
+ * Carnegie Mellon spelled out after an outside tie (UCSD, Mercersburg). Engineers get a question
  * about using AI with designers; recruiters get a different note.
  */
 
@@ -35,18 +35,20 @@ export function openerFor(tags: string[], profile: string): NoteGroup {
 }
 
 const OPENERS: Record<NoteGroup, string> = {
-  mhci: "I'm a recent MHCI grad, now teaching interaction design at CMU",
-  cmu: "I'm a recent CMU MHCI grad, now teaching interaction design at CMU",
+  mhci: "I'm a recent MHCI grad, currently teaching interaction design at CMU",
+  cmu: "I'm a recent CMU MHCI grad, currently teaching interaction design at CMU",
   ucsd: "I'm a UCSD Cog Sci alum ('22), now teaching interaction design at Carnegie Mellon",
   mburg: "I'm a Mercersburg alum ('18), now teaching interaction design at Carnegie Mellon",
-  none: "I'm currently teaching interaction design at Carnegie Mellon",
+  // No shared tie: the CMU MHCI line by default, as a credential (owner's call).
+  none: "I'm a recent CMU MHCI grad, currently teaching interaction design at CMU",
 };
 
 /**
  * The note for one person.
  *   who:   their role at their company, at their real level ("a designer at Figma",
  *          "a design leader at Stripe", "Figma's head of design")
- *   focus: what they work on, only when known with confidence ("onboarding"); left
+ *   focus: what they work on, only when known with confidence ("onboarding",
+ *          "creator and viewer experiences"); left
  *          out otherwise rather than guessed
  *   aside: a short parenthetical about something real they did ("the Make launch
  *          looked great"); optional
@@ -76,7 +78,7 @@ export function buildNote(p: {
   ];
   let note = "";
   for (const [withAside, withFocus] of tries) {
-    const focus = withFocus && clean(p.focus) ? `, especially for problems like ${clean(p.focus)}` : "";
+    const focus = withFocus && clean(p.focus) ? `, especially in your work on ${clean(p.focus)}` : "";
     const aside = withAside && clean(p.aside) ? ` (${clean(p.aside)})` : "";
     note = `Hey ${p.firstName}! ${OPENERS[p.group]} in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how ${clean(p.who)} ${using}${focus}${aside}!`;
     if (note.length <= NOTE_LIMIT) return note;
