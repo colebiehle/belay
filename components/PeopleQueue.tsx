@@ -901,7 +901,6 @@ export function PeopleQueue({
                   onFocus={() => setCursor(i)}
                   onDecide={(action) => toggle(c, action)}
                   onFile={(note) => file(c, note)}
-                  onOpenContact={c.contactId ? () => onOpenContact(c.contactId!) : undefined}
                 />
               </div>
             );
@@ -1163,14 +1162,12 @@ function CandidateCard({
   onFocus,
   onDecide,
   onFile,
-  onOpenContact,
 }: {
   c: Candidate;
   focused: boolean;
   onFocus: () => void;
   onDecide: (action: "add" | "skip") => void;
   onFile: (note: string) => void;
-  onOpenContact?: () => void;
 }) {
   const [note, setNote] = useState("");
   const added = c.decided === "add";
@@ -1330,13 +1327,6 @@ function CandidateCard({
             <button onClick={() => onFile(note)} className={button("quiet", "compact")}>
               Done
             </button>
-            {/* Adding someone is the start of their record, so the way into it sits
-                beside Done rather than in a toast that leaves on its own. */}
-            {added && onOpenContact && (
-              <button onClick={onOpenContact} className={button("quiet", "compact")}>
-                Open
-              </button>
-            )}
           </div>
         )}
         <div className="ml-auto flex items-center gap-2 shrink-0">
