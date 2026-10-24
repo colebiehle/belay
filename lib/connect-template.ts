@@ -68,6 +68,8 @@ export function buildNote(p: {
   kind: NoteKind;
   who: string;
   path?: string | null;
+  // Whether their profile shows they did MHCI; "your path from MHCI to" only then.
+  mhciConfirmed?: boolean;
   focus?: string | null;
   aside?: string | null;
   company?: string;
@@ -82,9 +84,10 @@ export function buildNote(p: {
   const lead = `Hey ${p.firstName}! ${OPENERS[p.group]} in this interesting era of AI. As I transition back to industry,`;
   if (p.kind === "senior_alum" && clean(p.path)) {
     // Senior alumni: learning from their path, the AI angle second.
-    const full = `${lead} I'd love to connect and learn from your path from MHCI to ${clean(p.path)}, especially how you're seeing AI change the work!`;
+    const from = p.mhciConfirmed ? "from MHCI " : "";
+    const full = `${lead} I'd love to connect and learn from your path ${from}to ${clean(p.path)}, especially how you're seeing AI change the work!`;
     if (full.length <= NOTE_LIMIT) return full;
-    return `${lead} I'd love to connect and learn from your path from MHCI to ${clean(p.path)}!`;
+    return `${lead} I'd love to connect and learn from your path ${from}to ${clean(p.path)}!`;
   }
   const using = p.kind === "engineer" ? "is actually using AI alongside designers" : "is actually using AI";
   const tries: [boolean, boolean][] = [

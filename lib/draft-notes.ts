@@ -52,6 +52,7 @@ type Ending = {
   kind?: NoteKind;
   who?: string;
   path?: string | null;
+  mhciConfirmed?: boolean;
   focus?: string | null;
   aside?: string | null;
   custom?: string | null;
@@ -93,7 +94,8 @@ async function draftBatch(ids: string[]): Promise<number> {
 
 Also give:
 - "kind": "senior_alum" for MHCI alumni who are senior (director, head of, VP, principal, a manager or lead of a team) or graduated ten or more years ago; "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
-- "path": for "senior_alum" only, where their path led, fitting "learn from your path from MHCI to ___": "leading design at Stripe", "running research at Google". Otherwise null.
+- "path": for "senior_alum" only, where their path led, fitting "learn from your path to ___": "leading design at Stripe", "running research at Google". Otherwise null.
+- "mhciConfirmed": true only when their title or summary shows they did CMU's MHCI ("MHCI '19", "Master of HCI, Carnegie Mellon"); being in an MHCI group is not enough. When false for someone tagged MHCI, add "MHCI not confirmed: check their education on LinkedIn" to the flag.
 
 Then check the fixed note actually makes sense for this person, reading it as they would. It does not when, for example: they are someone the user already knows (a CMU colleague or professor, someone their notes or warmth say is close), so "I'm a recent CMU MHCI grad" would be odd; they are a student; their work has nothing to do with product or AI, so "how AI is actually showing up in your work" is a strange question; or they are senior enough that the ask should be different. When it does not make sense:
 - "custom": a full note of your own, under 300 characters, adapted to this person but in the user's own words: start "Hey {first name}!", then their opener for this person's group exactly as written above (for an MHCI alum, "I'm a recent MHCI grad, currently teaching interaction design at CMU in this interesting era of AI."), then "As I transition back to industry," and an ask that fits this person. Never "Fellow X here", never drop the teaching line, no em dashes. Otherwise null.
@@ -103,7 +105,7 @@ People, one JSON object per line:
 ${list}
 
 Return ONLY a JSON array, no preamble:
-[{ "id": "...", "kind": "standard", "who": "...", "path": null, "focus": null, "aside": null, "custom": null, "flag": null }]`;
+[{ "id": "...", "kind": "standard", "who": "...", "path": null, "mhciConfirmed": false, "focus": null, "aside": null, "custom": null, "flag": null }]`;
 
   const { text } = await callClaudeDetailed(prompt, 180_000);
   const out = extractJson<Ending[]>(text, "array") ?? [];
@@ -121,7 +123,7 @@ Return ONLY a JSON array, no preamble:
     const custom = typeof e.custom === "string" && e.custom.trim() && e.custom.trim().length <= 300 ? e.custom.trim() : null;
     const note =
       custom ??
-      buildNote({ firstName: firstName(p.name), group, kind, who: e.who, path: e.path, focus: e.focus, aside: e.aside, company: p.company });
+      buildNote({ firstName: firstName(p.name), group, kind, who: e.who, path: e.path, mhciConfirmed: e.mhciConfirmed === true, focus: e.focus, aside: e.aside, company: p.company });
     // The version, for comparing acceptance and reply rates (lib/note-stats).
     const variant = custom ? "custom" : `template:${group}${kind === "standard" ? "" : `:${kind}`}`;
     const flag =
