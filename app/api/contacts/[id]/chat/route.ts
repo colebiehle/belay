@@ -161,7 +161,11 @@ Over the limit? Cut the aside first, then the focus.
 
 Before answering, check each draft: it is under the limit; who, focus and aside are true and specific to this person; nothing else in the template has been reworded.
 
-Give two drafts (with different focus or aside choices where there is room), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why.`;
+Give two drafts (with different focus or aside choices where there is room), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
+${contact.connectionNote ? `
+Their current drafted note for this person:
+"${contact.connectionNote}"
+If they ask to change it or tell you something to include (a detail from their profile, a shared experience), revise that note rather than starting over: work the new detail in naturally, keep the rest of their wording unless they ask otherwise, stay under the limit, and give just the revised note between two lines of three dashes (---) with its character count and one line on what changed.` : ""}`;
       break;
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;

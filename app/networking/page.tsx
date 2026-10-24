@@ -101,6 +101,8 @@ export default function NetworkingPage() {
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [selectedWarmth, setSelectedWarmth] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
+  // Opened from a drafted card's "Edit with Claude": the panel starts on the note chat.
+  const [openOnNote, setOpenOnNote] = useState(false);
   // Batch drafting: the people picked on the Network tab, and the drafting run's
   // progress while it goes (lib/draft-notes).
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -767,7 +769,10 @@ export default function NetworkingPage() {
                             }
                             selected={c.id === openId}
                             flash={flash}
-                            onOpen={() => setOpenId(c.id)}
+                            onOpen={() => {
+                              setOpenOnNote(false);
+                              setOpenId(c.id);
+                            }}
                             check={
                               stageNow === "Identified" || stageNow === "Drafted"
                                 ? { checked: picked.has(c.id), onChange: () => togglePick(c.id), label: `Pick ${c.name} for drafting` }
@@ -815,6 +820,16 @@ export default function NetworkingPage() {
                                         <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open LinkedIn
                                       </a>
                                     )}
+                                    <button
+                                      onClick={() => {
+                                        setOpenOnNote(true);
+                                        setOpenId(c.id);
+                                      }}
+                                      className={button("quiet", "compact")}
+                                      title="Redraft it with Claude: tell it what you noticed on their profile"
+                                    >
+                                      Edit
+                                    </button>
                                     <button onClick={() => markSent(c, hist)} className={`${button("secondary", "compact")} ml-auto`}>
                                       Mark sent
                                     </button>
@@ -851,11 +866,13 @@ export default function NetworkingPage() {
           arrivedFromSwitch={switched}
           // Going through a stage one person at a time without closing the panel.
           // Null at either end, and when the open person is filtered out of the list.
+          startOnNote={openOnNote}
           prevId={openAt > 0 ? order[openAt - 1] : null}
           nextId={openAt >= 0 && openAt < order.length - 1 ? order[openAt + 1] : null}
           onDelete={remove}
           onClose={() => {
             setSwitched(false);
+            setOpenOnNote(false);
             setOpenId(null);
           }}
           onUpdate={update}

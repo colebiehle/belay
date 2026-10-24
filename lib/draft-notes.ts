@@ -51,6 +51,7 @@ type Ending = {
   id?: string;
   kind?: NoteKind;
   who?: string;
+  path?: string | null;
   focus?: string | null;
   aside?: string | null;
   custom?: string | null;
@@ -84,14 +85,15 @@ async function draftBatch(ids: string[]): Promise<number> {
     .join("\n");
 
   const prompt = `For each person below, read their profile first, then supply the personal parts of their LinkedIn connection note. The rest of the note is fixed:
-"Hey {first name}! I'm a recent MHCI grad, currently teaching interaction design at CMU in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how {who} is actually using AI, especially in your work on {focus} ({aside})!"
+"Hey {first name}! {opener for their group} in this interesting era of AI. As I transition back to industry, I'd love to connect and hear how {who} is actually using AI, especially in your work on {focus} ({aside})!" (senior MHCI alumni instead: "...I'd love to connect and learn from your path from MHCI to {path}, especially how you're seeing AI change the work!")
 
 - "who": their role at their company, at their real level, as a phrase that fits "hear how ___ is actually using AI": "a designer at Figma", "a PM at Google Health", "a design leader at Stripe", "Figma's head of design". Never undersell a senior person as "a designer".
 - "focus": what they work on, in two to five words, fitting "especially in your work on ___": "onboarding", "creator and viewer experiences", "design systems", "AI agents for support teams". Only when their title or summary makes it clear; otherwise null. A vague or wrong focus is worse than none, so do not guess.
 - "aside": a short parenthetical, four to eight words, about something real and specific they did or lead (a launch, a talk, an article, a project) when the summary names one: "the Make launch looked great". Otherwise null. Never claim to have seen something that is not in what is below.
 
 Also give:
-- "kind": "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
+- "kind": "senior_alum" for MHCI alumni who are senior (director, head of, VP, principal, a manager or lead of a team) or graduated ten or more years ago; "design_recruiter" for recruiters who hire for design; "recruiter" for other recruiters and talent people; "engineer" for software engineers and engineering roles; otherwise "standard".
+- "path": for "senior_alum" only, where their path led, fitting "learn from your path from MHCI to ___": "leading design at Stripe", "running research at Google". Otherwise null.
 
 Then check the fixed note actually makes sense for this person, reading it as they would. It does not when, for example: they are someone the user already knows (a CMU colleague or professor, someone their notes or warmth say is close), so "I'm a recent CMU MHCI grad" would be odd; they are a student; their work has nothing to do with product or AI, so "how AI is actually showing up in your work" is a strange question; or they are senior enough that the ask should be different. When it does not make sense:
 - "custom": a full note of your own, under 300 characters, keeping the same shape (friendly hello, the shared tie, who the user is in a line, why them, a light ask) in the same casual voice, adapted to this person. Otherwise null.
@@ -101,7 +103,7 @@ People, one JSON object per line:
 ${list}
 
 Return ONLY a JSON array, no preamble:
-[{ "id": "...", "kind": "standard", "who": "...", "focus": null, "aside": null, "custom": null, "flag": null }]`;
+[{ "id": "...", "kind": "standard", "who": "...", "path": null, "focus": null, "aside": null, "custom": null, "flag": null }]`;
 
   const { text } = await callClaudeDetailed(prompt, 180_000);
   const out = extractJson<Ending[]>(text, "array") ?? [];
@@ -111,16 +113,22 @@ Return ONLY a JSON array, no preamble:
   for (const e of out) {
     const p = e.id ? byId.get(e.id) : undefined;
     if (!p || typeof e.who !== "string" || !e.who.trim()) continue;
-    const kind: NoteKind =
-      e.kind === "engineer" || e.kind === "recruiter" || e.kind === "design_recruiter" ? e.kind : "standard";
     const group = openerFor(parseList(p.relationship), `${p.title ?? ""} ${p.role ?? ""} ${p.howMet ?? ""} ${p.profileText ?? ""}`);
+    const known: NoteKind[] = ["senior_alum", "engineer", "recruiter", "design_recruiter"];
+    let kind: NoteKind = e.kind && known.includes(e.kind) ? e.kind : "standard";
+    // The mentor note is for MHCI alumni, with a path to name.
+    if (kind === "senior_alum" && (!["mhci", "ucsd_mhci"].includes(group) || !e.path?.trim())) kind = "standard";
     const custom = typeof e.custom === "string" && e.custom.trim() && e.custom.trim().length <= 300 ? e.custom.trim() : null;
     const note =
       custom ??
-      buildNote({ firstName: firstName(p.name), group, kind, who: e.who, focus: e.focus, aside: e.aside, company: p.company });
+      buildNote({ firstName: firstName(p.name), group, kind, who: e.who, path: e.path, focus: e.focus, aside: e.aside, company: p.company });
     // The version, for comparing acceptance and reply rates (lib/note-stats).
     const variant = custom ? "custom" : `template:${group}${kind === "standard" ? "" : `:${kind}`}`;
-    const flag = typeof e.flag === "string" && e.flag.trim() ? e.flag.trim().slice(0, 160) : null;
+    const flag =
+      [kind === "senior_alum" ? "Senior alum: mentor version used" : "", typeof e.flag === "string" ? e.flag.trim() : ""]
+        .filter(Boolean)
+        .join(" · ")
+        .slice(0, 200) || null;
     // Drafted, unless they are already further along (a note for someone you have
     // already sent to replaces the text, not the stage).
     const stage = p.stage ?? "Identified";

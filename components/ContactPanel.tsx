@@ -156,6 +156,7 @@ export function ContactPanel({
   knownTags = [],
   prevId = null,
   nextId = null,
+  startOnNote = false,
 }: {
   contact: PanelContact;
   // Tags already used on anyone, so one you made up is offered everywhere.
@@ -177,10 +178,20 @@ export function ContactPanel({
   // cost nothing on screen, the arrows were two more controls beside close.
   prevId?: string | null;
   nextId?: string | null;
+  // Opened from a drafted note's "Edit with Claude": straight to the chat, on the
+  // connection note.
+  startOnNote?: boolean;
 }) {
-  const [tab, setTab] = useState<"details" | "chat">("details");
-  const [scope, setScope] = useState<string | null>(null);
+  const [tab, setTab] = useState<"details" | "chat">(startOnNote ? "chat" : "details");
+  const [scope, setScope] = useState<string | null>(startOnNote ? "connect" : null);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
+  // The latest note the chat drafted (set off between "---" lines), on the
+  // connection-note scope, for "Use this draft".
+  const noteDraft = (() => {
+    const reply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+    const parts = reply.split(/^\s*---\s*$/m);
+    return parts.length >= 3 ? parts[1].trim() : "";
+  })();
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1200,6 +1211,42 @@ export function ContactPanel({
 
         {tab === "chat" && !openNote && (
           <div className="shrink-0 border-t border-line-2 px-6 py-3">
+            {/* On the connection note: the note as it stands, and the latest draft
+                from the chat ready to replace it. Tell it something you saw on their
+                profile and it redrafts; Use this draft saves it to their card. */}
+            {scope === "connect" && (contact.connectionNote || noteDraft) && (
+              <div className="mb-3 space-y-1.5">
+                {contact.connectionNote && (
+                  <p className="text-meta text-fg-3">
+                    <span className="text-fg-2">Current note:</span> {contact.connectionNote}
+                  </p>
+                )}
+                {noteDraft && noteDraft !== contact.connectionNote && (
+                  <button
+                    onClick={() =>
+                      onUpdate(contact.id, {
+                        connectionNote: noteDraft,
+                        connectionNoteVariant: `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
+                        connectionNoteFlag: null,
+                        ...(contact.stage === "Identified" || !contact.stage
+                          ? {
+                              stage: "Drafted",
+                              stageHistory: JSON.stringify([
+                                ...parseJson<unknown[]>(contact.stageHistory, []),
+                                { stage: "Drafted", at: new Date().toISOString() },
+                              ]),
+                            }
+                          : {}),
+                      })
+                    }
+                    className={button("secondary", "compact")}
+                    title={noteDraft}
+                  >
+                    Use this draft ({noteDraft.length})
+                  </button>
+                )}
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <AutoResizeTextarea
                 value={input}
