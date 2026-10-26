@@ -1285,61 +1285,63 @@ export function ContactPanel({
                 the email (sent from the Drafted card), so there is one draft to get
                 right. */}
             {scope === "connect" && (
-              <div className="mb-3 flex items-start gap-3">
-                <p className="flex-1 min-w-0 text-meta text-fg-3">
+              <div className="mb-3 space-y-2">
+                <p className="text-meta text-fg-3">
                   <span className="text-fg-2">Current draft:</span> {contact.connectionNote || "None yet."}
                 </p>
-                {contact.connectionNote && (
+                <div className="flex items-center gap-2">
+                  {contact.connectionNote && (
+                    <button
+                      onClick={() => {
+                        void navigator.clipboard.writeText(contact.connectionNote ?? "");
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      }}
+                      className={button("quiet", "compact")}
+                      title="Copy the current draft, to paste into LinkedIn"
+                    >
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  )}
                   <button
+                    disabled={!noteDraft || noteDraft === contact.connectionNote}
                     onClick={() => {
-                      void navigator.clipboard.writeText(contact.connectionNote ?? "");
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
+                      // The saved message is also a note, "Outreach message", always the
+                      // latest version, so it is on the overview with your other notes.
+                      const prior = notes.find((n) => n.title === OUTREACH_NOTE);
+                      const nextNotes = [
+                        { id: prior?.id ?? crypto.randomUUID(), title: OUTREACH_NOTE, body: noteDraft, createdAt: new Date().toISOString() },
+                        ...notes.filter((n) => n.title !== OUTREACH_NOTE),
+                      ];
+                      setNotes(nextNotes);
+                      onUpdate(contact.id, {
+                        noteList: JSON.stringify(nextNotes),
+                        connectionNote: noteDraft,
+                        msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
+                        // MHCI alumni's chat notes are the journey template; tracked as
+                        // their own version so its response rate can be compared.
+                        connectionNoteVariant: journey
+                          ? "journey"
+                          : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
+                        connectionNoteFlag: null,
+                        ...(contact.stage === "Identified" || !contact.stage
+                          ? {
+                              stage: "Drafted",
+                              stageHistory: JSON.stringify([
+                                ...parseJson<unknown[]>(contact.stageHistory, []),
+                                { stage: "Drafted", at: new Date().toISOString() },
+                              ]),
+                            }
+                          : {}),
+                      });
                     }}
-                    className={`${button("quiet", "compact")} shrink-0`}
-                    title="Copy the current draft, to paste into LinkedIn"
+                    className={`${button("secondary", "compact")} ml-auto`}
+                    title={noteDraft && noteDraft !== contact.connectionNote ? noteDraft : "Lights up once the chat has a new draft"}
                   >
-                    {copied ? "Copied" : "Copy"}
+                    {contact.connectionNote ? "Update draft" : "Save draft"}
+                    {noteDraft && noteDraft !== contact.connectionNote ? ` (${noteDraft.length})` : ""}
                   </button>
-                )}
-                <button
-                  disabled={!noteDraft || noteDraft === contact.connectionNote}
-                  onClick={() => {
-                    // The saved message is also a note, "Outreach message", always the
-                    // latest version, so it is on the overview with your other notes.
-                    const prior = notes.find((n) => n.title === OUTREACH_NOTE);
-                    const nextNotes = [
-                      { id: prior?.id ?? crypto.randomUUID(), title: OUTREACH_NOTE, body: noteDraft, createdAt: new Date().toISOString() },
-                      ...notes.filter((n) => n.title !== OUTREACH_NOTE),
-                    ];
-                    setNotes(nextNotes);
-                    onUpdate(contact.id, {
-                      noteList: JSON.stringify(nextNotes),
-                      connectionNote: noteDraft,
-                      msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
-                      // MHCI alumni's chat notes are the journey template; tracked as
-                      // their own version so its response rate can be compared.
-                      connectionNoteVariant: journey
-                        ? "journey"
-                        : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
-                      connectionNoteFlag: null,
-                      ...(contact.stage === "Identified" || !contact.stage
-                        ? {
-                            stage: "Drafted",
-                            stageHistory: JSON.stringify([
-                              ...parseJson<unknown[]>(contact.stageHistory, []),
-                              { stage: "Drafted", at: new Date().toISOString() },
-                            ]),
-                          }
-                        : {}),
-                    });
-                  }}
-                  className={`${button("secondary", "compact")} shrink-0`}
-                  title={noteDraft && noteDraft !== contact.connectionNote ? noteDraft : "Lights up once the chat has a new draft"}
-                >
-                  {contact.connectionNote ? "Update draft" : "Save draft"}
-                  {noteDraft && noteDraft !== contact.connectionNote ? ` (${noteDraft.length})` : ""}
-                </button>
+                </div>
               </div>
             )}
             <div className="flex items-end gap-2">
