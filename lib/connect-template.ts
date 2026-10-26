@@ -108,3 +108,28 @@ export function buildNote(p: {
 export function firstName(name: string): string {
   return (name || "").trim().split(/\s+/)[0] || name;
 }
+
+export const EMAIL_SUBJECT = "From a recent MHCI grad";
+
+/**
+ * The same message as an email: one draft serves both, since once the wording is
+ * right the rest is formatting. "Hi Maya! I recently…" becomes a subject, "Hi Maya,"
+ * on its own line, the body, a thank-you and the sign-off with the portfolio link.
+ * Returned as "Subject: …", a blank line, then the body, the shape msgToContact holds.
+ */
+export function emailFromNote(note: string, signOff: string, portfolio?: string): string {
+  const m = note.trim().match(/^(hi|hey|hello)\s+([^!,.\n]+)[!,.]\s*([\s\S]*)$/i);
+  const greeting = m ? `Hi ${m[2].trim()},` : "Hi,";
+  const body = (m ? m[3] : note).trim();
+  const sign = [signOff, portfolio].filter((x) => x && x.trim()).join("\n");
+  return `Subject: ${EMAIL_SUBJECT}\n\n${greeting}\n\n${body}\n\nThank you so much for considering it!${sign ? `\n\n${sign}` : ""}`;
+}
+
+/** A drafted email ("Subject: …", a blank line, the body) as a mailto link, so Open
+ * in email starts the message in your mail app with both filled in. */
+export function mailtoLink(to: string, draft: string): string {
+  const m = draft.match(/^\s*subject:\s*(.+)\n+([\s\S]*)$/i);
+  const subject = m ? m[1].trim() : "";
+  const body = (m ? m[2] : draft).trim();
+  return `mailto:${to.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}

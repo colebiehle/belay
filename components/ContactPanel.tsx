@@ -14,7 +14,7 @@ import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { TagPicker } from "@/components/TagPicker";
 import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, WARMTH_LEVELS } from "@/lib/contact-stages";
-import { openerFor } from "@/lib/connect-template";
+import { emailFromNote, firstName, mailtoLink, openerFor } from "@/lib/connect-template";
 
 /**
  * One person's panel, built the same way as the role panel because outreach turned
@@ -36,15 +36,6 @@ import { openerFor } from "@/lib/connect-template";
 type Note = { id: string; title: string; body: string; createdAt: string };
 type Event = { id: string; label: string; at: string };
 type ChatMsg = { id: string; role: string; content: string; createdAt: string };
-
-// A drafted email ("Subject: …", a blank line, the body) as a mailto link, so Open
-// in email starts the message in your mail app with both filled in.
-function mailto(to: string, draft: string) {
-  const m = draft.match(/^\s*subject:\s*(.+)\n+([\s\S]*)$/i);
-  const subject = m ? m[1].trim() : "";
-  const body = (m ? m[2] : draft).trim();
-  return `mailto:${to.trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
 
 export type PanelContact = {
   id: string;
@@ -99,13 +90,8 @@ const SCOPES: { key: string | null; label: string; hint: string }[] = [
   { key: null, label: "No context set", hint: "Ask anything about this person." },
   {
     key: "connect",
-    label: "Drafting a connect note",
-    hint: `Tell it what caught your eye and it fills your template for this person. Under ${CONNECT_NOTE_LIMIT} characters.`,
-  },
-  {
-    key: "email",
-    label: "Drafting an email",
-    hint: "The same note as an email, with a subject. Open it in your mail app when it's ready.",
+    label: "Drafting a message",
+    hint: `Tell it what caught your eye and it fills your template for this person. One draft for LinkedIn (under ${CONNECT_NOTE_LIMIT} characters) or email.`,
   },
   {
     key: "followup",
@@ -214,6 +200,14 @@ export function ContactPanel({
   const journey = ["mhci", "ucsd_mhci"].includes(
     openerFor(parseJson<string[]>(contact.relationship, []), `${contact.title ?? ""} ${contact.role ?? ""} ${contact.howMet ?? ""} ${contact.profileText ?? ""}`),
   );
+  // Your sign-off and portfolio link, for the email version of a note.
+  const [me, setMe] = useState<{ signOff: string; portfolio: string }>({ signOff: "", portfolio: "" });
+  useEffect(() => {
+    fetch("/api/profile/autofill")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((a) => a && setMe({ signOff: firstName(a.preferred_name || ""), portfolio: a.portfolio_url || "" }))
+      .catch(() => {});
+  }, []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1257,52 +1251,51 @@ export function ContactPanel({
             {/* On the connection note: the note as it stands, and the latest draft
                 from the chat ready to replace it. Tell it something you saw on their
                 profile and it redrafts; Use this draft saves it to their card. */}
-            {scope === "connect" && (contact.connectionNote || noteDraft) && (
+            {/* On the message: the note as it stands, and the latest draft from the
+                chat ready to replace it. Tell it something you saw on their profile
+                and it redrafts. One draft serves both ways of sending: Use this draft
+                saves it as the LinkedIn note and, formatted, as the email, and Open
+                in email hands that to your mail app when you have their address. */}
+            {scope === "connect" && (
               <div className="mb-3 space-y-1.5">
                 {contact.connectionNote && (
                   <p className="text-meta text-fg-3">
                     <span className="text-fg-2">Current note:</span> {contact.connectionNote}
                   </p>
                 )}
-                {noteDraft && noteDraft !== contact.connectionNote && (
-                  <button
-                    onClick={() =>
-                      onUpdate(contact.id, {
-                        connectionNote: noteDraft,
-                        // MHCI alumni's chat notes are the journey template; tracked as
-                        // their own version so its response rate can be compared.
-                        connectionNoteVariant: journey
-                          ? "journey"
-                          : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
-                        connectionNoteFlag: null,
-                        ...(contact.stage === "Identified" || !contact.stage
-                          ? {
-                              stage: "Drafted",
-                              stageHistory: JSON.stringify([
-                                ...parseJson<unknown[]>(contact.stageHistory, []),
-                                { stage: "Drafted", at: new Date().toISOString() },
-                              ]),
-                            }
-                          : {}),
-                      })
-                    }
-                    className={button("secondary", "compact")}
-                    title={noteDraft}
-                  >
-                    Use this draft ({noteDraft.length})
-                  </button>
-                )}
-              </div>
-            )}
-            {/* On the email: the address (typed here when the queue note had none),
-                the draft as it stands, Use this draft, and Open in email, which hands
-                the subject and body to your mail app. */}
-            {scope === "email" && (
-              <div className="mb-3 space-y-1.5">
-                <div className="flex items-center gap-2 text-meta text-fg-3">
-                  <span className="text-fg-2">To:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {noteDraft && noteDraft !== contact.connectionNote && (
+                    <button
+                      onClick={() =>
+                        onUpdate(contact.id, {
+                          connectionNote: noteDraft,
+                          msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
+                          // MHCI alumni's chat notes are the journey template; tracked as
+                          // their own version so its response rate can be compared.
+                          connectionNoteVariant: journey
+                            ? "journey"
+                            : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
+                          connectionNoteFlag: null,
+                          ...(contact.stage === "Identified" || !contact.stage
+                            ? {
+                                stage: "Drafted",
+                                stageHistory: JSON.stringify([
+                                  ...parseJson<unknown[]>(contact.stageHistory, []),
+                                  { stage: "Drafted", at: new Date().toISOString() },
+                                ]),
+                              }
+                            : {}),
+                        })
+                      }
+                      className={button("secondary", "compact")}
+                      title={noteDraft}
+                    >
+                      Use this draft ({noteDraft.length})
+                    </button>
+                  )}
                   <input
                     key={`${contact.id}:${contact.email ?? ""}`}
+                    type="email"
                     defaultValue={contact.email ?? ""}
                     onBlur={(e) => {
                       const v = e.target.value.trim();
@@ -1310,27 +1303,15 @@ export function ContactPanel({
                     }}
                     placeholder="Their email, if you found it"
                     aria-label="Their email"
-                    className={`${field()} flex-1`}
+                    className={`${field("compact")} flex-1 min-w-40`}
                   />
-                </div>
-                {contact.msgToContact && (
-                  <p className="text-meta text-fg-3 whitespace-pre-line line-clamp-4">
-                    <span className="text-fg-2">Current email:</span> {contact.msgToContact}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {noteDraft && noteDraft !== contact.msgToContact && (
-                    <button
-                      onClick={() => onUpdate(contact.id, { msgToContact: noteDraft })}
-                      className={button("secondary", "compact")}
-                      title={noteDraft}
+                  {contact.email && (noteDraft || contact.connectionNote) && (
+                    <a
+                      href={mailtoLink(contact.email, emailFromNote(noteDraft || contact.connectionNote || "", me.signOff, me.portfolio))}
+                      className={button("quiet", "compact")}
+                      title="Opens your mail app with the subject and message filled in"
                     >
-                      Use this draft
-                    </button>
-                  )}
-                  {contact.email && (contact.msgToContact || noteDraft) && (
-                    <a href={mailto(contact.email, noteDraft || contact.msgToContact || "")} className={button("quiet", "compact")}>
-                      Open in email
+                      <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
                     </a>
                   )}
                 </div>

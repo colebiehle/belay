@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { understandingBlock, contextBlock, FOUNDATION_KINDS } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
-import { identityLine, identityName } from "@/lib/identity";
+import { identityLine } from "@/lib/identity";
 import { buildNote, firstName, openerFor } from "@/lib/connect-template";
 
 export const dynamic = "force-dynamic";
@@ -141,13 +141,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     focus: "{focus}",
     aside: "{aside}",
   });
-  const [portfolio, preferred] = await Promise.all(
-    ["portfolio_url", "preferred_name"].map((k) =>
-      prisma.answerBank.findFirst({ where: { questionKey: k }, select: { answer: true } }).then((a) => a?.answer?.trim() || ""),
-    ),
-  );
-  // A sign-off is the name you go by ("Cole"), never the legal first name.
-  const signOff = firstName(preferred || (await identityName()));
   const first = firstName(contact.name);
   const journeyNote = `Hi ${first}! I recently graduated from MHCI and I'm now teaching interaction design at CMU. I'm really interested in {interest}, so I'd love to hear about your journey since the program and how it prepared you to {their work}. Would you be open to a 15-minute chat?`;
   const journeyRules = `The template, word for word. Only {interest} and {their work} change:
@@ -164,7 +157,7 @@ The tone: a recent grad reaching out to someone further along, excited, curious 
   switch (scope) {
     case "connect":
       if (mhci) {
-        task = `Draft a LinkedIn connection note. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
+        task = `Draft their outreach message. ${CONNECT_NOTE_LIMIT} characters at most including spaces. The same wording goes out as a LinkedIn note or, reformatted automatically (subject, greeting, thank-you and sign-off added), as an email, so draft only the note and never an email version.
 
 ${journeyRules}
 
@@ -206,27 +199,6 @@ Their current drafted note for this person:
 "${contact.connectionNote}"
 If they ask to change it or tell you something to include (a detail from their profile, a shared experience), revise that note rather than starting over: work the new detail in naturally, keep the rest of their wording unless they ask otherwise, stay under the limit, and give just the revised note between two lines of three dashes (---) with its character count and one line on what changed.` : ""}`;
       break;
-    case "email": {
-      const body = mhci
-        ? `${journeyRules}
-
-As an email: "Hi ${first}," on its own line, then the note's sentences after the greeting as one short paragraph (no character limit, but no longer than the note needs), then "Thank you so much for considering it!" on its own line, then the sign-off.`
-        : `A short cold email in the same spirit: who they are in one line (from their profile in their own words), a specific interest in this person's work and path, and a 15-minute ask that is easy to decline. Three or four sentences, then "Thank you so much for considering it!" and the sign-off.`;
-      task = `Draft an email to this person.${contact.email ? ` It goes to ${contact.email}.` : ""}
-
-Subject: "From a recent MHCI grad" unless they ask for another.
-
-${body}
-
-Sign-off, on separate lines: "${signOff}"${portfolio ? `, then their portfolio link: ${portfolio}` : ""}.
-
-Give one draft. Put it between two lines of three dashes (---), with the first line inside as "Subject: …", a blank line, then the email, so they can save it with one click. Under it, one line on any choice you guessed at.
-${contact.msgToContact ? `
-Their current email draft for this person:
-"${contact.msgToContact}"
-If they ask for a change, revise that draft in place rather than starting over, and give the whole revised email between the dashes.` : ""}`;
-      break;
-    }
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
       break;

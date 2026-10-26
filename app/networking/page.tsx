@@ -2,7 +2,8 @@
 
 import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
-import { Check, Clock, Copy, ExternalLink, Flag, Plus, Search } from "lucide-react";
+import { Check, Clock, Copy, ExternalLink, Flag, Mail, Plus, Search } from "lucide-react";
+import { mailtoLink } from "@/lib/connect-template";
 import { button, emptyBox, input, listGrid, toggle } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
@@ -736,6 +737,14 @@ export default function NetworkingPage() {
                                         className={button("quiet", "compact")}
                                       >
                                         <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open LinkedIn
+                                      </a>
+                                    )}
+                                    {/* The same message as an email, when you have
+                                        their address: send it from your mail app, or
+                                        schedule it there for the morning. */}
+                                    {c.email && c.msgToContact && (
+                                      <a href={mailtoLink(c.email, c.msgToContact)} className={button("quiet", "compact")}>
+                                        <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
                                       </a>
                                     )}
                                     <button
