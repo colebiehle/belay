@@ -241,7 +241,7 @@ The person:
 - How they found them: ${contact.introVia ? `through ${contact.introVia}` : "cold, no mutual connection"}
 - Stage: ${contact.stage || "To reach out"}${relationshipLines ? `\n${relationshipLines}` : ""}
 
-${contact.profileText ? `Who this person is (a summary from their profile or a web lookup):\n${contact.profileText.slice(0, 4000)}\n` : "There is no summary of this person yet. You cannot look them up yourself. Ask for one detail if the draft needs something specific about them.\n"}
+${contact.profileText ? `Who this person is (a summary from their profile or a web lookup, possibly older than the company and title above: where they disagree, the company and title above are current):\n${contact.profileText.slice(0, 4000)}\n` : "There is no summary of this person yet. You cannot look them up yourself. Ask for one detail if the draft needs something specific about them.\n"}
 ${theirRoles.length > 0 ? `Roles they are tracking at ${contact.company}:\n${theirRoles
     .map((r) => {
       const app = r.application;
