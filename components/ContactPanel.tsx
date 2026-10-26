@@ -14,7 +14,7 @@ import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { TagPicker } from "@/components/TagPicker";
 import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, WARMTH_LEVELS } from "@/lib/contact-stages";
-import { emailFromNote, firstName, mailtoLink, openerFor } from "@/lib/connect-template";
+import { emailFromNote, firstName, openerFor } from "@/lib/connect-template";
 
 /**
  * One person's panel, built the same way as the role panel because outreach turned
@@ -1251,70 +1251,45 @@ export function ContactPanel({
             {/* On the connection note: the note as it stands, and the latest draft
                 from the chat ready to replace it. Tell it something you saw on their
                 profile and it redrafts; Use this draft saves it to their card. */}
-            {/* On the message: the note as it stands, and the latest draft from the
-                chat ready to replace it. Tell it something you saw on their profile
-                and it redrafts. One draft serves both ways of sending: Use this draft
-                saves it as the LinkedIn note and, formatted, as the email, and Open
-                in email hands that to your mail app when you have their address. */}
+            {/* On the message: the draft as it stands, and Update draft, lit once the
+                chat has written a different one. Tell it something you saw on their
+                profile and it redrafts. Saving keeps the LinkedIn note and, formatted,
+                the email (sent from the Drafted card), so there is one draft to get
+                right. */}
             {scope === "connect" && (
-              <div className="mb-3 space-y-1.5">
-                {contact.connectionNote && (
-                  <p className="text-meta text-fg-3">
-                    <span className="text-fg-2">Current note:</span> {contact.connectionNote}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  {noteDraft && noteDraft !== contact.connectionNote && (
-                    <button
-                      onClick={() =>
-                        onUpdate(contact.id, {
-                          connectionNote: noteDraft,
-                          msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
-                          // MHCI alumni's chat notes are the journey template; tracked as
-                          // their own version so its response rate can be compared.
-                          connectionNoteVariant: journey
-                            ? "journey"
-                            : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
-                          connectionNoteFlag: null,
-                          ...(contact.stage === "Identified" || !contact.stage
-                            ? {
-                                stage: "Drafted",
-                                stageHistory: JSON.stringify([
-                                  ...parseJson<unknown[]>(contact.stageHistory, []),
-                                  { stage: "Drafted", at: new Date().toISOString() },
-                                ]),
-                              }
-                            : {}),
-                        })
-                      }
-                      className={button("secondary", "compact")}
-                      title={noteDraft}
-                    >
-                      Use this draft ({noteDraft.length})
-                    </button>
-                  )}
-                  <input
-                    key={`${contact.id}:${contact.email ?? ""}`}
-                    type="email"
-                    defaultValue={contact.email ?? ""}
-                    onBlur={(e) => {
-                      const v = e.target.value.trim();
-                      if (v !== (contact.email ?? "")) onUpdate(contact.id, { email: v || null });
-                    }}
-                    placeholder="Their email, if you found it"
-                    aria-label="Their email"
-                    className={`${field("compact")} flex-1 min-w-40`}
-                  />
-                  {contact.email && (noteDraft || contact.connectionNote) && (
-                    <a
-                      href={mailtoLink(contact.email, emailFromNote(noteDraft || contact.connectionNote || "", me.signOff, me.portfolio))}
-                      className={button("quiet", "compact")}
-                      title="Opens your mail app with the subject and message filled in"
-                    >
-                      <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
-                    </a>
-                  )}
-                </div>
+              <div className="mb-3 flex items-start gap-3">
+                <p className="flex-1 min-w-0 text-meta text-fg-3">
+                  <span className="text-fg-2">Current draft:</span> {contact.connectionNote || "None yet."}
+                </p>
+                <button
+                  disabled={!noteDraft || noteDraft === contact.connectionNote}
+                  onClick={() =>
+                    onUpdate(contact.id, {
+                      connectionNote: noteDraft,
+                      msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
+                      // MHCI alumni's chat notes are the journey template; tracked as
+                      // their own version so its response rate can be compared.
+                      connectionNoteVariant: journey
+                        ? "journey"
+                        : `${(contact.connectionNoteVariant ?? "template").split("+")[0]}+edited`,
+                      connectionNoteFlag: null,
+                      ...(contact.stage === "Identified" || !contact.stage
+                        ? {
+                            stage: "Drafted",
+                            stageHistory: JSON.stringify([
+                              ...parseJson<unknown[]>(contact.stageHistory, []),
+                              { stage: "Drafted", at: new Date().toISOString() },
+                            ]),
+                          }
+                        : {}),
+                    })
+                  }
+                  className={`${button("secondary", "compact")} shrink-0`}
+                  title={noteDraft && noteDraft !== contact.connectionNote ? noteDraft : "Lights up once the chat has a new draft"}
+                >
+                  {contact.connectionNote ? "Update draft" : "Save draft"}
+                  {noteDraft && noteDraft !== contact.connectionNote ? ` (${noteDraft.length})` : ""}
+                </button>
               </div>
             )}
             <div className="flex items-end gap-2">
