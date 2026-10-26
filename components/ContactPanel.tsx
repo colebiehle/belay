@@ -37,6 +37,9 @@ type Note = { id: string; title: string; body: string; createdAt: string };
 type Event = { id: string; label: string; at: string };
 type ChatMsg = { id: string; role: string; content: string; createdAt: string };
 
+// The title of the note that holds the saved outreach message.
+const OUTREACH_NOTE = "Outreach message";
+
 export type PanelContact = {
   id: string;
   name: string;
@@ -768,51 +771,6 @@ export function ContactPanel({
           </div>
         ) : tab === "details" ? (
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-            {/* Their message, first, once you have saved one (Drafted and on; the old
-                batch notes still on Identified people are not shown): what you send
-                in the morning, with what sending it takes. Edit goes to the chat. */}
-            {contact.connectionNote && contact.stage && contact.stage !== "Identified" && (
-              <div className="space-y-2">
-                <div className={sectionHead}>
-                  <h3 className="t-section">Message</h3>
-                  {contact.connectionNoteSentAt && (
-                    <span className="text-meta text-fg-3">Sent {logDate(contact.connectionNoteSentAt)}</span>
-                  )}
-                </div>
-                <p className="text-body text-fg-1">{contact.connectionNote}</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(contact.connectionNote ?? "");
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 1500);
-                    }}
-                    className={button("secondary", "compact")}
-                    title="Copy it, to paste into LinkedIn"
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  {contact.email && contact.msgToContact && (
-                    <a
-                      href={mailtoLink(contact.email, contact.msgToContact)}
-                      className={button("quiet", "compact")}
-                      title="Opens your mail app with the subject and message filled in"
-                    >
-                      <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
-                    </a>
-                  )}
-                  <button
-                    onClick={() => {
-                      setTab("chat");
-                      setScope("connect");
-                    }}
-                    className={button("quiet", "compact")}
-                  >
-                    Edit in chat
-                  </button>
-                </div>
-              </div>
-            )}
             {/* The relationship and the facts */}
             <div className="space-y-2">
               {/* The one line here that is their own: how they know them, what the
@@ -1346,8 +1304,17 @@ export function ContactPanel({
                 )}
                 <button
                   disabled={!noteDraft || noteDraft === contact.connectionNote}
-                  onClick={() =>
+                  onClick={() => {
+                    // The saved message is also a note, "Outreach message", always the
+                    // latest version, so it is on the overview with your other notes.
+                    const prior = notes.find((n) => n.title === OUTREACH_NOTE);
+                    const nextNotes = [
+                      { id: prior?.id ?? crypto.randomUUID(), title: OUTREACH_NOTE, body: noteDraft, createdAt: new Date().toISOString() },
+                      ...notes.filter((n) => n.title !== OUTREACH_NOTE),
+                    ];
+                    setNotes(nextNotes);
                     onUpdate(contact.id, {
+                      noteList: JSON.stringify(nextNotes),
                       connectionNote: noteDraft,
                       msgToContact: emailFromNote(noteDraft, me.signOff, me.portfolio),
                       // MHCI alumni's chat notes are the journey template; tracked as
@@ -1365,8 +1332,8 @@ export function ContactPanel({
                             ]),
                           }
                         : {}),
-                    })
-                  }
+                    });
+                  }}
                   className={`${button("secondary", "compact")} shrink-0`}
                   title={noteDraft && noteDraft !== contact.connectionNote ? noteDraft : "Lights up once the chat has a new draft"}
                 >
