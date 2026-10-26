@@ -103,10 +103,6 @@ export default function NetworkingPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   // Opened from a drafted card's "Edit with Claude": the panel starts on the note chat.
   const [openOnNote, setOpenOnNote] = useState(false);
-  // Batch drafting: the people picked on the Network tab, and the drafting run's
-  // progress while it goes (lib/draft-notes).
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [drafting, setDrafting] = useState<{ done: number; total: number } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // How sent notes are landing (lib/note-stats), for the line above the groups.
   type Rate = { sent: number; accepted: number; replied: number };
@@ -118,36 +114,6 @@ export default function NetworkingPage() {
       .catch(() => {});
   }, [contacts]);
   const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "–");
-  const togglePick = (id: string) =>
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  const draftPicked = async () => {
-    const ids = [...picked];
-    if (!ids.length) return;
-    const res = await fetch("/api/contacts/draft-notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    }).catch(() => null);
-    if (!res?.ok) return;
-    setPicked(new Set());
-    setDrafting({ done: 0, total: ids.length });
-    // Poll until the run finishes, then reload so the drafted cards move groups.
-    const poll = setInterval(async () => {
-      const d = await fetch("/api/contacts/draft-notes").then((r) => r.json()).catch(() => null);
-      if (!d) return;
-      setDrafting({ done: d.done, total: d.total });
-      if (!d.running) {
-        clearInterval(poll);
-        setDrafting(null);
-        load();
-      }
-    }, 3000);
-  };
   const markSent = (c: Contact, hist: unknown[]) =>
     update(c.id, {
       stage: "Sent",
@@ -592,31 +558,6 @@ export default function NetworkingPage() {
                 </p>
               )}
 
-              {/* The batch bar: how many are picked, and Draft notes. While a run
-                  goes, its progress instead. Fixed at the bottom so it is in reach
-                  however far down the list you picked from. */}
-              {(picked.size > 0 || drafting) && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 h-12 px-4 rounded-card bg-raised border border-line-2 shadow-lg">
-                  {drafting ? (
-                    <span className="text-body text-fg-2">
-                      Drafting notes… <span className="tabular-nums text-fg-1">{drafting.done}</span> of{" "}
-                      <span className="tabular-nums">{drafting.total}</span>
-                    </span>
-                  ) : (
-                    <>
-                      <span className="text-body text-fg-2">
-                        <span className="tabular-nums text-fg-1">{picked.size}</span> picked
-                      </span>
-                      <button onClick={() => setPicked(new Set())} className={button("quiet", "compact")}>
-                        Clear
-                      </button>
-                      <button onClick={draftPicked} className={button("primary", "compact")}>
-                        Draft notes
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
               {/* Warmth, tags, companies and the search all narrow together, so they can
                   meet at nobody. Say so, rather than leave a blank page under the chips. */}
               {visible.length === 0 && (
@@ -640,24 +581,6 @@ export default function NetworkingPage() {
                     <div className="sticky top-12 z-[5] bg-canvas flex items-center gap-2 h-8">
                       <h3 className="t-group">{stage}</h3>
                       <span className="text-meta tabular-nums text-fg-3">{group.length}</span>
-                      {(stage === "Identified" || stage === "Drafted") && (
-                        <button
-                          onClick={() => {
-                            const all = group.every((c) => picked.has(c.id));
-                            setPicked((prev) => {
-                              const next = new Set(prev);
-                              for (const c of group) {
-                                if (all) next.delete(c.id);
-                                else next.add(c.id);
-                              }
-                              return next;
-                            });
-                          }}
-                          className={`${button("quiet", "compact")} ml-auto`}
-                        >
-                          {group.every((c) => picked.has(c.id)) ? "Clear selection" : `Select all ${group.length}`}
-                        </button>
-                      )}
                     </div>
                     {/* A grid of cards per stage, the same frame as Roles → Active:
                         three across at 1440, two at about 1024, one on a phone. Each
@@ -773,11 +696,6 @@ export default function NetworkingPage() {
                               setOpenOnNote(false);
                               setOpenId(c.id);
                             }}
-                            check={
-                              stageNow === "Identified" || stageNow === "Drafted"
-                                ? { checked: picked.has(c.id), onChange: () => togglePick(c.id), label: `Pick ${c.name} for drafting` }
-                                : undefined
-                            }
                             footer={
                               // A drafted note, ready to send: copy it, open their
                               // profile, paste and send there, then mark it sent here.
