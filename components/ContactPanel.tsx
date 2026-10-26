@@ -276,6 +276,20 @@ export function ContactPanel({
       email: headerDraft.email.trim() || null,
     });
     setEditingHeader(false);
+    // A new company or title makes a saved draft out of date: the chat redrafts it
+    // with the new facts, and Update draft lights up for you to keep or ignore.
+    // The facts ride in the message, so the redraft does not wait on the save.
+    const company = headerDraft.company.trim();
+    const title = headerDraft.title.trim();
+    const was = [contact.title ?? contact.role ?? "", contact.company];
+    if (contact.connectionNote && (company !== was[1] || title !== was[0])) {
+      setTab("chat");
+      setScope("connect");
+      void send({
+        scope: "connect",
+        content: `I updated their details: they are now ${[title, company].filter(Boolean).join(" at ")}${was.some(Boolean) ? ` (was ${was.filter(Boolean).join(" at ")})` : ""}. Update the current draft to match, keeping the rest of the wording.`,
+      });
+    }
   };
   const [tldrDraft, setTldrDraft] = useState(contact.notes ?? "");
   const [addingEvent, setAddingEvent] = useState(false);
@@ -404,14 +418,16 @@ export function ContactPanel({
     if (label && messages.length > 0) setMarkers((m) => ({ ...m, [messages.length]: label }));
   };
 
-  const send = async () => {
-    const content = input.trim();
+  // `say` sends a message Belay writes for you (the redraft after a header edit)
+  // instead of what is in the box, on the scope it names.
+  const send = async (say?: { content: string; scope: string }) => {
+    const content = (say?.content ?? input).trim();
     if (!content || sending) return;
     // An email address said in the chat ("their email is …") becomes theirs when
     // none is on file, so it never has to be typed twice.
     const said = content.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/);
     if (said && !contact.email) onUpdate(contact.id, { email: said[0] });
-    setInput("");
+    if (!say) setInput("");
     setSending(true);
     setError(null);
     setMessages((m) => [
@@ -422,7 +438,7 @@ export function ContactPanel({
       const res = await fetch(`/api/contacts/${contact.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, scope }),
+        body: JSON.stringify({ content, scope: say?.scope ?? scope }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d?.error ?? `Chat failed (HTTP ${res.status})`);
@@ -1326,7 +1342,7 @@ export function ContactPanel({
                 className={`${textarea()} max-h-40`}
               />
               <button
-                onClick={send}
+                onClick={() => send()}
                 disabled={!input.trim() || sending}
                 className={iconButton("primary")}
                 title="Send (↵)"
