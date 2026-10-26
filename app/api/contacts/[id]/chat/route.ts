@@ -143,28 +143,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   const first = firstName(contact.name);
   // The MHCI note (settled with the owner Oct 26 2026). The opening and the ask are
-  // fixed; the middle is written per person by a method, not a fill-in: their move,
-  // the choice behind it, and the bridge from where they were to what they do now.
-  const journeyNote = `Hi ${first}! I'm a recent MHCI grad, currently teaching interaction design at CMU. I saw you {their move}, and I'd love to hear {the choice} and how {the bridge}. Would you be open to a 15-minute chat?`;
-  const journeyRules = `The shape, with an example the user loved:
-"${journeyNote}"
-"Hi Alicia! I'm a recent MHCI grad, currently teaching interaction design at CMU. I saw you moved from startups to DoorDash, and I'd love to hear why you chose a bigger company and how the startup pace set you up for your growth work there. Would you be open to a 15-minute chat?"
+  // fixed; the middle sentence is written per person to a job, not filled in:
+  // what is interesting about their career, said in plain words, then why and what
+  // carried over. Company names and titles read as keywords, and keywords read as AI.
+  const journeyRules = `The note:
+"Hi ${first}! I'm a recent MHCI grad, currently teaching interaction design at CMU. I saw you {their path, in plain words}, and I'd love to hear {why} and {what carried over}. Would you be open to a 15-minute chat?"
 
-The first sentence and the ask are word for word. The middle sentence is written for this person by this method:
+The first sentence and the ask are word for word. The middle sentence is written for this person. Examples the user approved:
+"I saw you started in HCI and moved into more data integration work, and I'd love to hear why you made that shift and what from HCI actually carried over."
+"I saw you started out at startups and are now at a much bigger company, and I'd love to hear why you made that jump and what from startup life carried over."
+"I saw you've stuck with financial products through most of your career, and I'd love to hear what keeps you in that space and how the work has changed over time."
+"I saw you've spent about ten years designing for space missions (so cool!), and I'd love to hear what's kept you there and what designing for that kind of work is really like."
 
-1. {their move}: the biggest transition in their path, as where they were to where they are: company type (startups to DoorDash), function (research to leading design), field (architecture to product design), or level (designer to design lead). From the user's notes first, then the profile. One move, never a list of their jobs. Never MHCI itself, as the move or the bridge: the opening already says it, and going to the program is not the choice that interests them. For someone whose path is MHCI and then their current job, the move is from what they did before MHCI (their undergrad field, an earlier job) when it is known, or their growth where they are (designer to senior designer, onto a new team); when neither is known, ask the user for one detail from their LinkedIn instead of guessing.
-2. {the choice}: the decision behind that move, named by what is different about where they landed: "why you chose a bigger company", "what pulled you into design", "what drew you to health tech".
-3. {the bridge}: "how {one trait of where they were} set you up for {their specific current work}". The trait is a fair, well-known quality of that kind of experience ("the startup pace", "research rigor", "thinking in space from architecture", "an engineering background"), never an invented detail about them. Their current work is specific: "your growth work there", "the AI features at Notion", "design systems at Stripe".
+How to write it:
+1. Start with "I saw you" (or "I noticed you"), straight into the interesting thing. Never a lead-in like "caught my eye" or "your path from".
+2. The interesting thing is what the user called out in their notes or this chat. With nothing from them, the most notable thing in the profile: a move (engineering to design), staying somewhere a long time, a through-line (always financial products), moving into an area, an unusual background (psychology to design).
+3. Say it in plain, everyday words, as someone who understood their profile would say it to them. No company names, program names or exact job titles ("a much bigger company", not "DoorDash"; "data integration work", not "Lead, Artemis Data Integration"), unless the name itself is the point. Keywords pulled from a profile read as a template or as AI.
+4. Then why: why they made the shift, or what keeps them there.
+5. Then the part that would help the user: what carried over, what they still lean on, how it shows up in their work now, or what the work is really like. Rotate these so notes do not share one phrase.
+   Best of all, when you can see it: a real connection between where they were and what they focus on now, which shows the user understood their path rather than read it. The user loved this one: "I'd love to hear why you chose a bigger company and how the startup pace set you up for your growth work there" (startups and growth are both about fast experiments and moving numbers). Other real links: engineering and design systems, research and product strategy, psychology and behavior design, teaching and onboarding. Only when both ends are known (from their notes or the profile) and the link is one most designers would recognize. A stretched connection is worse than none; then use the plain version.
+6. Never MHCI as the thing they moved from; the opening already says it. "Since the program" is fine when their career starts there.
 
-Optional, only when it fits under the limit:
-- A short, genuine aside in parentheses after the move: "(quite the jump!)", "(such a cool route!)". Not every note.
-- The user's own reason, only when they gave one in their notes or this chat (never invent it): "and since I'm hoping to make a similar move, I'd love to hear…".
+Optional, only when it fits:
+- A short, genuine aside in parentheses: "(so cool!)", "(quite the jump!)". Sometimes, not every note.
+- The user's own reason, only when they gave one (never invent it): "and since I'm hoping to make a similar move, I'd love to hear…".
 
-Over the limit: drop the aside, then the user's reason, then shorten the bridge. Small natural variations are fine ("I noticed" for "I saw", "what made you" for "why you") so notes to people at the same company are not identical.
+The out-loud test: would the user say this sentence, word for word, to this person over coffee? If not, rewrite it. Never: "kept you growing", "shaped your perspective", "your journey" on its own, "leverage", "impact", "passionate", "caught my eye". No slang, no flattery, never "fellow" or "we're both". Mention AI only when their work is about AI.
 
-The tone: a recent grad reaching out to someone further along, warm, curious and respectful. Plain words, no slang, no flattery, never "fellow" or "we're both". Mention AI only when their work is about AI.
+Over the limit: drop the aside, then the user's reason, then shorten the path.
 - What the user tells you about this person (in their notes or in this chat) is fact: they are looking at the full LinkedIn profile, and the summary below is a short, partial lookup. Use it as given, even when the summary does not mention it, and never push back because the summary leaves it out. Only ask when what they said is unclear, not when it is unconfirmed.
-- With nothing from the user, pick the move from the profile and say in one line under the drafts what you based it on, so they can correct it.`;
+- With nothing from the user and nothing notable in the profile (a title and a company, little else), ask them for one detail from their LinkedIn instead of writing something generic. Otherwise, when you chose the interesting thing yourself, say in one line under the drafts what you based it on.`;
   let task = "";
   switch (scope) {
     case "connect":
@@ -173,9 +181,9 @@ The tone: a recent grad reaching out to someone further along, warm, curious and
 
 ${journeyRules}
 
-Before answering, check: under the limit; the move, the choice and the bridge are true and specific to this person; the fixed wording is unchanged; it reads naturally out loud, like a person wrote it.
+Before answering, check: under the limit; the middle sentence is true, specific to this person and in plain words; the fixed wording is unchanged; it reads naturally out loud, like a person wrote it.
 
-Give two drafts (different moves, choices or bridges), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
+Give two drafts (different things to call out, or different questions), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
 ${contact.connectionNote ? `
 Their current drafted note for this person:
 "${contact.connectionNote}"
