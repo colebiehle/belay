@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { logDate, calendarDays } from "@/lib/dates";
-import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, Mail, Pencil, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PersonPicker } from "@/components/PersonPicker";
 import { getLogoDomain } from "@/components/CompanyLogo";
@@ -259,13 +259,14 @@ export function ContactPanel({
   // The header's facts. They were fixed at creation, so a typo in a name meant
   // deleting the person and losing their notes, history and mutuals with them.
   const [editingHeader, setEditingHeader] = useState(false);
-  const [headerDraft, setHeaderDraft] = useState({ name: "", company: "", title: "", linkedinUrl: "" });
+  const [headerDraft, setHeaderDraft] = useState({ name: "", company: "", title: "", linkedinUrl: "", email: "" });
   const startHeaderEdit = () => {
     setHeaderDraft({
       name: contact.name,
       company: contact.company,
       title: contact.title ?? contact.role ?? "",
       linkedinUrl: contact.linkedinUrl ?? "",
+      email: contact.email ?? "",
     });
     setEditingHeader(true);
   };
@@ -277,6 +278,7 @@ export function ContactPanel({
       company: headerDraft.company.trim(),
       title: headerDraft.title.trim() || null,
       linkedinUrl: headerDraft.linkedinUrl.trim() || null,
+      email: headerDraft.email.trim() || null,
     });
     setEditingHeader(false);
   };
@@ -410,6 +412,10 @@ export function ContactPanel({
   const send = async () => {
     const content = input.trim();
     if (!content || sending) return;
+    // An email address said in the chat ("their email is …") becomes theirs when
+    // none is on file, so it never has to be typed twice.
+    const said = content.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/);
+    if (said && !contact.email) onUpdate(contact.id, { email: said[0] });
     setInput("");
     setSending(true);
     setError(null);
@@ -569,13 +575,23 @@ export function ContactPanel({
                     className={field("compact")}
                   />
                 </div>
-                <input
-                  value={headerDraft.linkedinUrl}
-                  onChange={(e) => setHeaderDraft({ ...headerDraft, linkedinUrl: e.target.value })}
-                  placeholder="LinkedIn URL"
-                  aria-label="LinkedIn URL"
-                  className={field("compact")}
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={headerDraft.linkedinUrl}
+                    onChange={(e) => setHeaderDraft({ ...headerDraft, linkedinUrl: e.target.value })}
+                    placeholder="LinkedIn URL"
+                    aria-label="LinkedIn URL"
+                    className={field("compact")}
+                  />
+                  <input
+                    type="email"
+                    value={headerDraft.email}
+                    onChange={(e) => setHeaderDraft({ ...headerDraft, email: e.target.value })}
+                    placeholder="Email"
+                    aria-label="Email"
+                    className={field("compact")}
+                  />
+                </div>
                 <div className="flex items-center justify-end gap-2">
                   <button onClick={() => setEditingHeader(false)} className={button("quiet", "compact")}>
                     Cancel
@@ -601,7 +617,7 @@ export function ContactPanel({
                 <button
                   onClick={startHeaderEdit}
                   className="inline text-left cursor-text decoration-fg-2 decoration-dotted underline-offset-4 hover:underline"
-                  title="Click to edit name, company, title and LinkedIn"
+                  title="Click to edit name, company, title, LinkedIn and email"
                 >
                   {contact.name}
                 </button>
@@ -617,6 +633,11 @@ export function ContactPanel({
                     aria-label="Open their LinkedIn"
                   >
                     <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                  </a>
+                )}
+                {contact.email && (
+                  <a href={`mailto:${contact.email}`} className={headerLink} title={`Email ${contact.email}`} aria-label={`Email ${contact.email}`}>
+                    <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </a>
                 )}
               </p>
@@ -1281,7 +1302,7 @@ export function ContactPanel({
                 <div className="flex items-center gap-2 text-meta text-fg-3">
                   <span className="text-fg-2">To:</span>
                   <input
-                    key={contact.id}
+                    key={`${contact.id}:${contact.email ?? ""}`}
                     defaultValue={contact.email ?? ""}
                     onBlur={(e) => {
                       const v = e.target.value.trim();
