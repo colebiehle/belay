@@ -14,7 +14,7 @@ import { logoUrl } from "@/lib/logo";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
 import { TagPicker } from "@/components/TagPicker";
 import { CONTACT_STAGES, CONNECT_NOTE_LIMIT, WARMTH_LEVELS } from "@/lib/contact-stages";
-import { emailFromNote, firstName, openerFor } from "@/lib/connect-template";
+import { emailFromNote, firstName, mailtoLink, openerFor } from "@/lib/connect-template";
 
 /**
  * One person's panel, built the same way as the role panel because outreach turned
@@ -208,6 +208,7 @@ export function ContactPanel({
       .then((a) => a && setMe({ signOff: firstName(a.preferred_name || ""), portfolio: a.portfolio_url || "" }))
       .catch(() => {});
   }, []);
+  const [copied, setCopied] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -495,6 +496,11 @@ export function ContactPanel({
     onUpdate(contact.id, {
       stage: next,
       stageHistory: JSON.stringify([...history, entry]),
+      // Moving a drafted person to Sent is sending their note: dated, for the
+      // acceptance and reply stats (lib/note-stats).
+      ...(next === "Sent" && contact.connectionNote && !contact.connectionNoteSentAt
+        ? { connectionNoteSentAt: entry.at }
+        : {}),
     });
   };
 
@@ -630,7 +636,7 @@ export function ContactPanel({
                   </a>
                 )}
                 {contact.email && (
-                  <a href={`mailto:${contact.email}`} className={headerLink} title={`Email ${contact.email}`} aria-label={`Email ${contact.email}`}>
+                  <a href={contact.msgToContact ? mailtoLink(contact.email, contact.msgToContact) : `mailto:${contact.email}`} className={headerLink} title={contact.msgToContact ? `Email ${contact.email}, with your drafted message` : `Email ${contact.email}`} aria-label={`Email ${contact.email}`}>
                     <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth />
                   </a>
                 )}
@@ -1261,6 +1267,19 @@ export function ContactPanel({
                 <p className="flex-1 min-w-0 text-meta text-fg-3">
                   <span className="text-fg-2">Current draft:</span> {contact.connectionNote || "None yet."}
                 </p>
+                {contact.connectionNote && (
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(contact.connectionNote ?? "");
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className={`${button("quiet", "compact")} shrink-0`}
+                    title="Copy the current draft, to paste into LinkedIn"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                )}
                 <button
                   disabled={!noteDraft || noteDraft === contact.connectionNote}
                   onClick={() =>

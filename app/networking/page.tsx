@@ -2,8 +2,7 @@
 
 import { Reveal } from "@/components/Reveal";
 import { useEffect, useState } from "react";
-import { Check, Clock, Copy, ExternalLink, Flag, Mail, Plus, Search } from "lucide-react";
-import { mailtoLink } from "@/lib/connect-template";
+import { Clock, ExternalLink, Plus, Search } from "lucide-react";
 import { button, emptyBox, input, listGrid, toggle } from "@/lib/ui";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { ContactPanel, type PanelContact } from "@/components/ContactPanel";
@@ -104,7 +103,6 @@ export default function NetworkingPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   // Opened from a drafted card's "Edit with Claude": the panel starts on the note chat.
   const [openOnNote, setOpenOnNote] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   // How sent notes are landing (lib/note-stats), for the line above the groups.
   type Rate = { sent: number; accepted: number; replied: number };
   const [stats, setStats] = useState<{ all: Rate; byVariant: Record<string, Rate> } | null>(null);
@@ -115,12 +113,6 @@ export default function NetworkingPage() {
       .catch(() => {});
   }, [contacts]);
   const pct = (n: number, d: number) => (d ? `${Math.round((100 * n) / d)}%` : "–");
-  const markSent = (c: Contact, hist: unknown[]) =>
-    update(c.id, {
-      stage: "Sent",
-      connectionNoteSentAt: new Date().toISOString(),
-      stageHistory: JSON.stringify([...hist, { stage: "Sent", at: new Date().toISOString() }]),
-    });
   // Read once per visit for the follow-up counters, rather than during every render.
   const [now] = useState(() => Date.now());
   // Whether the open panel was reached from another panel's mutual.
@@ -697,73 +689,6 @@ export default function NetworkingPage() {
                               setOpenOnNote(false);
                               setOpenId(c.id);
                             }}
-                            footer={
-                              // A drafted note, ready to send: copy it, open their
-                              // profile, paste and send there, then mark it sent here.
-                              stageNow === "Drafted" && c.connectionNote ? (
-                                <div className="space-y-1.5">
-                                  {/* The drafter's read of their profile: why this one
-                                      needs a look before it goes. */}
-                                  {c.connectionNoteFlag && (
-                                    <p className="flex items-start gap-1 text-meta text-fg-1">
-                                      <Flag size={14} strokeWidth={1.5} absoluteStrokeWidth className="shrink-0 mt-px text-fg-3" />
-                                      {c.connectionNoteFlag}
-                                    </p>
-                                  )}
-                                  <p className="text-meta text-fg-2 line-clamp-3" title={c.connectionNote}>
-                                    {c.connectionNote}
-                                  </p>
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={async () => {
-                                        await navigator.clipboard.writeText(c.connectionNote ?? "").catch(() => {});
-                                        setCopiedId(c.id);
-                                        setTimeout(() => setCopiedId((x) => (x === c.id ? null : x)), 1500);
-                                      }}
-                                      className={button("quiet", "compact")}
-                                    >
-                                      {copiedId === c.id ? (
-                                        <Check size={14} strokeWidth={1.5} absoluteStrokeWidth />
-                                      ) : (
-                                        <Copy size={14} strokeWidth={1.5} absoluteStrokeWidth />
-                                      )}
-                                      {copiedId === c.id ? "Copied" : "Copy note"}
-                                    </button>
-                                    {c.linkedinUrl && (
-                                      <a
-                                        href={c.linkedinUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={button("quiet", "compact")}
-                                      >
-                                        <ExternalLink size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open LinkedIn
-                                      </a>
-                                    )}
-                                    {/* The same message as an email, when you have
-                                        their address: send it from your mail app, or
-                                        schedule it there for the morning. */}
-                                    {c.email && c.msgToContact && (
-                                      <a href={mailtoLink(c.email, c.msgToContact)} className={button("quiet", "compact")}>
-                                        <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
-                                      </a>
-                                    )}
-                                    <button
-                                      onClick={() => {
-                                        setOpenOnNote(true);
-                                        setOpenId(c.id);
-                                      }}
-                                      className={button("quiet", "compact")}
-                                      title="Redraft it with Claude: tell it what you noticed on their profile"
-                                    >
-                                      Edit
-                                    </button>
-                                    <button onClick={() => markSent(c, hist)} className={`${button("secondary", "compact")} ml-auto`}>
-                                      Mark sent
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : undefined
-                            }
                           />
                         );
                       })}
