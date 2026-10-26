@@ -26,6 +26,44 @@ export async function GET() {
   return NextResponse.json(pending);
 }
 
+const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
+const JOT_TITLE = "What caught my eye";
+
+// An added card's note, onto the Contact the add made (or the one it merged into,
+// when they were already in the network): the jotted thoughts as a titled note the
+// outreach chat reads, and any email address as their email when none is on file.
+async function fileOnContacts(ids: string[], note: string) {
+  const rows = await prisma.personCandidate.findMany({
+    where: { id: { in: ids }, status: "added" },
+    select: { contactId: true, linkedinUrl: true, name: true, company: true },
+  });
+  const emails = note.match(EMAIL) ?? [];
+  const body = note.replace(EMAIL, "").replace(/[ \t]+\n/g, "\n").replace(/\s{2,}/g, " ").trim();
+  for (const r of rows) {
+    const contact = r.contactId
+      ? await prisma.contact.findUnique({ where: { id: r.contactId } })
+      : r.linkedinUrl
+        ? await prisma.contact.findFirst({ where: { linkedinUrl: r.linkedinUrl } })
+        : await prisma.contact.findFirst({ where: { name: r.name, company: r.company ?? "" } });
+    if (!contact) continue;
+    let list: { id: string; title: string; body: string; createdAt: string }[] = [];
+    try {
+      const v = JSON.parse(contact.noteList ?? "[]");
+      if (Array.isArray(v)) list = v;
+    } catch {}
+    // Done files a card once, but a note re-filed after an undo replaces the old one.
+    list = list.filter((n) => n.title !== JOT_TITLE);
+    if (body) list.unshift({ id: crypto.randomUUID(), title: JOT_TITLE, body, createdAt: new Date().toISOString() });
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: {
+        noteList: list.length ? JSON.stringify(list) : null,
+        ...(emails[0] && !contact.email ? { email: emails[0] } : {}),
+      },
+    });
+  }
+}
+
 // "note" files the reason typed on a decided card. It is its own action because the
 // reason arrives after the decision, as on the job queue: the card is decided the
 // moment you press Accept or Pass, and the note is written in the gap before Done.
@@ -45,6 +83,9 @@ export async function PATCH(req: NextRequest) {
       where: { id: { in: ids }, status: { not: "pending" } },
       data: { decisionNote: note || null },
     });
+    // On an add, the note is what caught your eye: it goes to the person as context
+    // for drafting their message in the chat, and an email in it becomes theirs.
+    if (note) await fileOnContacts(ids, note);
     return NextResponse.json({ ok: true });
   }
   const rows = await prisma.personCandidate.findMany({ where: { id: { in: ids } } });

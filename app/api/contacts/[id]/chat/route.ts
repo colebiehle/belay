@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { understandingBlock, contextBlock, FOUNDATION_KINDS } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { CONNECT_NOTE_LIMIT } from "@/lib/contact-stages";
-import { identityLine } from "@/lib/identity";
+import { identityLine, identityName } from "@/lib/identity";
 import { buildNote, firstName, openerFor } from "@/lib/connect-template";
 
 export const dynamic = "force-dynamic";
@@ -129,17 +129,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .join("\n");
 
   // The opener follows the person's group (lib/connect-template), as batch drafting does.
+  const group = openerFor(relTags, `${contact.title ?? ""} ${contact.role ?? ""} ${contact.howMet ?? ""} ${contact.profileText ?? ""}`);
+  // MHCI alumni get the journey note (settled with the owner Oct 25 2026); everyone
+  // else keeps the earlier template until theirs is revisited.
+  const mhci = group === "mhci" || group === "ucsd_mhci";
   const templateLine = buildNote({
     firstName: firstName(contact.name),
-    group: openerFor(relTags, `${contact.title ?? ""} ${contact.role ?? ""} ${contact.howMet ?? ""} ${contact.profileText ?? ""}`),
+    group,
     kind: "standard",
     who: "{who}",
     focus: "{focus}",
     aside: "{aside}",
   });
+  const [portfolio, preferred] = await Promise.all(
+    ["portfolio_url", "preferred_name"].map((k) =>
+      prisma.answerBank.findFirst({ where: { questionKey: k }, select: { answer: true } }).then((a) => a?.answer?.trim() || ""),
+    ),
+  );
+  // A sign-off is the name you go by ("Cole"), never the legal first name.
+  const signOff = firstName(preferred || (await identityName()));
+  const first = firstName(contact.name);
+  const journeyNote = `Hi ${first}! I recently graduated from MHCI and I'm now teaching interaction design at CMU. I'm really interested in {interest}, so I'd love to hear about your journey since the program and how it prepared you to {their work}. Would you be open to a 15-minute chat?`;
+  const journeyRules = `The template, word for word. Only {interest} and {their work} change:
+"${journeyNote}"
+
+The tone: a recent grad reaching out to someone further along, excited, curious and grateful, warm without being casual. They are the experienced one; never frame them as a peer ("we're both", "fellow").
+
+- {interest}: what the user is interested in, as an area or kind of design, not a company: "designing for learning", "design systems", "tools for designers", "health tech", "AI in creative tools". Take it from their own notes on this person (the "What caught my eye" note and anything they say in this chat) when there is one, in their words, tightened. With no note from them, choose it from this person's current work and say in one line under the drafts that you guessed it, so they can correct it.
+- {their work}: their specific role and work, which is what makes the note theirs alone: "lead design for Dev Mode at Figma", "design Duolingo's AI tutor", "lead design at Stripe". Only what is true from the profile below. Simplify when long ("lead design at Figma").
+- "since the program" only when their profile below shows they did MHCI themselves (a degree, not staff or faculty). Otherwise "your journey and how it prepared you to…", and say so in a line under the drafts.
+- Mention AI only when the interest itself is about AI.`;
   let task = "";
   switch (scope) {
     case "connect":
+      if (mhci) {
+        task = `Draft a LinkedIn connection note. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
+
+${journeyRules}
+
+Over the limit? Shorten {their work} first, then {interest}. Never cut the fixed wording.
+
+Before answering, check: under the limit; both filled parts are true and specific to this person; the fixed wording is unchanged; it reads naturally out loud.
+
+Give two drafts (different choices for {interest} or {their work}), each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
+${contact.connectionNote ? `
+Their current drafted note for this person:
+"${contact.connectionNote}"
+If it follows this template and they ask for a change, revise it in place: keep their wording, work the change in, stay under the limit, and give just the revised note between two lines of three dashes (---) with its character count and one line on what changed. If it is an older note that does not follow this template, ignore it and draft fresh.` : ""}`;
+        break;
+      }
       // The owner's own note (settled Oct 23 2026). The fixed part is theirs word for
       // word; only who they are, their focus and an optional aside change.
       task = `Draft a LinkedIn connection note from their template. ${CONNECT_NOTE_LIMIT} characters at most including spaces.
@@ -167,6 +205,27 @@ Their current drafted note for this person:
 "${contact.connectionNote}"
 If they ask to change it or tell you something to include (a detail from their profile, a shared experience), revise that note rather than starting over: work the new detail in naturally, keep the rest of their wording unless they ask otherwise, stay under the limit, and give just the revised note between two lines of three dashes (---) with its character count and one line on what changed.` : ""}`;
       break;
+    case "email": {
+      const body = mhci
+        ? `${journeyRules}
+
+As an email: "Hi ${first}," on its own line, then the note's sentences after the greeting as one short paragraph (no character limit, but no longer than the note needs), then "Thank you so much for considering it!" on its own line, then the sign-off.`
+        : `A short cold email in the same spirit: who they are in one line (from their profile in their own words), a specific interest in this person's work and path, and a 15-minute ask that is easy to decline. Three or four sentences, then "Thank you so much for considering it!" and the sign-off.`;
+      task = `Draft an email to this person.${contact.email ? ` It goes to ${contact.email}.` : ""}
+
+Subject: "From a recent MHCI grad" unless they ask for another.
+
+${body}
+
+Sign-off, on separate lines: "${signOff}"${portfolio ? `, then their portfolio link: ${portfolio}` : ""}.
+
+Give one draft. Put it between two lines of three dashes (---), with the first line inside as "Subject: …", a blank line, then the email, so they can save it with one click. Under it, one line on any choice you guessed at.
+${contact.msgToContact ? `
+Their current email draft for this person:
+"${contact.msgToContact}"
+If they ask for a change, revise that draft in place rather than starting over, and give the whole revised email between the dashes.` : ""}`;
+      break;
+    }
     case "followup":
       task = `Draft a follow-up. One short paragraph. No apology for following up, no guilt, no restating the original message at length. Add one new thing — a reason the timing changed, something they read, a specific question — because a bare "just bumping this" gives them nothing to reply to. If there is nothing new to add, say that waiting longer is the better move.`;
       break;

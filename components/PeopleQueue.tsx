@@ -1232,16 +1232,17 @@ function CandidateCard({
   );
 
   const lower = decided ? (
-    // The reason, in the space below the head, exactly as on the job card: not
+    // The note, in the space below the head, exactly as on the job card: not
     // autofocused (the next A of a run would type into it), Enter is a newline,
-    // Done files it.
+    // Done files it. On an add it is what caught your eye, plus an email if you
+    // found one: both go to the person, for drafting their message in the chat.
     <div className="mt-2 flex-1 min-h-0 flex flex-col">
       <AutoResizeTextarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        placeholder={added ? "Why this one?" : "Why not?"}
-        aria-label={added ? "Why this one?" : "Why not?"}
+        placeholder={added ? "What caught your eye? Their email, if you found it." : "Why not?"}
+        aria-label={added ? "What caught your eye" : "Why not?"}
         className={`${textarea()} flex-1`}
       />
     </div>
