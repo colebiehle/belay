@@ -188,7 +188,10 @@ export function ContactPanel({
   startOnNote?: boolean;
 }) {
   const [tab, setTab] = useState<"details" | "chat">(startOnNote ? "chat" : "details");
-  const [scope, setScope] = useState<string | null>(startOnNote ? "connect" : null);
+  // Before they have been messaged, the chat is for the message, so it starts there.
+  const [scope, setScope] = useState<string | null>(
+    startOnNote || !contact.stage || ["Identified", "Drafted"].includes(contact.stage) ? "connect" : null,
+  );
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   // The latest note the chat drafted (set off between "---" lines), on the
   // connection-note scope, for "Use this draft".
@@ -765,6 +768,51 @@ export function ContactPanel({
           </div>
         ) : tab === "details" ? (
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {/* Their message, first, once you have saved one (Drafted and on; the old
+                batch notes still on Identified people are not shown): what you send
+                in the morning, with what sending it takes. Edit goes to the chat. */}
+            {contact.connectionNote && contact.stage && contact.stage !== "Identified" && (
+              <div className="space-y-2">
+                <div className={sectionHead}>
+                  <h3 className="t-section">Message</h3>
+                  {contact.connectionNoteSentAt && (
+                    <span className="text-meta text-fg-3">Sent {logDate(contact.connectionNoteSentAt)}</span>
+                  )}
+                </div>
+                <p className="text-body text-fg-1">{contact.connectionNote}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(contact.connectionNote ?? "");
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className={button("secondary", "compact")}
+                    title="Copy it, to paste into LinkedIn"
+                  >
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                  {contact.email && contact.msgToContact && (
+                    <a
+                      href={mailtoLink(contact.email, contact.msgToContact)}
+                      className={button("quiet", "compact")}
+                      title="Opens your mail app with the subject and message filled in"
+                    >
+                      <Mail size={14} strokeWidth={1.5} absoluteStrokeWidth /> Open in email
+                    </a>
+                  )}
+                  <button
+                    onClick={() => {
+                      setTab("chat");
+                      setScope("connect");
+                    }}
+                    className={button("quiet", "compact")}
+                  >
+                    Edit in chat
+                  </button>
+                </div>
+              </div>
+            )}
             {/* The relationship and the facts */}
             <div className="space-y-2">
               {/* The one line here that is their own: how they know them, what the
