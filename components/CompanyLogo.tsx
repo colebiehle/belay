@@ -100,7 +100,19 @@ export function getLogoDomain(company: string, jobUrl: string, known?: string | 
     const hostname = new URL(jobUrl).hostname.replace(/^www\./, "");
     if (!ATS_PLATFORMS.some((ats) => hostname.endsWith(ats))) return hostname;
   } catch { /* ignore */ }
-  return `${company.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
+  return `${baseName(company).replace(/[^a-z0-9]/g, "")}.com`;
+}
+
+// The name a domain is made of: "McKinsey & Company" is mckinsey.com, not
+// mckinseycompany.com, and "Acme, Inc." is acme.com. Legal endings and "& Co"
+// come off; anything they leave empty keeps the whole name.
+function baseName(company: string): string {
+  const full = company.toLowerCase().trim();
+  const base = full
+    .replace(/\s*(&|and)\s*(co\.?|company)\b.*$/, "")
+    .replace(/[\s,]+(inc|llc|l\.l\.c|ltd|limited|corp|corporation|co|company|plc|gmbh|pbc)\.?$/, "")
+    .trim();
+  return base || full;
 }
 
 export function CompanyLogo({
