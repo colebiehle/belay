@@ -25,7 +25,7 @@ const GUARD = `
 
 NEVER claim to have read a profile, page or document that is not reproduced in this prompt. You cannot browse. If they have not pasted something, you do not have it, and saying otherwise is a fabrication they will act on.`;
 
-const VOICE = `Write the way they write: direct, specific, no em-dashes, no AI phrasing, no "I hope this finds you well", no "I'd love to pick your brain". Never invent a shared detail, a mutual interest, or a fact about their background.`;
+const VOICE = `Write the way they write: direct, specific, no em-dashes, no AI phrasing, no "I hope this finds you well", no "I'd love to pick your brain". Never invent a shared detail, a mutual interest, or a fact about their background. What they tell you about the person is not invented: they can see the person's full profile and you cannot, so it outranks the summary below.`;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -156,8 +156,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 The tone: a recent grad reaching out to someone further along, excited, curious and grateful, warm without being casual. They are the experienced one; never frame them as a peer ("we're both", "fellow").
 
 - {interest}: what the user is interested in, as an area or kind of design, not a company: "designing for learning", "design systems", "tools for designers", "health tech", "AI in creative tools". Take it from their own notes on this person (the "What caught my eye" note and anything they say in this chat) when there is one, in their words, tightened. With no note from them, choose it from this person's current work and say in one line under the drafts that you guessed it, so they can correct it.
-- {their work}: their specific role and work, which is what makes the note theirs alone: "lead design for Dev Mode at Figma", "design Duolingo's AI tutor", "lead design at Stripe". Only what is true from the profile below. Simplify when long ("lead design at Figma").
-- "since the program" only when their profile below shows they did MHCI themselves (a degree, not staff or faculty). Otherwise "your journey and how it prepared you to…", and say so in a line under the drafts.
+- {their work}: their specific role and work, which is what makes the note theirs alone: "lead design for Dev Mode at Figma", "design Duolingo's AI tutor", "lead design at Stripe". Simplify when long ("lead design at Figma").
+- What they tell you about this person (in their notes or in this chat) is fact: they are looking at the full LinkedIn profile, and the summary below is a short, partial lookup. Use it as given, even when the summary does not mention it, and never push back because the summary leaves it out. Only ask when what they said is unclear, not when it is unconfirmed.
+- "since the program" only when their profile below or what they tell you shows they did MHCI themselves (a degree, not staff or faculty). Otherwise "your journey and how it prepared you to…", and say so in a line under the drafts.
 - Mention AI only when the interest itself is about AI.`;
   let task = "";
   switch (scope) {
