@@ -141,8 +141,14 @@ export function passesStatedRules(title: string, company: string): boolean {
  * irrelevant to you depends on where you can work, so the list is yours to set and
  * empty until you do.
  */
+// A US place in the location, so "Remote US/Canada" or "SF or London" is kept
+// even when another of its places is on the exclude list.
+const US_MARKER =
+  /\b(united states|usa|u\.s\.?|us|san francisco|bay area|new york|nyc|seattle|los angeles|boston|austin|chicago|pittsburgh|denver|palo alto|menlo park|mountain view|cupertino|sunnyvale|san jose|san mateo|redmond|brooklyn|washington,? dc)\b|,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)\b/i;
+
 export function isUsLocation(loc: string): boolean {
   if (LOCATION_EXCLUDE.length === 0) return true;
+  if (US_MARKER.test(loc || "")) return true;
   const l = (loc || "").toLowerCase();
   return !LOCATION_EXCLUDE.some((x) => l.includes(x));
 }
