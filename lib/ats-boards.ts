@@ -28,7 +28,7 @@
  * Cohere, Decagon, Abridge, Suno, Writer, Attio, Glean, Scale AI, Webflow) was
  * removed rather than left to rot.
  */
-export type AtsProvider = "greenhouse" | "ashby" | "lever" | "amazon" | "workday" | "eightfold";
+export type AtsProvider = "greenhouse" | "ashby" | "lever" | "amazon" | "workday" | "eightfold" | "apple";
 
 export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }> = {
   figma: { provider: "greenhouse", token: "figma" },
@@ -66,6 +66,8 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
   amazon: { provider: "amazon", token: "product designer" },
   adobe: { provider: "workday", token: "adobe.wd5|adobe|external_experienced" },
   netflix: { provider: "eightfold", token: "explore.jobs.netflix.net|netflix.com" },
+  // No API it will serve a script; read from its search page (fetchAppleListings).
+  apple: { provider: "apple", token: "en-us" },
 };
 
 /**
@@ -75,14 +77,15 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
  *
  * Netflix is deliberately absent: its careers site runs on Eightfold,
  * whose search API is public. The rest were re-probed the same day and stay —
- * Apple 401s without a CSRF token it won't issue to a script, Microsoft's
+ * Apple's search API 401s without a CSRF token (it is read from its search page
+ * instead, see ATS_BOARDS), Microsoft's
  * gcsservices host refuses a plain client, and Google/Meta/Uber/TikTok render
  * results client-side. They are not invisible, though: the LinkedIn arm finds
  * them by title, which is where the Google, Microsoft, Meta and Apple rows in
  * the queue actually came from.
  */
 export const MANUAL_ONLY = new Set([
-  "google", "apple", "microsoft", "meta", "uber", "tiktok", "linkedin",
+  "google", "microsoft", "meta", "uber", "tiktok", "linkedin",
   // Wellfound and YC's public board (ycombinator.com/jobs) render their listings
   // server-side and are read like any site. Work at a Startup blocks scripts.
   "handshake", "workatastartup",
@@ -108,7 +111,7 @@ export type Coverage = "board" | "search" | "manual";
 // postings. A small company can go weeks without appearing in one, so calling
 // it "covered" would be a promise the scan can't keep.
 const SEARCH_COVERED = new Set([
-  "google", "apple", "microsoft", "meta", "uber", "tiktok", "linkedin",
+  "google", "microsoft", "meta", "uber", "tiktok", "linkedin",
 ]);
 
 // Every ingest scans every tracked company with a board, whatever its tier, so

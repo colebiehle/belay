@@ -1,15 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
 import { isWatchedCompany } from "@/lib/watch-companies";
+import { MAX_POSTING_AGE_DAYS_KNOWN } from "@/lib/search-config";
 
 /**
  * Roles left in the queue more than a week after they were posted (or found, when
  * the posting has no date) are set aside, so the queue only holds roles you can
- * still apply to early, when applications get read.
+ * still apply to early, when applications get read. Roles at tier 1 and 2 companies
+ * and the watched ones stay up to MAX_POSTING_AGE_DAYS_KNOWN (45 days by default).
  *
  * They become "Archived", the bulk-cleanup verdict, never "Pass": a pass teaches
  * the fit scoring what you don't want (lib/verdict-signal), and being too old says
- * nothing about that. Roles at tier 1 and 2 companies stay: late, a referral still
+ * nothing about that. Roles at tier 1 and 2 companies stay longer: late, a referral still
  * gets them read, and the queue card says so.
  *
  * Run whenever the queue is read; it is one query and a no-op most of the time.
@@ -34,7 +36,11 @@ export async function expireStaleQueue(): Promise<number> {
     const at = (j.datePosted ?? j.dateFound)?.getTime();
     if (!at || at >= cutoff) return false;
     const tier = tierFor(j.company, tiers);
-    return !(tier !== null && tier <= KEEP_THROUGH_TIER);
+    // Tier 1 and 2 and the watched companies are scanned with a longer age limit
+    // (MAX_POSTING_AGE_DAYS_KNOWN), so they stay until that limit, not seven days.
+    const known = (tier !== null && tier <= KEEP_THROUGH_TIER) || isWatchedCompany(j.company);
+    if (!known) return true;
+    return !!MAX_POSTING_AGE_DAYS_KNOWN && at < Date.now() - MAX_POSTING_AGE_DAYS_KNOWN * 86_400_000;
   });
   const weak = pending.filter((j) => {
     if (stale.includes(j)) return false;
@@ -53,7 +59,7 @@ export async function expireStaleQueue(): Promise<number> {
     data: {
       verdict: "Archived",
       verdictAt: new Date(),
-      verdictNotes: `Expired: no decision within ${QUEUE_FRESH_DAYS} days of posting`,
+      verdictNotes: "Expired: no decision while the posting was fresh",
     },
   });
   return count + weak.length;

@@ -14,7 +14,8 @@ import {
   canonicalCompany,
 } from "@/lib/role-filter";
 import { ATS_BOARDS, MANUAL_ONLY } from "@/lib/ats-boards";
-import { WATCH_COMPANIES } from "@/lib/watch-companies";
+import { MAX_POSTING_AGE_DAYS, MAX_POSTING_AGE_DAYS_KNOWN } from "@/lib/search-config";
+import { WATCH_COMPANIES, isWatchedCompany } from "@/lib/watch-companies";
 import { stripHtml, stripHtmlKeepLinks } from "@/lib/html";
 import { identityLine } from "@/lib/identity";
 
@@ -93,6 +94,7 @@ async function fetchAmazonListings(
   company: string,
   query: string,
   allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
 ): Promise<ExtractedListing[] | null> {
   try {
     const res = await fetch(
@@ -120,7 +122,7 @@ async function fetchAmazonListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => isFreshPosting(j.posted))
+      .filter((j) => isFreshPosting(j.posted, maxAge))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))
@@ -158,6 +160,7 @@ async function fetchWorkdayListings(
   company: string,
   token: string,
   allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
 ): Promise<ExtractedListing[] | null> {
   const [hostPrefix, tenant, board] = token.split("|");
   if (!hostPrefix || !tenant || !board) return null;
@@ -188,7 +191,7 @@ async function fetchWorkdayListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => isFreshPosting(j.posted))
+      .filter((j) => isFreshPosting(j.posted, maxAge))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))
@@ -206,6 +209,115 @@ async function fetchWorkdayListings(
   }
 }
 
+// Apple: its search API wants a session it will not give a script, and the search
+// page ignores its query on the server. But the page's server render does honour
+// the US filter and the page number, newest first, 20 to a page, with the results
+// in its hydration data. So the scan reads pages until it passes the age limit
+// (about 2.5 pages a day of postings), keeps the design titles, and reads each
+// one's details (public JSON) for the years asked.
+const APPLE_MAX_PAGES = 150;
+async function fetchAppleListings(
+  company: string,
+  allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
+): Promise<ExtractedListing[] | null> {
+  type AppleRow = {
+    reqId?: string;
+    positionId?: string;
+    postingTitle?: string;
+    transformedPostingTitle?: string;
+    postDateInGMT?: string;
+    locations?: { name?: string }[];
+    team?: { teamCode?: string };
+  };
+  const page = async (n: number): Promise<AppleRow[] | null> => {
+    const res = await fetch(`https://jobs.apple.com/en-us/search?location=united-states-USA&page=${n}`, {
+      headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
+    }).catch(() => null);
+    if (!res?.ok) return null;
+    const html = await res.text();
+    const m = html.match(/__staticRouterHydrationData = JSON\.parse\("([\s\S]*?)"\);/);
+    if (!m) return null;
+    try {
+      const data = JSON.parse(JSON.parse(`"${m[1]}"`));
+      return (data?.loaderData?.search?.searchResults ?? []) as AppleRow[];
+    } catch {
+      return null;
+    }
+  };
+  // Pages come back empty at random (page 5 empty, 10 and 15 full, a minute
+  // apart), so an empty page is retried and never read as the end. The scan stops
+  // at the first page whose postings are all past the age limit.
+  const seen = new Map<string, AppleRow>();
+  let read = 0;
+  let empties = 0;
+  const pageWithRetry = async (n: number) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const rows = await page(n);
+      if (rows && rows.length) return rows;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return null;
+  };
+  for (let start = 1; start <= APPLE_MAX_PAGES; start += 4) {
+    const batch = await Promise.all(Array.from({ length: 4 }, (_, i) => pageWithRetry(start + i)));
+    let pastLimit = false;
+    for (const rows of batch) {
+      if (!rows) {
+        empties += 1;
+        continue;
+      }
+      read += 1;
+      let fresh = 0;
+      for (const r of rows) {
+        const posted = r.postDateInGMT ? new Date(r.postDateInGMT) : undefined;
+        if (isFreshPosting(posted, maxAge)) {
+          fresh += 1;
+          if (r.reqId && !seen.has(r.reqId)) seen.set(r.reqId, r);
+        }
+      }
+      if (fresh === 0) pastLimit = true;
+    }
+    // Twelve unreadable pages in a row means the site has stopped answering.
+    if (pastLimit || empties >= 12) break;
+    if (batch.some(Boolean)) empties = 0;
+  }
+  if (read === 0) return null;
+  // At Apple "Product Design Engineer" is mechanical (AirPods, haptics, softgoods),
+  // so its hardware and operations teams are dropped by Apple's own team code, and
+  // producer and program-manager roles named "Product Design …" by title.
+  const design = [...seen.values()].filter(
+    (r) =>
+      r.postingTitle &&
+      !["HRDWR", "OPMFG"].includes(r.team?.teamCode ?? "") &&
+      !/\b(producer|epm|program manager)\b/i.test(r.postingTitle) &&
+      isDesignRole(r.postingTitle, allowResearch) &&
+      isReachableLevel(r.postingTitle),
+  );
+  const out: ExtractedListing[] = [];
+  for (const r of design) {
+    const detail = await fetch(`https://jobs.apple.com/api/v1/jobDetails/${r.reqId}`, {
+      headers: { "User-Agent": BROWSER_UA, Accept: "application/json" },
+    })
+      .then((x) => (x.ok ? x.json() : null))
+      .catch(() => null);
+    const d = detail?.res ?? {};
+    const body = [d.jobSummary, d.description, d.minimumQualifications, d.preferredQualifications].filter(Boolean).join("\n\n");
+    const yoe = extractMinYoe(body);
+    if (yoe !== null && yoe > MAX_YOE) continue;
+    out.push({
+      company,
+      roleTitle: r.postingTitle!,
+      jobUrl: `https://jobs.apple.com/en-us/details/${r.reqId}/${r.transformedPostingTitle ?? ""}`,
+      location: (r.locations ?? []).map((l) => l.name).filter(Boolean).join(", "),
+      datePosted: r.postDateInGMT ? new Date(r.postDateInGMT) : undefined,
+      expRange: yoe !== null ? `${yoe}+ yrs` : "",
+      descriptionSnippet: body.slice(0, 4000),
+    });
+  }
+  return out;
+}
+
 // Eightfold powers a number of large careers sites, Netflix among them. The
 // search endpoint is public and unauthenticated; the catch is that the listing
 // response carries an empty job_description, so the body has to be fetched per
@@ -217,6 +329,7 @@ async function fetchEightfoldListings(
   company: string,
   token: string,
   allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
 ): Promise<ExtractedListing[] | null> {
   const [host, domain] = token.split("|");
   if (!host || !domain) return null;
@@ -241,7 +354,7 @@ async function fetchEightfoldListings(
         posted: p.t_create ? new Date(Number(p.t_create) * 1000) : undefined,
       }))
       .filter((j) => j.id && j.title && j.url)
-      .filter((j) => isFreshPosting(j.posted))
+      .filter((j) => isFreshPosting(j.posted, maxAge))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location));
@@ -324,12 +437,14 @@ async function fetchAtsListings(
   company: string,
   board: { provider: string; token: string },
   allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
 ): Promise<ExtractedListing[] | null> {
   // Amazon and Workday are POST/query APIs rather than static board dumps, so
   // they get their own fetchers and return early.
-  if (board.provider === "amazon") return fetchAmazonListings(company, board.token, allowResearch);
-  if (board.provider === "workday") return fetchWorkdayListings(company, board.token, allowResearch);
-  if (board.provider === "eightfold") return fetchEightfoldListings(company, board.token, allowResearch);
+  if (board.provider === "amazon") return fetchAmazonListings(company, board.token, allowResearch, maxAge);
+  if (board.provider === "workday") return fetchWorkdayListings(company, board.token, allowResearch, maxAge);
+  if (board.provider === "eightfold") return fetchEightfoldListings(company, board.token, allowResearch, maxAge);
+  if (board.provider === "apple") return fetchAppleListings(company, allowResearch, maxAge);
 
   const url =
     board.provider === "greenhouse"
@@ -404,7 +519,7 @@ async function fetchAtsListings(
       // Freshness gate at ingest. A posting older than this has already been
       // screened down, so it is a poor use of an application slot. Undated
       // postings are kept: no date is not evidence of age.
-      .filter((j) => isFreshPosting(j.posted))
+      .filter((j) => isFreshPosting(j.posted, maxAge))
       .filter((j) => isDesignRole(j.title, allowResearch))
       .filter((j) => isReachableLevel(j.title))
       .filter((j) => isUsLocation(j.location))
@@ -526,7 +641,10 @@ export async function POST(req?: NextRequest) {
         WATCH_COMPANIES.find((w) => w.name.toLowerCase() === src.displayName.toLowerCase())?.board
       : undefined;
     if (board) {
-      const listings = await fetchAtsListings(src.attributedCompany!, board, src.tier <= 1);
+      // Tier 1 and 2 companies and the watched ones get the longer age limit: their
+      // roles stay open for months and a referral still gets a late one read.
+      const maxAge = src.tier <= 2 || isWatchedCompany(src.displayName) ? MAX_POSTING_AGE_DAYS_KNOWN : MAX_POSTING_AGE_DAYS;
+      const listings = await fetchAtsListings(src.attributedCompany!, board, src.tier <= 1, maxAge);
       if (listings) {
         let added = 0;
         for (const listing of listings) {

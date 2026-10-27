@@ -45,6 +45,11 @@ export const TITLE_EXCLUDE = [
   // because the "design engineer" whitelist below fires before any of the
   // silicon terms appear, and the title contains none of them.
   "physical design",
+  // Chip and controls roles that came in through the Accel feed under Microsoft's
+  // acquired brands ("Senior Logic Design Engineer", "Quantum Systems Digital Design
+  // Engineer II"), plus the same family elsewhere.
+  "logic design", "digital design", "fpga", "vlsi", "ic design", "controls",
+  "quantum", "harness", "process design",
 ];
 // Narrowed to your actual discipline. The wider set (brand, visual, content,
 // research, design systems) was pulling roles you are not targeting and, in the
@@ -196,6 +201,11 @@ const COMPANY_ALIASES: [RegExp, string][] = [
   [/^uber\b.*/i, "Uber"],
   [/^linkedin\b.*/i, "LinkedIn"],
   [/^adobe\b.*/i, "Adobe"],
+  // Acquired brands the VC job boards (Accel's Getro feed) list as employers: their
+  // roles are the parent's, posted on the parent's board.
+  [/^(swiftkey|yammer|nuance)\b.*/i, "Microsoft"],
+  [/^semmle\b.*/i, "GitHub"],
+  [/^(instana|red hat)\b.*/i, "IBM"],
 ];
 
 export function canonicalCompany(raw: string): string {

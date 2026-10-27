@@ -57,10 +57,19 @@ export const MAX_POSTING_AGE_DAYS = num("SEARCH_MAX_POSTING_AGE_DAYS", 0);
  * not evidence of age. Every arm goes through this so that 0 means no limit
  * everywhere; comparing against 0 directly dropped every dated posting.
  */
-export function isFreshPosting(posted: Date | null | undefined): boolean {
-  if (!MAX_POSTING_AGE_DAYS || !posted) return true;
-  return (Date.now() - posted.getTime()) / 86_400_000 <= MAX_POSTING_AGE_DAYS;
+export function isFreshPosting(posted: Date | null | undefined, maxDays: number = MAX_POSTING_AGE_DAYS): boolean {
+  if (!maxDays || !posted) return true;
+  return (Date.now() - posted.getTime()) / 86_400_000 <= maxDays;
 }
+
+/**
+ * The age limit for companies you track at tier 1 or 2 and the watched companies.
+ * Their roles often stay open for months and are still hiring (Figma's AI Models
+ * role, posted in Nov 2025, was live in Oct 2026), and a referral gets a late
+ * application read, so the 7-day rule above dropped exactly the roles most worth
+ * a referral ask. 0 means no limit.
+ */
+export const MAX_POSTING_AGE_DAYS_KNOWN = num("SEARCH_MAX_POSTING_AGE_DAYS_KNOWN", 45);
 
 /**
  * Seniority words that put a role out of reach. Empty by default, because which
