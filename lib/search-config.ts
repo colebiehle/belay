@@ -72,6 +72,13 @@ export function isFreshPosting(posted: Date | null | undefined, maxDays: number 
 export const MAX_POSTING_AGE_DAYS_KNOWN = num("SEARCH_MAX_POSTING_AGE_DAYS_KNOWN", 45);
 
 /**
+ * The age limit for the watched AI startups (lib/watch-companies). Shorter than
+ * tier 1 and 2: a startup posting two weeks old is already well into its pile, and
+ * there is no referral path to make a late one worth it (the owner's call, Oct 2026).
+ */
+export const MAX_POSTING_AGE_DAYS_WATCHED = num("SEARCH_MAX_POSTING_AGE_DAYS_WATCHED", 14);
+
+/**
  * Seniority words that put a role out of reach. Empty by default, because which
  * rungs are yours is the most personal judgement in the whole filter: the same
  * "Senior" title is a stretch at one company and a step down at another.

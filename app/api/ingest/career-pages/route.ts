@@ -14,7 +14,7 @@ import {
   canonicalCompany,
 } from "@/lib/role-filter";
 import { ATS_BOARDS, MANUAL_ONLY } from "@/lib/ats-boards";
-import { MAX_POSTING_AGE_DAYS, MAX_POSTING_AGE_DAYS_KNOWN } from "@/lib/search-config";
+import { MAX_POSTING_AGE_DAYS, MAX_POSTING_AGE_DAYS_KNOWN, MAX_POSTING_AGE_DAYS_WATCHED } from "@/lib/search-config";
 import { WATCH_COMPANIES, isWatchedCompany } from "@/lib/watch-companies";
 import { stripHtml, stripHtmlKeepLinks } from "@/lib/html";
 import { identityLine } from "@/lib/identity";
@@ -641,9 +641,15 @@ export async function POST(req?: NextRequest) {
         WATCH_COMPANIES.find((w) => w.name.toLowerCase() === src.displayName.toLowerCase())?.board
       : undefined;
     if (board) {
-      // Tier 1 and 2 companies and the watched ones get the longer age limit: their
-      // roles stay open for months and a referral still gets a late one read.
-      const maxAge = src.tier <= 2 || isWatchedCompany(src.displayName) ? MAX_POSTING_AGE_DAYS_KNOWN : MAX_POSTING_AGE_DAYS;
+      // Tier 1 and 2 companies get the longer age limit: their roles stay open for
+      // months and a referral still gets a late one read. The watched AI startups
+      // get two weeks; everyone else the default.
+      const maxAge =
+        src.tier <= 2
+          ? MAX_POSTING_AGE_DAYS_KNOWN
+          : isWatchedCompany(src.displayName)
+            ? MAX_POSTING_AGE_DAYS_WATCHED
+            : MAX_POSTING_AGE_DAYS;
       const listings = await fetchAtsListings(src.attributedCompany!, board, src.tier <= 1, maxAge);
       if (listings) {
         let added = 0;

@@ -143,34 +143,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   const first = firstName(contact.name);
   // The MHCI note (settled with the owner Oct 26 2026). The opening and the ask are
-  // fixed; the middle sentence is written per person to a job, not filled in:
-  // what is interesting about their career, said in plain words, then why and what
-  // carried over. Company names and titles read as keywords, and keywords read as AI.
+  // fixed. The middle is the point of the whole note, and the chat's real job: the
+  // user flags what caught their eye, and the chat finds the insight in it and turns
+  // it into a question specific to this person's experience. Never a fill-in, never
+  // their profile's keywords read back to them.
   const journeyRules = `The note:
-"Hi ${first}! I'm a recent MHCI grad, currently teaching interaction design at CMU. I saw you {their path, in plain words}, and I'd love to hear {why} and {what carried over}. Would you be open to a 15-minute chat?"
+"Hi ${first}! I'm a recent MHCI grad, currently teaching interaction design at CMU. {the personal part} Would you be open to a 15-minute chat?"
 
-The first sentence and the ask are word for word. The middle sentence is written for this person. Examples the user approved:
-"I saw you started in HCI and moved into more data integration work, and I'd love to hear why you made that shift and what from HCI actually carried over."
-"I saw you started out at startups and are now at a much bigger company, and I'd love to hear why you made that jump and what from startup life carried over."
-"I saw you've stuck with financial products through most of your career, and I'd love to hear what keeps you in that space and how the work has changed over time."
-"I saw you've spent about ten years designing for space missions, and I'd love to hear what's kept you there and what designing for that kind of work is really like."
+The first sentence and the ask are word for word. The personal part, one or two sentences, is what this is all about, and the user wants real help with it.
 
-How to write it:
-1. Start with "I saw you" (or "I noticed you"), straight into the interesting thing. Never a lead-in like "caught my eye" or "your path from".
-2. The interesting thing is what the user called out in their notes or this chat. With nothing from them, the most notable thing in the profile: a move (engineering to design), staying somewhere a long time, a through-line (always financial products), moving into an area, an unusual background (psychology to design).
-3. Say it in plain, everyday words, as someone who understood their profile would say it to them. No company names, program names or exact job titles ("a much bigger company", not "DoorDash"; "data integration work", not "Lead, Artemis Data Integration"), unless the name itself is the point. Keywords pulled from a profile read as a template or as AI.
-4. Then why: why they made the shift, or what keeps them there.
-5. Then the part that would help the user: what carried over, what they still lean on, how it shows up in their work now, or what the work is really like. Rotate these so notes do not share one phrase.
-   Best of all, when you can see it: a real connection between where they were and what they focus on now, which shows the user understood their path rather than read it. The user loved this one: "I'd love to hear why you chose a bigger company and how the startup pace set you up for your growth work there" (startups and growth are both about fast experiments and moving numbers). Other real links: engineering and design systems, research and product strategy, psychology and behavior design, teaching and onboarding. Only when both ends are known (from their notes or the profile) and the link is one most designers would recognize. A stretched connection is worse than none; then use the plain version.
-6. Never MHCI as the thing they moved from; the opening already says it. "Since the program" is fine when their career starts there.
+What the user gives you: what caught their eye on this person's profile, in their notes and in this chat, often a rough paragraph. They are looking at the full LinkedIn profile; you have a short summary. Treat what they say as fact.
 
-Optional, only when it fits: the user's own reason, only when they gave one (never invent it): "and since I'm hoping to make a similar move, I'd love to hear…".
+Your job is not to restate it. Understand it, and find what is genuinely interesting underneath: what their moves have in common, what their path suggests they care about, a tension or trade-off they must have faced, what someone in the user's position would most want to learn from them. Then turn that into a question specific to this person's experience: one they would enjoy answering, that only someone who lived it could answer, and that would actually help the user.
 
-The out-loud test: would the user say this sentence, word for word, to this person over coffee? If not, rewrite it. Never: "kept you growing", "shaped your perspective", "your journey" on its own, "leverage", "impact", "passionate", "caught my eye". No slang, no flattery, never "fellow" or "we're both". Mention AI only when their work is about AI.
+Examples the user liked:
+- Museum work, then XR: "Going from museum work to XR seems like the same question in two forms, how people experience a space, and I'd love to hear if that's what pulled you toward mixed reality."
+- A career in finance products: "It looks like you've built a career designing for decisions where mistakes are costly, and I'd love to hear what keeps you drawn to that kind of work."
+- Startups, then growth at a much bigger company: "Moving from startups into growth at a bigger company sounds like keeping the startup pace inside a large org, and I'd love to hear if that's what drew you to it."
+- Engineer, then designer, and the user codes too: "Moving from engineering into design is a combination I'm drawn to since I code a lot too, and I'd love to hear how the two sides work together for you now."
 
-Never a parenthetical aside like "(so cool!)": the user does not want them. Over the limit: drop the user's reason, then shorten the path.
-- What the user tells you about this person (in their notes or in this chat) is fact: they are looking at the full LinkedIn profile, and the summary below is a short, partial lookup. Use it as given, even when the summary does not mention it, and never push back because the summary leaves it out. Only ask when what they said is unclear, not when it is unconfirmed.
-- With nothing from the user and nothing notable in the profile (a title and a company, little else), ask them for one detail from their LinkedIn instead of writing something generic. Otherwise, when you chose the interesting thing yourself, say in one line under the drafts what you based it on.`;
+What makes these work:
+- The insight is offered as a thought, not a fact ("seems like", "looks like", "sounds like"), so they can confirm it or correct it, and either is a good reply.
+- The question follows from the insight and is about their experience: what pulled them, what keeps them, how the parts work together, what they would tell someone starting out.
+- Plain, spoken words, as someone who understood their profile would say it. No company names, program names or exact titles read off the profile unless the name itself is the point. Keywords from a profile read as a template or as AI.
+- The shape changes with the thought. Never the same sentence frame note after note.
+
+Never: restating their résumé ("I saw you went from X to Y"), a generic question that fits anyone ("how did your background prepare you", "tell me about your journey"), a guess about them dressed up as an insight (it has to follow from what is known), flattery, slang, parentheticals, "fellow" or "we're both", "caught my eye", "kept you growing", "shaped your perspective", "leverage", "impact", "passionate". MHCI is never the thing they moved from; the opening already says it. Mention AI only when their work is about AI. The user's own reason ("since I code a lot too") only when they gave it.
+
+The out-loud test: would the user say this, word for word, to this person over coffee? If not, rewrite it.
+
+Over the limit: shorten the insight, keep the question.
+- With nothing from the user and nothing notable in the profile (a title and a company, little else), ask them for one detail from their LinkedIn instead of writing something generic.`;
   let task = "";
   switch (scope) {
     case "connect":
@@ -179,13 +182,13 @@ Never a parenthetical aside like "(so cool!)": the user does not want them. Over
 
 ${journeyRules}
 
-Before answering, check: under the limit; the middle sentence is true, specific to this person and in plain words; the fixed wording is unchanged; it reads naturally out loud, like a person wrote it.
+Before answering, check: under the limit; the personal part is true, specific to this person, in plain words, and asks something only they could answer; the fixed wording is unchanged; it reads naturally out loud, like a person wrote it.
 
-Think before drafting, and show it briefly. The template is only the frame; what makes a note land is understanding what the user noticed and why it matters, then finding the connection a thoughtful person would see. Read their points for what they are really getting at (a note like "startups to DoorDash, similar to what I want" is about choosing a bigger company, and about whether startup experience transfers), then look across everything known about this person: where they started, the moves they made, how long they stayed, what they focus on now, and what the user is weighing in their own search.
+Think before drafting, and show it. Read what the user flagged for what they are really curious about (a note like "startups to DoorDash, similar to what I want" is about choosing a bigger company and whether startup experience transfers), then look across everything known about this person: where they started, the moves they made, how long they stayed, what they focus on now, and what the user is weighing in their own search.
 
-Start the reply with "Angles:" and two to four of them, one line each: something interesting about this person and, where there is one, the connection that makes it insightful (for example: "Startups to growth design: both are about fast experiments, so the startup years may be exactly what prepared her"). Mark the one you think is strongest. No angle that rests on a guess about them; a connection has to follow from what is known.
+Start the reply with "Ideas:" and two to four of them. Each is two short lines: the insight (what is interesting underneath, and why), then the question it leads to, as it would read in the note. Mark the strongest. Every insight has to follow from what is known; none rests on a guess about them.
 
-Then give two drafts from the two strongest angles, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
+Then give two drafts from the two strongest ideas, each with its character count (count them yourself, and say nothing about tools), then one line on which you would send and why. Put the one you would send, on its own, between two lines of three dashes (---) so they can save it with one click.
 ${contact.connectionNote ? `
 Their current drafted note for this person:
 "${contact.connectionNote}"

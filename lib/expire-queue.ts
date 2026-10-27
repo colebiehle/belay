@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { buildTierMap, tierFor } from "@/lib/company-tier";
 import { isWatchedCompany } from "@/lib/watch-companies";
-import { MAX_POSTING_AGE_DAYS_KNOWN } from "@/lib/search-config";
+import { MAX_POSTING_AGE_DAYS_KNOWN, MAX_POSTING_AGE_DAYS_WATCHED } from "@/lib/search-config";
 
 /**
  * Roles left in the queue more than a week after they were posted (or found, when
  * the posting has no date) are set aside, so the queue only holds roles you can
  * still apply to early, when applications get read. Roles at tier 1 and 2 companies
- * and the watched ones stay up to MAX_POSTING_AGE_DAYS_KNOWN (45 days by default).
+ * stay up to 45 days, and the watched AI startups up to 14 (lib/search-config).
  *
  * They become "Archived", the bulk-cleanup verdict, never "Pass": a pass teaches
  * the fit scoring what you don't want (lib/verdict-signal), and being too old says
@@ -36,11 +36,16 @@ export async function expireStaleQueue(): Promise<number> {
     const at = (j.datePosted ?? j.dateFound)?.getTime();
     if (!at || at >= cutoff) return false;
     const tier = tierFor(j.company, tiers);
-    // Tier 1 and 2 and the watched companies are scanned with a longer age limit
-    // (MAX_POSTING_AGE_DAYS_KNOWN), so they stay until that limit, not seven days.
-    const known = (tier !== null && tier <= KEEP_THROUGH_TIER) || isWatchedCompany(j.company);
-    if (!known) return true;
-    return !!MAX_POSTING_AGE_DAYS_KNOWN && at < Date.now() - MAX_POSTING_AGE_DAYS_KNOWN * 86_400_000;
+    // Tier 1 and 2 and the watched companies are scanned with longer age limits
+    // (lib/search-config), so they stay until their own limit, not seven days.
+    const limit =
+      tier !== null && tier <= KEEP_THROUGH_TIER
+        ? MAX_POSTING_AGE_DAYS_KNOWN
+        : isWatchedCompany(j.company)
+          ? MAX_POSTING_AGE_DAYS_WATCHED
+          : null;
+    if (limit === null) return true;
+    return !!limit && at < Date.now() - limit * 86_400_000;
   });
   const weak = pending.filter((j) => {
     if (stale.includes(j)) return false;
