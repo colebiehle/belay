@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, ChevronRight, Copy, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, FileText, Plus, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
-import { card, iconButton, textarea } from "@/lib/ui";
-import { KNOWN_ANSWER_KEYS, SECTIONS, qid, type Question, type Section } from "@/lib/profile-sections";
+import { button, card, iconButton, input, textarea } from "@/lib/ui";
+import {
+  KNOWN_ANSWER_KEYS,
+  SECTIONS,
+  entryLine,
+  parseEntries,
+  qid,
+  type ListEntry,
+  type Question,
+  type Section,
+} from "@/lib/profile-sections";
 
 type Answer = {
   id: string;
@@ -19,6 +28,67 @@ type Answer = {
 };
 
 type Cell = { id: string; kind: string; title: string | null; content: string | null };
+
+type Resume = { fileName: string; updatedAt: string; chars: number; text: string } | null;
+
+// A list question's entries, one small form each, with an add below. Saved when
+// focus leaves the list, like the text answers, not per keystroke.
+function ListEditor({
+  q,
+  value,
+  onChange,
+  onSave,
+}: {
+  q: Question;
+  value: string;
+  onChange: (v: string) => void;
+  onSave: (v: string) => void;
+}) {
+  const fields = q.fields ?? [];
+  const entries = parseEntries(value);
+  const set = (next: ListEntry[]) => onChange(JSON.stringify(next));
+  return (
+    <div
+      className="space-y-2 mt-2 lg:mt-0"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onSave(value);
+      }}
+    >
+      {entries.map((entry, i) => (
+        <div key={i} className="space-y-2">
+          {i > 0 && <div className="border-t border-line-1" />}
+          <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-2 pr-9">
+            {fields.map((f) => (
+              <input
+                key={f.key}
+                value={entry[f.key] ?? ""}
+                onChange={(e) => set(entries.map((x, j) => (j === i ? { ...x, [f.key]: e.target.value } : x)))}
+                placeholder={f.example ? `${f.label}, e.g. ${f.example}` : f.label}
+                aria-label={`${q.label} ${i + 1}: ${f.label}`}
+                className={`${input("compact")} ${f.wide ? "sm:col-span-2" : ""}`}
+              />
+            ))}
+            <button
+              onClick={() => {
+                const next = entries.filter((_, j) => j !== i);
+                set(next);
+                onSave(JSON.stringify(next));
+              }}
+              title="Remove"
+              aria-label={`Remove ${q.label} ${i + 1}`}
+              className={`absolute right-0 top-0 ${iconButton("quiet", "compact")}`}
+            >
+              <X size={14} strokeWidth={1.5} absoluteStrokeWidth />
+            </button>
+          </div>
+        </div>
+      ))}
+      <button onClick={() => set([...entries, {}])} className={`${button("quiet", "compact")} -ml-2.5`}>
+        <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> {entries.length ? "Add another" : `Add ${q.label.toLowerCase()}`}
+      </button>
+    </div>
+  );
+}
 
 // What the tool has distilled from your accepts and passes. Shown read-only, so the
 // understanding every prompt reads is not invisible; it is rewritten by the brain,
@@ -43,6 +113,10 @@ export function AnswerBank() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [openLearned, setOpenLearned] = useState<Set<string>>(new Set());
+  const [resume, setResume] = useState<Resume>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const resumeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/answers")
@@ -53,7 +127,28 @@ export function AnswerBank() {
       .then((r) => r.json())
       .then((d: Cell[]) => setCells(Array.isArray(d) ? d : []))
       .catch(() => {});
+    fetch("/api/profile/resume")
+      .then((r) => r.json())
+      .then((d: Resume) => setResume(d))
+      .catch(() => {});
   }, []);
+
+  const uploadResume = async (file: File) => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/profile/resume", { method: "POST", body: form });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d?.error ?? `Upload failed (HTTP ${res.status})`);
+      setResume(d);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const answerOf = (key: string) => answers.find((a) => a.questionKey === key);
   const stored = (q: Pick<Question, "store" | "key">): string =>
@@ -73,7 +168,17 @@ export function AnswerBank() {
     };
   })();
   const sections = custom ? [...SECTIONS, custom] : SECTIONS;
-  const countOf = (s: Section) => s.questions.filter((q) => valueOf(q).trim()).length;
+  // A list counts once it has an entry with anything in it; "[]" is still blank.
+  const textOf = (q: Question): string => {
+    const v = valueOf(q);
+    return q.fields
+      ? parseEntries(v)
+          .map((e) => entryLine(q.fields!, e))
+          .filter(Boolean)
+          .join("\n")
+      : v;
+  };
+  const countOf = (s: Section) => s.questions.filter((q) => textOf(q).trim()).length;
   const total = sections.reduce((n, s) => n + s.questions.length, 0);
   const done = sections.reduce((n, s) => n + countOf(s), 0);
 
@@ -114,9 +219,9 @@ export function AnswerBank() {
     setAnswers((prev) => (row ? prev.map((a) => (a.id === row.id ? saved : a)) : [...prev, saved]));
   };
 
-  const save = async (q: Question) => {
+  const save = async (q: Question, latest?: string) => {
     const id = qid(q);
-    const value = drafts[id];
+    const value = latest ?? drafts[id];
     if (value === undefined) return;
     if (value !== stored(q)) await write(q, value);
     setDrafts((d) => {
@@ -127,7 +232,7 @@ export function AnswerBank() {
   };
 
   const copy = async (q: Question) => {
-    const text = valueOf(q);
+    const text = textOf(q);
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -159,7 +264,15 @@ export function AnswerBank() {
   const describeFill = (updates: Record<string, unknown>): PasteRow[] =>
     Object.entries(updates)
       .filter(([k, v]) => byId.has(k) && typeof v === "string")
-      .map(([k, v]) => ({ key: k, label: byId.get(k)!.label, from: null, to: v as string }));
+      .map(([k, v]) => {
+        const q = byId.get(k)!;
+        const to = q.fields
+          ? parseEntries(v as string)
+              .map((e) => entryLine(q.fields!, e))
+              .join("; ")
+          : (v as string);
+        return { key: k, label: q.label, from: null, to };
+      });
   const applyFill = async (p: { updates: Record<string, unknown> }, kept: Set<string>) => {
     for (const k of kept) {
       const q = byId.get(k);
@@ -246,19 +359,66 @@ export function AnswerBank() {
 
         {/* One readable column: answers cap near 72ch beside a 13rem label rail. */}
         <div className="space-y-10 min-w-0 max-w-[calc(13rem+72ch+1.5rem)]">
-          {/* The way in for a new profile, and for anything still blank: paste once,
-              review the drafts, keep what is right. Only blank questions are offered,
-              and never eligibility, pay or disclosure. */}
+          {/* The base resume, and the way in for a new profile: the fill opens with
+              its text, or takes a pasted resume or LinkedIn profile instead. Only
+              blank questions are offered, and never eligibility, pay or disclosure. */}
           <section className={`${card} p-4 space-y-1`}>
-            <h2 className="t-section">Start from your resume</h2>
+            <h2 className="t-section">Resume</h2>
             <p className="text-meta text-fg-3 pb-1">
-              Paste a resume or your LinkedIn profile. Belay drafts answers for the blank questions, and you keep what is
-              right.
+              Your base resume: what every tailored copy starts from, and what the role chats read. Belay can draft the
+              blank answers below from it.
             </p>
+            <input
+              ref={resumeRef}
+              type="file"
+              accept=".pdf,.docx,.doc"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) uploadResume(f);
+              }}
+            />
+            <div className="flex items-center gap-2 min-h-8">
+              {resume ? (
+                <>
+                  <FileText size={14} strokeWidth={1.5} absoluteStrokeWidth className="text-fg-3 shrink-0" />
+                  <a
+                    href="/api/profile/resume?download=1"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-body text-fg-1 truncate hover:underline"
+                  >
+                    {resume.fileName}
+                  </a>
+                  <span className="text-meta text-fg-3 shrink-0">
+                    {new Date(resume.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {!resume.chars && " · no text found in it"}
+                  </span>
+                  <button
+                    onClick={() => resumeRef.current?.click()}
+                    disabled={uploading}
+                    className={`${button("quiet", "compact")} ml-auto`}
+                  >
+                    {uploading ? "Uploading…" : "Replace"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => resumeRef.current?.click()}
+                  disabled={uploading}
+                  className={button("secondary", "compact")}
+                >
+                  {uploading ? "Uploading…" : "Upload your resume"}
+                </button>
+              )}
+            </div>
+            {uploadError && <p className="text-meta text-alarm">{uploadError}</p>}
             <PasteAnything
               endpoint="/api/profile/fill"
-              label="Fill from a resume or LinkedIn"
+              label={resume?.chars ? "Fill blank answers from it" : "Fill from a resume or LinkedIn"}
               placeholder="Paste your resume, or your LinkedIn profile (select all on the page, copy, paste)."
+              prefill={resume?.text || undefined}
               describe={describeFill}
               onApplied={applyFill}
             />
@@ -279,6 +439,7 @@ export function AnswerBank() {
                   {s.questions.map((q) => {
                     const id = qid(q);
                     const value = valueOf(q);
+                    const shown = textOf(q);
                     const uses = q.store === "answer" ? (answerOf(q.key)?.useCount ?? 0) : 0;
                     return (
                       <div key={id} className="group p-3 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-6 lg:items-start">
@@ -301,8 +462,8 @@ export function AnswerBank() {
                             <div className="flex items-center gap-1 shrink-0 -my-1">
                               <button
                                 onClick={() => copy(q)}
-                                disabled={!value}
-                                title={value ? "Copy to clipboard" : "Nothing to copy yet"}
+                                disabled={!shown}
+                                title={shown ? "Copy to clipboard" : "Nothing to copy yet"}
                                 aria-label={`Copy ${q.label}`}
                                 className={iconButton("quiet", "compact")}
                               >
@@ -325,21 +486,30 @@ export function AnswerBank() {
                             </div>
                           )}
                         </div>
-                        <AutoResizeTextarea
-                          id={`q-${id}`}
-                          value={value}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [id]: e.target.value }))}
-                          onBlur={() => save(q)}
-                          // The example shows what a good answer looks like; a blank
-                          // with no example is a dash.
-                          placeholder={q.example ? `e.g. ${q.example}` : "—"}
-                          rows={q.long ? 3 : 1}
-                          // Long answers stop growing at about twelve lines and
-                          // scroll inside: the story cells run to thousands of
-                          // characters, and grown in full they made the page 8000px
-                          // tall and the sections impossible to scan.
-                          className={`${textarea()} mt-2 lg:mt-0 max-h-[16.5rem] overflow-y-auto`}
-                        />
+                        {q.fields ? (
+                          <ListEditor
+                            q={q}
+                            value={value}
+                            onChange={(v) => setDrafts((d) => ({ ...d, [id]: v }))}
+                            onSave={(v) => save(q, v)}
+                          />
+                        ) : (
+                          <AutoResizeTextarea
+                            id={`q-${id}`}
+                            value={value}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [id]: e.target.value }))}
+                            onBlur={() => save(q)}
+                            // The example shows what a good answer looks like; a blank
+                            // with no example is a dash.
+                            placeholder={q.example ? `e.g. ${q.example}` : "—"}
+                            rows={q.long ? 3 : 1}
+                            // Long answers stop growing at about twelve lines and
+                            // scroll inside: the story cells run to thousands of
+                            // characters, and grown in full they made the page 8000px
+                            // tall and the sections impossible to scan.
+                            className={`${textarea()} mt-2 lg:mt-0 max-h-[16.5rem] overflow-y-auto`}
+                          />
+                        )}
                       </div>
                     );
                   })}

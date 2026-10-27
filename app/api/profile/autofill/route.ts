@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { EDUCATION_FIELDS, SHIPPED_FIELDS, entryLine, parseEntries } from "@/lib/profile-sections";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +27,20 @@ export async function GET() {
     ? role.split(/,\s*(.+)/)
     : role.split(/\s+at\s+(.+)/i);
 
+  // Education is a list, most recent first; forms ask for one school at a time, so
+  // they get the first. The lists also go out as plain lines, not their JSON.
+  const edu = parseEntries(a.education);
+  const latest = edu[0] ?? {};
+  const shipped = parseEntries(a.shipped_work);
+
   return NextResponse.json({
     ...a,
+    education: edu.map((e) => entryLine(EDUCATION_FIELDS, e)).join("\n"),
+    edu_school: latest.school ?? "",
+    edu_degree: latest.degree ?? "",
+    edu_grad_date: latest.date ?? "",
+    gpa: latest.gpa ?? "",
+    shipped_work: shipped.map((e) => entryLine(SHIPPED_FIELDS, e)).join("\n"),
     first_name: first,
     middle_name: middle,
     last_name: last,

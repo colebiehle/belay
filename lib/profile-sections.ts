@@ -28,7 +28,43 @@ export type Question = {
   // Never proposed by the fill from a resume: eligibility, comp and disclosure are
   // yours to state, and a wrong guess there is the kind that matters.
   noFill?: boolean;
+  // A list of entries rather than one answer (education, shipped work): each entry
+  // has these fields, and the answer is stored as a JSON array of them.
+  fields?: ListField[];
 };
+
+export type ListField = { key: string; label: string; example?: string; wide?: boolean };
+export type ListEntry = Record<string, string>;
+
+/** A list question's stored answer, read leniently: anything that is not a JSON array is no entries. */
+export function parseEntries(raw: string | null | undefined): ListEntry[] {
+  try {
+    const v = JSON.parse(raw ?? "");
+    return Array.isArray(v) ? v.filter((e) => e && typeof e === "object") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** One entry as a line, for the fill's review and for prompts. */
+export const entryLine = (fields: ListField[], e: ListEntry) =>
+  fields
+    .map((f) => e[f.key]?.trim())
+    .filter(Boolean)
+    .join(", ");
+
+export const EDUCATION_FIELDS: ListField[] = [
+  { key: "school", label: "School", example: "Carnegie Mellon University" },
+  { key: "degree", label: "Degree", example: "Master of Human-Computer Interaction" },
+  { key: "date", label: "Graduated", example: "Aug 2026" },
+  { key: "gpa", label: "GPA", example: "4.0 / 4.0" },
+];
+
+export const SHIPPED_FIELDS: ListField[] = [
+  { key: "title", label: "What it is", example: "Belay, a job-search tool" },
+  { key: "url", label: "Link", example: "https://…" },
+  { key: "note", label: "One line", example: "Designed and built it; used daily", wide: true },
+];
 
 export type Section = { id: string; title: string; usedFor: string; questions: Question[] };
 
@@ -62,12 +98,10 @@ export const SECTIONS: Section[] = [
       answer("address", "Mailing address", { hint: "Some forms ask for a full address.", example: "Street, city, state, ZIP", noFill: true }),
       answer("current_role", "Current title and company", { example: "Adjunct Design Instructor, Carnegie Mellon University" }),
       answer("years_experience", "Years of experience", { example: "4" }),
-      answer("education", "Education", { example: "MHCI, Carnegie Mellon, 2024" }),
-      answer("edu_school", "Most recent school", { hint: "Forms ask for these one field at a time.", example: "Carnegie Mellon University" }),
-      answer("edu_degree", "Degree", { example: "Master of Human-Computer Interaction" }),
-      answer("edu_grad_date", "Graduation date", { example: "Aug 2026" }),
-      answer("edu_undergrad", "Undergraduate", { example: "UC San Diego, BS Cognitive Science, Jun 2022" }),
-      answer("gpa", "GPA", { hint: "Only if you would share it.", example: "4.16 / 4.33", noFill: true }),
+      answer("education", "Education", {
+        hint: "Most recent first. Forms get the first entry's school, degree and date.",
+        fields: EDUCATION_FIELDS,
+      }),
     ],
   },
   {
@@ -80,6 +114,10 @@ export const SECTIONS: Section[] = [
       answer("portfolio_password", "Portfolio password", { noFill: true }),
       answer("github_url", "GitHub"),
       answer("booking_link", "Booking link", { hint: "Calendly or cal.com, for scheduling calls.", example: "https://calendly.com/…" }),
+      answer("shipped_work", "Shipped work", {
+        hint: "Live things people can open: an app, an extension, a product site. For \"link something you've shipped\".",
+        fields: SHIPPED_FIELDS,
+      }),
     ],
   },
   {

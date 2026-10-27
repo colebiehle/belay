@@ -40,6 +40,7 @@ export function PasteAnything({
   placeholder = "Paste anything: a profile, call notes, an email thread.",
   describe,
   onApplied,
+  prefill,
 }: {
   endpoint: string;
   // The panel names what to paste. "Paste anything" said what the box accepts,
@@ -50,6 +51,8 @@ export function PasteAnything({
   describe: (updates: Record<string, unknown>) => PasteRow[];
   // Called on Apply with only the rows left ticked, and the note if it was kept.
   onApplied: (proposal: PasteProposal, kept: Set<string>) => void;
+  // Text the box opens with, to read as is or edit first (Profile's base resume).
+  prefill?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -114,7 +117,10 @@ export function PasteAnything({
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          if (prefill) setText(prefill);
+          setOpen(true);
+        }}
         className={`${button("quiet", "compact")} -ml-2.5`}
         title="Paste a profile, notes or an email, and review what it would change"
       >

@@ -64,6 +64,7 @@ export function fillForm(profile) {
     [/pronoun/i, "pronouns"],
     [/(street|mailing|home)?\s*address/i, "address"],
     [/current location|location|city|where (are you|do you) (based|live|located)/i, "location"],
+    [/\bgpa\b|grade point/i, "gpa"],
     [/school|university|college|institution/i, "edu_school"],
     [/degree/i, "edu_degree"],
     [/graduat|grad(uation)? (date|year)/i, "edu_grad_date"],

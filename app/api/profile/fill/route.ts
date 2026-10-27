@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { callClaudeDetailed, extractJson } from "@/lib/claude";
-import { SECTIONS, qid } from "@/lib/profile-sections";
+import { SECTIONS, entryLine, parseEntries, qid } from "@/lib/profile-sections";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -29,8 +29,11 @@ export async function POST(req: NextRequest) {
     prisma.answerBank.findMany({ select: { questionKey: true, answer: true } }),
     prisma.material.findMany({ select: { kind: true, content: true } }),
   ]);
+  const listKeys = new Set(SECTIONS.flatMap((s) => s.questions).filter((q) => q.fields).map((q) => q.key));
+  const hasAnswer = (a: { questionKey: string; answer: string }) =>
+    listKeys.has(a.questionKey) ? parseEntries(a.answer).length > 0 : !!a.answer?.trim();
   const filled = new Set([
-    ...answers.filter((a) => a.answer?.trim()).map((a) => `answer:${a.questionKey}`),
+    ...answers.filter(hasAnswer).map((a) => `answer:${a.questionKey}`),
     ...cells.filter((c) => c.content?.trim()).map((c) => `cell:${c.kind}`),
   ]);
   const open = SECTIONS.flatMap((s) => s.questions).filter((q) => !q.noFill && !filled.has(qid(q)));
@@ -39,7 +42,13 @@ export async function POST(req: NextRequest) {
   const prompt = `Someone pasted their resume or LinkedIn profile into the profile page of their job-search tool. Draft answers to the questions below that are still blank, from the paste only.
 
 The questions, as id: label (what to put):
-${open.map((q) => `- ${qid(q)}: ${q.label}${q.hint ? ` (${q.hint})` : ""}`).join("\n")}
+${open
+  .map((q) =>
+    q.fields
+      ? `- ${qid(q)}: ${q.label}, as a JSON array of objects with the keys ${q.fields.map((f) => `"${f.key}" (${f.label})`).join(", ")}${q.hint ? ` (${q.hint})` : ""}`
+      : `- ${qid(q)}: ${q.label}${q.hint ? ` (${q.hint})` : ""}`,
+  )
+  .join("\n")}
 
 The paste:
 """
@@ -52,6 +61,7 @@ Return ONLY valid JSON, no preamble, no code fences: an object from question id 
 
 Rules:
 - Facts from the paste only. Never invent a role, an employer, a number, a skill or a preference. Leave a question out rather than guess; most of "what you're looking for" will not be in a resume, and that is fine.
+- Lists (education, shipped work) one entry per item, most recent first, each field exactly as the paste has it; leave a field out when the paste does not say. Shipped work is only things with a live link in the paste.
 - Short facts (name, location, links, years) exactly as the paste has them. Years of experience is a number, counted from the paste's dates.
 - The longer ones (positioning, career arc, proudest work) in the first person, plain and specific, two to four sentences, as a first draft they will rewrite. No marketing language, no em dashes.`;
 
@@ -63,11 +73,22 @@ Rules:
       { status: 502 },
     );
   }
-  const allowed = new Set(open.map(qid));
+  const byId = new Map(open.map((q) => [qid(q), q] as const));
   const updates: Record<string, string> = {};
   for (const [k, v] of Object.entries(parsed)) {
+    const q = byId.get(k);
+    if (!q) continue;
+    if (q.fields) {
+      // Lists are stored as JSON; only the named fields, only entries with something in them.
+      const fields = q.fields;
+      const entries = (Array.isArray(v) ? v : [])
+        .map((e) => Object.fromEntries(fields.map((f) => [f.key, clean((e as Record<string, unknown>)?.[f.key])])))
+        .filter((e) => entryLine(fields, e));
+      if (entries.length) updates[k] = JSON.stringify(entries);
+      continue;
+    }
     const value = clean(v);
-    if (allowed.has(k) && value) updates[k] = value;
+    if (value) updates[k] = value;
   }
   return NextResponse.json({ updates, note: null });
 }

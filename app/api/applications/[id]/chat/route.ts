@@ -165,8 +165,12 @@ export async function POST(
     cellContent = resumeMaterials
       .filter((m) => !m.kind.startsWith("zz_archive") && m.kind !== "resume_source")
       // The facts bank is long and is the thing that decides whether a claim is
-      // safe to make, so it gets far more room than a single resume section.
-      .map((m) => `[${m.kind}] ${m.title}\n${(m.content ?? "").slice(0, m.kind === "resume_facts" ? 20000 : 1200)}`)
+      // safe to make, and the base resume is the document the changes are to, so
+      // both get far more room than a single resume section.
+      .map(
+        (m) =>
+          `[${m.kind}] ${m.title}\n${(m.content ?? "").slice(0, m.kind === "resume_facts" || m.kind === "resume_base" ? 20000 : 1200)}`,
+      )
       .join("\n\n");
     cellGuidance =
       "Give specific, applicable changes to the base resume for THIS role. Quote the existing line and give the replacement. Do not output a whole rewritten resume — they edits the real document themselves and then attaches the version they sent. Say plainly when a line should be left alone. If a claim would not survive scrutiny (dates that do not add up, a number they cannot support), say so.";
