@@ -123,6 +123,7 @@ export default function ApplicationsPage() {
   const [tab, setTab] = useState<"queue" | "pipeline" | "passed">("queue");
   // The workspace is a page-level overlay: one open at a time, addressed by id.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [workspaceOnQuestions, setWorkspaceOnQuestions] = useState(false);
   const [highlightJobId, setHighlightJobId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -140,6 +141,8 @@ export default function ApplicationsPage() {
     if (a) {
       setTab("pipeline");
       setWorkspaceId(a);
+      // From the extension's "Work through these in Belay": open on the questions.
+      setWorkspaceOnQuestions(params.get("chat") === "questions");
     }
   }, []);
 
@@ -868,8 +871,12 @@ export default function ApplicationsPage() {
           <RoleWorkspace
             app={target}
             contacts={contacts}
-            onClose={() => setWorkspaceId(null)}
+            onClose={() => {
+              setWorkspaceId(null);
+              setWorkspaceOnQuestions(false);
+            }}
             onUpdate={(id, patch) => updateApp(id, patch as Partial<Application>)}
+            startOnQuestions={workspaceOnQuestions}
           />
         );
       })()}

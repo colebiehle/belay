@@ -152,7 +152,12 @@ export function fillForm(profile) {
 
     if ((el.value || "").trim()) continue;
     const key = keyFor(label);
-    const isWriteIn = el.tagName === "TEXTAREA" || label.length > 60;
+    // A write-in is an open-ended answer: a text area, or a text field with a long
+    // question that is not a yes/no one ("Are you authorized…", "Do you have…").
+    // Dropdowns never are; their answers are chosen, not written.
+    const yesNo = /^\s*(are|do|did|does|have|has|will|would|can|could|is|were|was)\b/i;
+    const isWriteIn =
+      el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && label.length > 60 && !yesNo.test(label));
     if (!key) {
       // Long questions without a Profile match are the write-ins: filled from your
       // saved answer when there is one, otherwise listed for the role chat.

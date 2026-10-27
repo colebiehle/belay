@@ -178,23 +178,45 @@ $("fill").onclick = async () => {
       `<p>Filled <b>${filled.length}</b> field${filled.length === 1 ? "" : "s"}. Check them before you submit.</p>` +
       (missing.length ? `<p class="muted">Not in your Profile yet:</p><ul>${missing.slice(0, 8).map(li).join("")}</ul>` : "") +
       (questions.length
-        ? `<p class="muted">App questions to answer:</p><ul>${questions.slice(0, 8).map(li).join("")}</ul><button id="work" class="secondary">Work through these in Belay</button>`
+        ? `<p class="muted">Open-ended questions on this form. Pick the ones to work through:</p>` +
+          `<div class="qs">${questions
+            .slice(0, 12)
+            .map(
+              (q, i) =>
+                `<label class="q"><input type="checkbox" data-i="${i}" checked><span>${q.replace(/</g, "&lt;").slice(0, 140)}</span></label>`,
+            )
+            .join("")}</div>` +
+          `<button id="work" class="secondary">Work through these in Belay</button>`
         : "");
     out.hidden = false;
     // Send the questions to the role in Belay and open it there.
     const work = document.getElementById("work");
     if (work)
       work.onclick = async () => {
+        const picked = [...out.querySelectorAll(".q input:checked")].map((c) => questions[Number(c.dataset.i)]);
+        if (!picked.length) {
+          work.textContent = "Pick at least one question";
+          return;
+        }
         work.disabled = true;
         const d = await fetch(`${BELAY}/api/applications/questions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: tab.url, title: tab.title, questions }),
+          body: JSON.stringify({ url: tab.url, title: tab.title, questions: picked }),
         })
           .then((r) => r.json())
           .catch(() => ({ error: "Belay isn't running" }));
-        if (d.appId) chrome.tabs.create({ url: `${BELAY}/applications?app=${d.appId}` });
-        else {
+        if (d.appId) {
+          // Back to the Belay tab you already have open, on this role's questions,
+          // rather than another tab. A new one only when Belay is not open.
+          const url = `${BELAY}/applications?app=${d.appId}&chat=questions`;
+          const [belayTab] = await chrome.tabs.query({ url: `${BELAY}/*` });
+          if (belayTab) {
+            await chrome.tabs.update(belayTab.id, { url, active: true });
+            await chrome.windows.update(belayTab.windowId, { focused: true });
+          } else chrome.tabs.create({ url });
+          window.close();
+        } else {
           work.textContent = d.error || "Could not find this role in Belay";
           work.disabled = false;
         }

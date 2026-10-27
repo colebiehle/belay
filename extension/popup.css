@@ -80,3 +80,8 @@ li .s.fail { color: var(--alarm); }
 .report ul { gap: 2px; }
 .report li { display: block; color: var(--fg-2); }
 .report .muted { color: var(--fg-3); }
+
+/* The form's open-ended questions, each with a checkbox, for "Work through these". */
+.qs { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; max-height: 220px; overflow-y: auto; }
+.q { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 16px; color: var(--fg-2); cursor: pointer; }
+.q input { flex: none; width: 14px; height: 14px; min-width: 0; margin: 1px 0 0; padding: 0; border: 0; background: none; box-shadow: none; accent-color: var(--rope); }

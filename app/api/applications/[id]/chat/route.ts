@@ -42,7 +42,7 @@ Once they have given a thought, draft the answer:
 
 Before showing it, test it: would the reader remember one specific thing about them after 30 seconds? Could another applicant have written it? Does any sentence sound like AI? If it fails, ask them one more question instead of padding.
 
-Show the draft on its own between two lines of three dashes (---), nothing else between them, then its word count and one line on what makes it theirs. When they are happy, tell them to press "Use last draft" on the question.`;
+Show the draft on its own between two lines of three dashes (---), nothing else between them, then its word count and one line on what makes it theirs. When they are happy, tell them to press "Save answer" under the question.`;
 
 export async function GET(
   req: NextRequest,

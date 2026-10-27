@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { logDate, calendarDays } from "@/lib/dates";
-import { AlertTriangle, ArrowLeft, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, ExternalLink, Pencil, Plus, Send, Trash2, X } from "lucide-react";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { CompanyLogo, domainFromEnrichment, getLogoDomain, logoFromEnrichment } from "@/components/CompanyLogo";
 import { useBrandColor } from "@/lib/use-brand-color";
@@ -47,8 +47,10 @@ type SavedArtifact = {
   dataUrl?: string;
 };
 type Note = { id: string; title: string; body: string; createdAt: string };
+// The note that holds every app question with your saved answer.
+const QA_NOTE = "Application questions";
 type Interview = { id: string; label: string; at: string; notes?: string };
-type ChatMsg = { id: string; role: string; content: string; createdAt: string };
+type ChatMsg = { id: string; role: string; content: string; createdAt: string; cellKey?: string | null };
 
 type App = {
   id: string;
@@ -140,8 +142,12 @@ export function RoleWorkspace({
   contacts,
   onClose,
   onUpdate,
+  startOnQuestions = false,
 }: {
   app: App;
+  // Opened from the extension's "Work through these in Belay": straight to the
+  // chat, on the first unanswered question.
+  startOnQuestions?: boolean;
   contacts: { id: string; name: string; company: string; title: string | null }[];
   onClose: () => void;
   // Resolves to an error message (or null) where the caller reports one. Most
@@ -149,8 +155,13 @@ export function RoleWorkspace({
   // another role already has is refused and the editor should stay open to say so.
   onUpdate: (id: string, patch: Record<string, unknown>) => void | Promise<string | null | void>;
 }) {
-  const [tab, setTab] = useState<"details" | "chat">("details");
-  const [scope, setScope] = useState<string | null>(null);
+  const [tab, setTab] = useState<"details" | "chat">(startOnQuestions ? "chat" : "details");
+  const [scope, setScope] = useState<string | null>(() => {
+    if (!startOnQuestions) return null;
+    const list = parseJson<{ question: string; answer: string }[]>(app.applicationQA ?? null, []);
+    const open = list.findIndex((q) => !q.answer.trim());
+    return list.length ? `qa#${open >= 0 ? open : 0}` : null;
+  });
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -246,12 +257,15 @@ export function RoleWorkspace({
   const scopes = [
     ...SCOPES,
     ...SCOPES_LATE.filter((sc) => sc.from.includes(app.status)).map(({ key, label, hint }) => ({ key, label, hint })),
-    // The write-in question being worked on, when one is.
-    ...(scope?.startsWith("qa#")
-      ? [{ key: scope, label: `Question ${Number(scope.slice(3)) + 1}`, hint: qaList[Number(scope.slice(3))]?.question ?? "" }]
-      : []),
+    // The form's write-in questions, once there are any: one mode, with a tab per
+    // question under it (qa#0, qa#1…).
+    ...(qaList.length ? [{ key: "qa#0", label: "App questions", hint: "One question at a time. Save an answer when it is right." }] : []),
   ];
-  const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
+  const qaIndex = scope?.startsWith("qa#") ? Number(scope.slice(3)) : null;
+  const active =
+    qaIndex !== null
+      ? { key: scope, label: "App questions", hint: qaList[qaIndex]?.question ?? "" }
+      : (scopes.find((sc) => sc.key === scope) ?? scopes[0]);
   const logoDomain = getLogoDomain(
     app.job.company,
     app.job.jobUrl,
@@ -310,29 +324,44 @@ export function RoleWorkspace({
   // The write-in questions (applicationQA) and their answers, edited here and put
   // into the form by the extension's Fill again.
   const qa = qaList;
-  const [qaDrafts, setQaDrafts] = useState<Record<number, string>>({});
   // The inline "+ Add question" field, null while closed.
   const [newQuestion, setNewQuestion] = useState<string | null>(null);
+  // Saving an answer also keeps the "Application questions" note current: every
+  // question with your saved answer, to read back later, the way a person's saved
+  // message is a note on them.
   const saveQa = (i: number, answer: string) => {
     const next = qa.map((q, k) => (k === i ? { ...q, answer } : q));
+    const body = next
+      .map((q) => `${q.question}\n\n${q.answer.trim() || "(not answered yet)"}`)
+      .join("\n\n———\n\n");
+    const prior = notes.find((n) => n.title === QA_NOTE);
+    const nextNotes = [
+      ...notes.filter((n) => n.title !== QA_NOTE),
+      { id: prior?.id ?? crypto.randomUUID(), title: QA_NOTE, body, createdAt: prior?.createdAt ?? new Date().toISOString() },
+    ];
+    setNotes(nextNotes);
+    onUpdate(app.id, { applicationQA: JSON.stringify(next), noteList: JSON.stringify(nextNotes) });
+  };
+  const addQuestion = (q: string) => {
+    const next = [...qa, { question: q, answer: "" }];
     onUpdate(app.id, { applicationQA: JSON.stringify(next) });
-  };
-  const workOnQuestion = (i: number) => {
     setTab("chat");
-    setScope(`qa#${i}`);
-    if (messages.length > 0) setMarkers((m) => ({ ...m, [messages.length]: `Question ${i + 1}` }));
+    setScope(`qa#${next.length - 1}`);
   };
-  // The draft is set off between "---" lines in the coach's reply; take just that.
-  const lastReply = [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
-  const lastDraft = (() => {
-    const parts = lastReply.split(/^\s*---\s*$/m);
-    return (parts.length >= 3 ? parts[1] : lastReply).trim();
+  // On a question, only a draft written for that question, set off between the
+  // dashes: switching tabs must not offer the last question's answer for this one.
+  const qaDraft = (() => {
+    if (!scope?.startsWith("qa#")) return "";
+    const reply = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!reply || reply.cellKey !== scope) return "";
+    const parts = reply.content.split(/^\s*---\s*$/m);
+    return parts.length >= 3 ? parts[1].trim() : "";
   })();
 
   const switchScope = (next: string | null) => {
     if (next === scope) return;
     setScope(next);
-    const label = scopes.find((sc) => sc.key === next)?.label;
+    const label = next?.startsWith("qa#") ? `Question ${Number(next.slice(3)) + 1}` : scopes.find((sc) => sc.key === next)?.label;
     if (label && messages.length > 0) setMarkers((m) => ({ ...m, [messages.length]: label }));
   };
 
@@ -747,10 +776,64 @@ export function RoleWorkspace({
         {tab === "chat" && !openNote && (
           <div className="shrink-0 px-6 py-2 border-b border-line-2 flex flex-wrap gap-1">
             {scopes.map((sc) => (
-              <button key={sc.key ?? "none"} onClick={() => switchScope(sc.key)} className={toggle(scope === sc.key)}>
+              <button
+                key={sc.key ?? "none"}
+                onClick={() => switchScope(sc.key)}
+                className={toggle(sc.key === "qa#0" ? qaIndex !== null : scope === sc.key)}
+              >
                 {sc.label}
               </button>
             ))}
+          </div>
+        )}
+        {/* On App questions, a tab per question: pick the one to work on, and the
+            chat's next message is about it. A check marks the saved ones. */}
+        {tab === "chat" && !openNote && qaIndex !== null && (
+          <div className="shrink-0 px-6 py-2 border-b border-line-2 flex flex-wrap items-center gap-1">
+            {qa.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => switchScope(`qa#${i}`)}
+                className={toggle(qaIndex === i)}
+                title={q.question}
+              >
+                {q.answer.trim() && <Check size={14} strokeWidth={1.5} absoluteStrokeWidth />}
+                Q{i + 1}
+              </button>
+            ))}
+            {newQuestion === null ? (
+              <button onClick={() => setNewQuestion("")} className={button("quiet", "compact")}>
+                <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add question
+              </button>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = newQuestion.trim();
+                  if (q) addQuestion(q);
+                  setNewQuestion(null);
+                }}
+                className="flex items-center gap-2 flex-1 min-w-48"
+              >
+                <input
+                  autoFocus
+                  value={newQuestion}
+                  onChange={(e) => setNewQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setNewQuestion(null);
+                    }
+                  }}
+                  placeholder="Paste the question as the form words it"
+                  aria-label="New app question"
+                  className={field("compact")}
+                />
+                <button type="submit" disabled={!newQuestion.trim()} className={button("primary", "compact")}>
+                  Add
+                </button>
+              </form>
+            )}
           </div>
         )}
 
@@ -1069,92 +1152,6 @@ export function RoleWorkspace({
               )}
             </div>
 
-            {/* The form's write-in questions, filed by the extension's "Work through
-                these in Belay" or added by hand. Each is worked on in the chat
-                (focused on that question) and settled here; Fill again puts the
-                answers in the form. Always rendered, like Interviews and Files. */}
-            {(
-              <div className="space-y-3">
-                <div className={sectionHead}>
-                  <h3 className="t-section">App questions</h3>
-                  {qa.length > 0 && (
-                    <span className="text-meta tabular-nums text-fg-3">
-                      {qa.filter((q) => q.answer.trim()).length} of {qa.length} answered
-                    </span>
-                  )}
-                  {newQuestion === null && (
-                    <button onClick={() => setNewQuestion("")} className={button("quiet", "compact")}>
-                      <Plus size={14} strokeWidth={1.5} absoluteStrokeWidth /> Add question
-                    </button>
-                  )}
-                </div>
-                {newQuestion !== null && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const q = newQuestion.trim();
-                      if (q) onUpdate(app.id, { applicationQA: JSON.stringify([...qa, { question: q, answer: "" }]) });
-                      setNewQuestion(null);
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <input
-                      autoFocus
-                      value={newQuestion}
-                      onChange={(e) => setNewQuestion(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Escape") {
-                          e.stopPropagation();
-                          setNewQuestion(null);
-                        }
-                      }}
-                      placeholder="Paste the question as the form words it"
-                      aria-label="New write-in question"
-                      className={field("compact")}
-                    />
-                    <button type="submit" disabled={!newQuestion.trim()} className={button("primary", "compact")}>
-                      Add
-                    </button>
-                  </form>
-                )}
-                {qa.map((q, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <p className="text-body text-fg-1">{q.question}</p>
-                    <AutoResizeTextarea
-                      value={qaDrafts[i] ?? q.answer}
-                      onChange={(e) => setQaDrafts((d) => ({ ...d, [i]: e.target.value }))}
-                      onBlur={() => {
-                        if (qaDrafts[i] !== undefined && qaDrafts[i] !== q.answer) saveQa(i, qaDrafts[i]);
-                      }}
-                      placeholder="Your answer. Work on it with Claude, then use the draft or write your own."
-                      aria-label={`Answer to: ${q.question}`}
-                      className={textarea()}
-                    />
-                    <div className="flex items-center gap-1 -ml-2.5">
-                      <button onClick={() => workOnQuestion(i)} className={button("quiet", "compact")}>
-                        Work on it with Claude
-                      </button>
-                      {scope === `qa#${i}` && lastDraft && (
-                        <button
-                          onClick={() => {
-                            setQaDrafts((d) => ({ ...d, [i]: lastDraft }));
-                            saveQa(i, lastDraft);
-                          }}
-                          className={button("quiet", "compact")}
-                          title="Put the chat's latest draft in this answer"
-                        >
-                          Use last draft
-                        </button>
-                      )}
-                      <span className="ml-auto text-meta tabular-nums text-fg-3">
-                        {(qaDrafts[i] ?? q.answer).trim().split(/\s+/).filter(Boolean).length} words
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Interviews. Same shape as Referral and Files: a heading, its add, a
                 list. It exists because nothing anywhere held a date — the activity
                 recap counted interviews off a renamed status and read 0 while an
@@ -1418,6 +1415,34 @@ export function RoleWorkspace({
 
         {tab === "chat" && !openNote && (
           <div className="shrink-0 border-t border-line-2">
+            {/* On a question: the question, the answer saved for it, and Save answer,
+                lit once the chat has a different draft. Saving keeps the
+                "Application questions" note current and is what Fill puts in. */}
+            {qaIndex !== null && qa[qaIndex] && (
+              <div className="px-6 pt-3 space-y-2">
+                <p className="text-body text-fg-1">{qa[qaIndex].question}</p>
+                <p className="text-meta text-fg-3 whitespace-pre-line line-clamp-4">
+                  <span className="text-fg-2">Saved answer:</span> {qa[qaIndex].answer.trim() || "None yet."}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-meta tabular-nums text-fg-3">
+                    {qaDraft && qaDraft !== qa[qaIndex].answer
+                      ? `Draft: ${qaDraft.split(/\s+/).filter(Boolean).length} words`
+                      : qa[qaIndex].answer.trim()
+                        ? `${qa[qaIndex].answer.trim().split(/\s+/).filter(Boolean).length} words`
+                        : ""}
+                  </span>
+                  <button
+                    disabled={!qaDraft || qaDraft === qa[qaIndex].answer}
+                    onClick={() => saveQa(qaIndex, qaDraft)}
+                    className={`${button("secondary", "compact")} ml-auto`}
+                    title={qaDraft && qaDraft !== qa[qaIndex].answer ? qaDraft : "Lights up once the chat has a draft"}
+                  >
+                    {qa[qaIndex].answer.trim() ? "Update answer" : "Save answer"}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex items-end gap-2 px-6 py-3">
               <AutoResizeTextarea
                 value={input}
