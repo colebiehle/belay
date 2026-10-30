@@ -30,7 +30,7 @@ import {
  * company chips over two-up cards, the add box hidden behind the header's primary
  * button), same keys, and the same decided state: the card stays where it was, the
  * chosen button takes a check, and the lower half asks "Why this one?" or "Why not?"
- * until Done files it. The pass reasons are what the next import's fit ranking reads.
+ * until you move on, which files it. The pass reasons are what the next import's fit ranking reads.
  *
  * It does not care which page the paste came from. Connections, a company's People
  * tab, a search, "people also viewed": all a list of people in LinkedIn's chrome,
@@ -249,6 +249,8 @@ export function PeopleQueue({
   const [keyboardNav, setKeyboardNav] = useState(false);
   const [history, setHistory] = useState<Decision[]>([]);
   const decisionSeq = useRef(0);
+  // The note typed on each decided card, held here so moving on can save it.
+  const [notes, setNotes] = useState<Map<string, string>>(new Map());
 
   const takePaste = (data: DataTransfer | null) => {
     const p = readPaste(data);
@@ -411,6 +413,8 @@ export function PeopleQueue({
   // other to switch it. Switching is an undo then a decide, because an add made a
   // Contact and a pass must not leave one behind.
   const toggle = async (c: Candidate, action: "add" | "skip") => {
+    // Deciding a card is moving on from any other decided one.
+    fileAll(c.id);
     const entry = [...history].reverse().find((d) => !d.bulk && d.cards.some((x) => x.id === c.id));
     if (c.decided) {
       if (entry) await undoEntry(entry);
@@ -424,13 +428,35 @@ export function PeopleQueue({
     await decide([c], action);
   };
 
-  // Done: the reason is saved and the card leaves. Its undo goes with it, as on the
-  // job queue, where a filed card is out of reach of U.
-  const file = (c: Candidate, note: string) => {
-    if (note.trim()) patch({ ids: [c.id], action: "note", note: note.trim() });
+  // Moving on files a decided card: the note typed on it is saved and the card
+  // leaves. There is no Done button (Oct 2026): deciding another card, J or K, or a
+  // click anywhere off the card files it. Its undo stays in the history, so U still
+  // brings it back from the server (undoEntry).
+  const file = (c: Candidate) => {
+    const note = notes.get(c.id)?.trim();
+    if (note) patch({ ids: [c.id], action: "note", note });
     setCandidates((prev) => prev.filter((x) => x.id !== c.id));
-    setHistory((h) => h.filter((d) => d.bulk || !d.cards.some((x) => x.id === c.id)));
+    setNotes((prev) => {
+      const next = new Map(prev);
+      next.delete(c.id);
+      return next;
+    });
   };
+
+  const fileAll = (except?: string) => {
+    for (const c of candidates) if (c.decided && c.id !== except) file(c);
+  };
+
+  // A click anywhere but on a decided card moves on from it.
+  useEffect(() => {
+    if (!active || !candidates.some((c) => c.decided)) return;
+    const onDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest("[data-decided-card]")) return;
+      fileAll();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  });
 
   // One list, like the job queue. By fit: anyone added from their own profile link
   // first (you picked them, which outranks any score), newest of those first; then
@@ -492,10 +518,12 @@ export function PeopleQueue({
       // The first J or K shows the cursor where it is, without moving it.
       if (key === "j") {
         e.preventDefault();
+        fileAll();
         if (keyboardNav) setCursor((c) => clamp(c + 1));
         setKeyboardNav(true);
       } else if (key === "k") {
         e.preventDefault();
+        fileAll();
         if (keyboardNav) setCursor((c) => clamp(c - 1));
         setKeyboardNav(true);
       } else if ((key === "a" || key === "p" || key === "s") && keyboardNav && card) {
@@ -900,7 +928,8 @@ export function PeopleQueue({
                   focused={keyboardNav && i === cursor}
                   onFocus={() => setCursor(i)}
                   onDecide={(action) => toggle(c, action)}
-                  onFile={(note) => file(c, note)}
+                  note={notes.get(c.id) ?? ""}
+                  onNote={(note) => setNotes((prev) => new Map(prev).set(c.id, note))}
                 />
               </div>
             );
@@ -1161,15 +1190,16 @@ function CandidateCard({
   focused,
   onFocus,
   onDecide,
-  onFile,
+  note,
+  onNote,
 }: {
   c: Candidate;
   focused: boolean;
   onFocus: () => void;
   onDecide: (action: "add" | "skip") => void;
-  onFile: (note: string) => void;
+  note: string;
+  onNote: (note: string) => void;
 }) {
-  const [note, setNote] = useState("");
   const added = c.decided === "add";
   const passed = c.decided === "skip";
   const decided = added || passed;
@@ -1234,12 +1264,12 @@ function CandidateCard({
   const lower = decided ? (
     // The note, in the space below the head, exactly as on the job card: not
     // autofocused (the next A of a run would type into it), Enter is a newline,
-    // Done files it. On an add it is what caught your eye, plus an email if you
+    // moving on files it. On an add it is what caught your eye, plus an email if you
     // found one: both go to the person, for drafting their message in the chat.
     <div className="mt-2 flex-1 min-h-0 flex flex-col">
       <AutoResizeTextarea
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => onNote(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
         placeholder={added ? "What caught your eye? Their email, if you found it." : "Why not?"}
         aria-label={added ? "What caught your eye" : "Why not?"}
@@ -1294,7 +1324,13 @@ function CandidateCard({
   };
 
   return (
-    <div data-queue-card onClick={onFocus} className={queueCard(focused)}>
+    <div
+      data-queue-card
+      // A click inside a decided card (its note, its buttons) is not moving on.
+      data-decided-card={decided || undefined}
+      onClick={onFocus}
+      className={queueCard(focused)}
+    >
       {decided || !c.linkedinUrl ? (
         <div className="flex-1 min-h-0 flex flex-col">
           {head}
@@ -1323,13 +1359,6 @@ function CandidateCard({
       )}
 
       <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {decided && (
-          <div className="flex items-center gap-1 -ml-2.5">
-            <button onClick={() => onFile(note)} className={button("quiet", "compact")}>
-              Done
-            </button>
-          </div>
-        )}
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {verdictButton("skip")}
           {verdictButton("add")}

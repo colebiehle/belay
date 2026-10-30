@@ -167,9 +167,14 @@ export default function ApplicationsPage() {
   const [queueSort, setQueueSort] = useState<"tier" | "score" | "newest" | "oldest">("tier");
   const [selectedQueueCompanies, setSelectedQueueCompanies] = useState<Set<string>>(new Set());
 
-  // Roles decided in this session. They stay on screen as a thin undo strip
-  // rather than vanishing, so a verdict costs one click and is still reversible.
+  // Roles decided in this session. A decided card stays put with its reason box
+  // until you move on (lib: fileDecided), so a verdict costs one click and the
+  // reason is there to write if you want it.
   const [decided, setDecided] = useState<Map<string, string>>(new Map());
+  // The reason typed on each decided card, held here so moving on can save it.
+  const [notes, setNotes] = useState<Map<string, string>>(new Map());
+  // Cards filed this session, newest last, so U still reaches one after it has gone.
+  const filed = useRef<{ job: Job; verdict: string }[]>([]);
   // Keyboard cursor into filteredJobs. Triaging 40+ roles a day by mouse was the
   // single biggest cost in the loop.
   const [cursor, setCursor] = useState(0);
@@ -321,6 +326,8 @@ export default function ApplicationsPage() {
   };
 
   const setVerdict = async (id: string, verdict: string, notes: string) => {
+    // Deciding a card is moving on from any other decided one.
+    fileAllDecided(id);
     setDecided((prev) => new Map(prev).set(id, verdict));
     // The card shows the decision before the save lands. If the save fails, put the
     // card back undecided rather than leave it looking saved; an uncaught rejection
@@ -363,24 +370,64 @@ export default function ApplicationsPage() {
     refreshCounts();
   };
 
-  // A decided card leaves the list when you say you are done with it, not when the
-  // verdict lands: the gap between the two is where the reason gets written, and the
-  // reason is the most valuable thing the queue produces.
+  // A decided card leaves the list when you move on, not when the verdict lands:
+  // the gap between the two is where the reason gets written, and the reason is the
+  // most valuable thing the queue produces. There is no Done button (Oct 2026):
+  // deciding another card, J or K, or a click anywhere off the card files it, and
+  // whatever was typed is saved with it.
   const fileDecided = (id: string) => {
+    // The mousedown that moves on and the click that decides the next card can both
+    // reach a card in one gesture; it files once.
+    if (filed.current.some((f) => f.job.id === id)) return;
+    const job = jobs.find((j) => j.id === id);
+    const verdict = decided.get(id);
+    const note = notes.get(id)?.trim();
+    if (note) annotateVerdict(id, note);
+    if (job && verdict) filed.current = [...filed.current.slice(-19), { job, verdict }];
     setJobs((prev) => prev.filter((j) => j.id !== id));
     setDecided((prev) => {
       const next = new Map(prev);
       next.delete(id);
       return next;
     });
+    setNotes((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
   };
+
+  const fileAllDecided = (except?: string) => {
+    for (const id of decided.keys()) if (id !== except) fileDecided(id);
+  };
+
+  // U after a card has gone: back into the queue, undecided.
+  const unfileLast = () => {
+    const last = filed.current[filed.current.length - 1];
+    filed.current = filed.current.slice(0, -1);
+    if (!last) return false;
+    setJobs((prev) => (prev.some((j) => j.id === last.job.id) ? prev : [...prev, last.job]));
+    undoVerdict(last.job.id);
+    return true;
+  };
+
+  // A click anywhere but on a decided card moves on from it.
+  useEffect(() => {
+    if (tab !== "queue" || decided.size === 0) return;
+    const onDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement | null)?.closest("[data-decided-card]")) return;
+      fileAllDecided();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  });
 
   const annotateVerdict = async (id: string, note: string) => {
     await fetch(`/api/jobs/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verdictNotes: note }),
-    });
+    }).catch(() => {});
   };
 
   const addJob = async () => {
@@ -499,10 +546,12 @@ export default function ApplicationsPage() {
       // or the last one clicked), so the first press never skips a card.
       if (key === "j") {
         e.preventDefault();
+        fileAllDecided();
         if (keyboardNav) setCursor((c) => clamp(c + 1));
         setKeyboardNav(true);
       } else if (key === "k") {
         e.preventDefault();
+        fileAllDecided();
         if (keyboardNav) setCursor((c) => clamp(c - 1));
         setKeyboardNav(true);
       } else if (key === "a" && keyboardNav && job) {
@@ -524,6 +573,8 @@ export default function ApplicationsPage() {
         if (last) {
           e.preventDefault();
           undoVerdict(last);
+        } else if (unfileLast()) {
+          e.preventDefault();
         }
       } else if (key === "o" && job) {
         e.preventDefault();
@@ -533,7 +584,7 @@ export default function ApplicationsPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, filteredJobs, cursor, decided, keyboardNav]);
+  }, [tab, filteredJobs, cursor, decided, notes, keyboardNav]);
 
   // Keep the focused card in view as the cursor walks the list.
   useEffect(() => {
@@ -801,8 +852,8 @@ export default function ApplicationsPage() {
                     verdict={decided.get(job.id) ?? null}
                     onVerdict={setVerdict}
                     onClearVerdict={() => undoVerdict(job.id)}
-                    onNote={(note) => annotateVerdict(job.id, note)}
-                    onFile={() => fileDecided(job.id)}
+                    note={notes.get(job.id) ?? ""}
+                    onNote={(note) => setNotes((prev) => new Map(prev).set(job.id, note))}
                     focused={keyboardNav && i === cursor}
                     onFocus={() => setCursor(i)}
                     onOpen={() => markSeen(job.id)}
@@ -1028,8 +1079,8 @@ function JobCard({
   verdict,
   onVerdict,
   onClearVerdict,
+  note,
   onNote,
-  onFile,
   focused = false,
   onFocus,
   onOpen,
@@ -1039,14 +1090,13 @@ function JobCard({
   verdict: string | null;
   onVerdict: (id: string, verdict: string, notes: string) => void;
   onClearVerdict: () => void;
+  note: string;
   onNote: (note: string) => void;
-  onFile: () => void;
   focused?: boolean;
   onFocus?: () => void;
   onOpen?: () => void;
   hasContact?: boolean;
 }) {
-  const [note, setNote] = useState("");
 
   const accepted = verdict === "Apply";
   const passed = verdict === "Pass";
@@ -1084,14 +1134,6 @@ function JobCard({
     });
   }
 
-  // One action, two ways to reach it. Writing the reason and filing the card are the
-  // same gesture because they happen together: Enter files it, and the button is the
-  // same thing for a hand already on the mouse. Not a second confirm — the verdict is
-  // already recorded, this only decides when the card stops taking up space.
-  const file = () => {
-    if (note.trim()) onNote(note.trim());
-    onFile();
-  };
 
   // Company first, role second, both at the top, then the sub-line. The company is
   // the thing the tier ordering is about and the thing that decides whether the role
@@ -1160,12 +1202,12 @@ function JobCard({
   const lower = decided ? (
     // The reason, in the space the headline and tags had. Full size, because these
     // notes are the most valuable data in the database: they are what teaches the
-    // scorer and what became the intake rules. No Save button and no Skip — leaving
-    // the box saves, Done files the card, and walking away costs nothing.
+    // scorer and what became the intake rules. No Save button, no Done: moving on
+    // files the card with whatever is here, and an empty box costs nothing.
     <div className="mt-2 flex-1 min-h-0 flex flex-col">
       <AutoResizeTextarea
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => onNote(e.target.value)}
         // Enter writes a newline. It used to file the card, which is the wrong
         // default for a box whose whole purpose is a sentence or two of reasoning:
         // the keystroke that ends a thought should not also end the row.
@@ -1211,6 +1253,8 @@ function JobCard({
   return (
     <div
       data-queue-card
+      // A click inside a decided card (its reason box, its buttons) is not moving on.
+      data-decided-card={decided || undefined}
       onClick={onFocus}
       // The frame both queues share (lib/ui queueCard): the rope border only under
       // the keyboard cursor, a transparent one holding its place otherwise.
@@ -1250,13 +1294,9 @@ function JobCard({
 
       {/* The bottom row: the judgement compressed into at most five tags, then both
           verdicts, always, in the same place. A check marks the one that is set;
-          clicking it again clears it. Once decided, Done takes the tags' place. */}
+          clicking it again clears it. Once decided, the tags make room. */}
       <div className="mt-3 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-        {decided ? (
-          <button onClick={file} className={`${button("quiet", "compact")} -ml-2.5`}>
-            Done
-          </button>
-        ) : (
+        {!decided && (
           <div className="flex flex-wrap gap-1 overflow-hidden max-h-5 min-w-0">
             {tags.slice(0, 5).map((t, i) => (
               <span key={i} className={tag}>
