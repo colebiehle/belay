@@ -10,5 +10,12 @@
  * Kept in one place so the next time a provider disappears it is one edit.
  */
 export function logoUrl(domain: string, size: 64 | 128 = 128): string {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
+  const host = FAVICON_HOST[domain] ?? domain;
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=${size}`;
 }
+
+// Domains the favicon service 404s on bare but answers for at another host.
+// mckinsey.com returned 404 at both sizes on 2026-10-29; www.mckinsey.com 200.
+const FAVICON_HOST: Record<string, string> = {
+  "mckinsey.com": "www.mckinsey.com",
+};

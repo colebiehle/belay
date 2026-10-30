@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { admitRoles } from "@/lib/role-prescreen";
 import {
@@ -34,9 +34,22 @@ const UA =
 // The two buckets you asked for. Everything narrower is already covered by the
 // title filter, and a wider query just spends pages on roles that get dropped.
 // "founding designer" and "design engineer" are titles the first two searches
-// never return, and both are roles worth seeing.
-const QUERIES = ["product designer", "ux designer", "founding designer", "design engineer"];
-const PAGES_PER_QUERY = 4; // 10 cards per page
+// never return, and both are roles worth seeing. "ai experience designer" is the
+// same: BCG X's AI Experience Designer role was live on LinkedIn that week, and
+// only that query returned it.
+const QUERIES = ["product designer", "ux designer", "founding designer", "design engineer", "ai experience designer"];
+// The guest search ignores sortBy, so results come in relevance order. Read over a
+// week, that put only 6 of the day's 40+ new "product designer" postings in the
+// first 40 cards (2026-10-29), so a role posted this morning waited for a later
+// run. The last day is read first, at depth; the week after it is a short pass
+// that catches anything a missed run would otherwise lose.
+const WINDOWS = [
+  { tpr: "r86400", pages: 4 }, // 10 cards per page
+  { tpr: "r604800", pages: 2 },
+];
+// The weekly gap check (?weekly) reads the past month, deeper, for anything the
+// daily windows let past.
+const WEEKLY_WINDOWS = [{ tpr: "r2592000", pages: 8 }];
 const MAX_DETAIL_FETCHES = 25;
 
 type Card = {
@@ -113,22 +126,25 @@ function parseDetail(html: string): { description: string; criteria: string[] } 
   return { description: decode(body).slice(0, 6000), criteria };
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const weekly = new URL(req.url).searchParams.has("weekly");
   const seen = new Map<string, Card>();
   let scanned = 0;
 
   for (const q of QUERIES) {
-    for (let page = 0; page < PAGES_PER_QUERY; page++) {
-      const url =
-        `${SEARCH}?keywords=${encodeURIComponent(q)}` +
-        `&location=${encodeURIComponent("United States")}` +
-        `&f_TPR=r604800&start=${page * 10}`;
-      const html = await get(url);
-      if (!html) break;
-      const cards = parseCards(html);
-      scanned += cards.length;
-      for (const c of cards) if (!seen.has(c.url)) seen.set(c.url, c);
-      if (cards.length === 0) break;
+    for (const w of weekly ? WEEKLY_WINDOWS : WINDOWS) {
+      for (let page = 0; page < w.pages; page++) {
+        const url =
+          `${SEARCH}?keywords=${encodeURIComponent(q)}` +
+          `&location=${encodeURIComponent("United States")}` +
+          `&f_TPR=${w.tpr}&start=${page * 10}`;
+        const html = await get(url);
+        if (!html) break;
+        const cards = parseCards(html);
+        scanned += cards.length;
+        for (const c of cards) if (!seen.has(c.url)) seen.set(c.url, c);
+        if (cards.length === 0) break;
+      }
     }
   }
 
@@ -145,7 +161,7 @@ export async function POST() {
     .filter((c) => passesStatedRules(c.title, c.company))
     .filter((c) => isFreshPosting(c.posted));
 
-  // Tracked, watched and founding roles pass; the rest get a cheap pre-screen
+  // Tracked and founding roles pass; the rest get a cheap pre-screen
   // against your criteria (lib/role-prescreen). The target list alone turned away
   // 60-70 design roles a day here.
   const { admitted: candidates, turnedAway: untracked } = await admitRoles(beforeTrackedGate, (c) => ({

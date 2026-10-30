@@ -14,8 +14,7 @@ import {
   canonicalCompany,
 } from "@/lib/role-filter";
 import { ATS_BOARDS, MANUAL_ONLY } from "@/lib/ats-boards";
-import { MAX_POSTING_AGE_DAYS, MAX_POSTING_AGE_DAYS_KNOWN, MAX_POSTING_AGE_DAYS_WATCHED } from "@/lib/search-config";
-import { WATCH_COMPANIES, isWatchedCompany } from "@/lib/watch-companies";
+import { MAX_POSTING_AGE_DAYS, MAX_POSTING_AGE_DAYS_KNOWN } from "@/lib/search-config";
 import { stripHtml, stripHtmlKeepLinks } from "@/lib/html";
 import { identityLine } from "@/lib/identity";
 
@@ -318,6 +317,80 @@ async function fetchAppleListings(
   return out;
 }
 
+// Google's careers search renders server-side: each results page carries its
+// listings as JSON in an AF_initDataCallback block (key ds:1), with title,
+// locations, the posting's publish time and its body. Nothing to call but the
+// search page itself, one query at a time, 20 per page.
+// Token format: search queries joined by "|", e.g. "product designer|ux designer".
+const GOOGLE_MAX_PAGES = 3;
+
+async function fetchGoogleListings(
+  company: string,
+  token: string,
+  allowResearch: boolean,
+  maxAge: number = MAX_POSTING_AGE_DAYS,
+): Promise<ExtractedListing[] | null> {
+  // Positions in a ds:1 row, read off a live page on 2026-10-29.
+  type GoogleRow = unknown[];
+  const page = async (q: string, n: number): Promise<GoogleRow[] | null> => {
+    const url =
+      `https://www.google.com/about/careers/applications/jobs/results` +
+      `?q=${encodeURIComponent(`"${q}"`)}&location=${encodeURIComponent("United States")}&page=${n}`;
+    const res = await fetch(url, { headers: { "User-Agent": BROWSER_UA, Accept: "text/html" } }).catch(() => null);
+    if (!res?.ok) return null;
+    const html = await res.text();
+    const m = html.match(/AF_initDataCallback\(\{key: 'ds:1'[\s\S]*?data:([\s\S]*?), sideChannel/);
+    if (!m) return null;
+    try {
+      const data = JSON.parse(m[1]);
+      return Array.isArray(data?.[0]) ? (data[0] as GoogleRow[]) : [];
+    } catch {
+      return null;
+    }
+  };
+  const seen = new Map<string, GoogleRow>();
+  let read = 0;
+  for (const q of token.split("|")) {
+    for (let n = 1; n <= GOOGLE_MAX_PAGES; n++) {
+      const rows = await page(q, n);
+      if (!rows) break;
+      read += 1;
+      for (const r of rows) if (typeof r[0] === "string" && !seen.has(r[0])) seen.set(r[0], r);
+      if (rows.length < 20) break;
+    }
+  }
+  if (read === 0) return null;
+  const html = (v: unknown) => (Array.isArray(v) && typeof v[1] === "string" ? v[1] : "");
+  const out: ExtractedListing[] = [];
+  for (const r of seen.values()) {
+    const [id, title] = r as [string, string];
+    if (typeof title !== "string" || !isDesignRole(title, allowResearch) || !isReachableLevel(title)) continue;
+    const secs = Array.isArray(r[12]) && typeof r[12][0] === "number" ? r[12][0] : null;
+    const posted = secs ? new Date(secs * 1000) : undefined;
+    if (!isFreshPosting(posted, maxAge)) continue;
+    const body = [html(r[10]), html(r[3]), html(r[4]), html(r[19])]
+      .filter(Boolean)
+      .join("\n\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const yoe = extractMinYoe(body);
+    if (yoe !== null && yoe > MAX_YOE) continue;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const locations = Array.isArray(r[9]) ? (r[9] as unknown[][]).map((l) => l?.[0]).filter((l): l is string => typeof l === "string") : [];
+    out.push({
+      company,
+      roleTitle: title,
+      jobUrl: `https://www.google.com/about/careers/applications/jobs/results/${id}-${slug}`,
+      location: locations.join(", "),
+      datePosted: posted,
+      expRange: yoe !== null ? `${yoe}+ yrs` : "",
+      descriptionSnippet: body.slice(0, 4000),
+    });
+  }
+  return out;
+}
+
 // Eightfold powers a number of large careers sites, Netflix among them. The
 // search endpoint is public and unauthenticated; the catch is that the listing
 // response carries an empty job_description, so the body has to be fetched per
@@ -445,6 +518,7 @@ async function fetchAtsListings(
   if (board.provider === "workday") return fetchWorkdayListings(company, board.token, allowResearch, maxAge);
   if (board.provider === "eightfold") return fetchEightfoldListings(company, board.token, allowResearch, maxAge);
   if (board.provider === "apple") return fetchAppleListings(company, allowResearch, maxAge);
+  if (board.provider === "google") return fetchGoogleListings(company, board.token, allowResearch, maxAge);
 
   const url =
     board.provider === "greenhouse"
@@ -592,18 +666,6 @@ export async function POST(req?: NextRequest) {
         domain: c.domain,
         tier: c.tier,
       })),
-    // The watch list: scanned like a tier 3 target through its job feed, never
-    // shown as one (lib/watch-companies).
-    ...WATCH_COMPANIES.filter((w) => !companies.some((c) => c.name.toLowerCase() === w.name.toLowerCase())).map(
-      (w): ScanSource => ({
-        kind: "company",
-        displayName: w.name,
-        baseUrl: w.careersUrl,
-        attributedCompany: w.name,
-        domain: w.domain,
-        tier: 3,
-      }),
-    ),
     ...sites
       .filter((s) => s.url)
       .map((s): ScanSource => ({
@@ -636,20 +698,11 @@ export async function POST(req?: NextRequest) {
 
   for (const src of sources) {
     // ATS fast path: structured JSON, no Claude call, no HTML parsing.
-    const board = src.attributedCompany
-      ? ATS_BOARDS[src.displayName.toLowerCase()] ??
-        WATCH_COMPANIES.find((w) => w.name.toLowerCase() === src.displayName.toLowerCase())?.board
-      : undefined;
+    const board = src.attributedCompany ? ATS_BOARDS[src.displayName.toLowerCase()] : undefined;
     if (board) {
       // Tier 1 and 2 companies get the longer age limit: their roles stay open for
-      // months and a referral still gets a late one read. The watched AI startups
-      // get two weeks; everyone else the default.
-      const maxAge =
-        src.tier <= 2
-          ? MAX_POSTING_AGE_DAYS_KNOWN
-          : isWatchedCompany(src.displayName)
-            ? MAX_POSTING_AGE_DAYS_WATCHED
-            : MAX_POSTING_AGE_DAYS;
+      // months and a referral still gets a late one read. Everyone else the default.
+      const maxAge = src.tier <= 2 ? MAX_POSTING_AGE_DAYS_KNOWN : MAX_POSTING_AGE_DAYS;
       const listings = await fetchAtsListings(src.attributedCompany!, board, src.tier <= 1, maxAge);
       if (listings) {
         let added = 0;
@@ -810,6 +863,8 @@ Format:
           fitScore: 0,
           fitRationale: `Surfaced from ${src.displayName} during broad ingest.`,
           priority: "MONITOR",
+          // Everything on YC's own board is a YC company (lib/backers).
+          ...(src.kind === "site" && hostOf(src.baseUrl).endsWith("ycombinator.com") ? { backers: "YC" } : {}),
         },
       });
       added += 1;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { probeSite } from "@/lib/site-probe";
+import { PORTFOLIO_BOARDS } from "@/lib/portfolio-boards";
 
 
 function domainFromUrl(url: string): string {
@@ -16,7 +17,19 @@ export async function GET() {
   const sites = await prisma.huntSite.findMany({
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
   });
-  return NextResponse.json(sites);
+  // The VC boards the scan reads, listed after the sites so Home shows every
+  // source. Read-only: they live in code (lib/portfolio-boards), not in the table.
+  const boards = PORTFOLIO_BOARDS.map((b, i) => ({
+    id: `board:${b.name}`,
+    ...b,
+    category: "vc",
+    position: i,
+    note: null,
+    scanStatus: "daily",
+    scanNote: "Read every day through the board's job API",
+    readOnly: true,
+  }));
+  return NextResponse.json([...sites, ...boards]);
 }
 
 export async function POST(req: NextRequest) {

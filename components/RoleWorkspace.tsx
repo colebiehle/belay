@@ -10,7 +10,7 @@ import { usableAccent } from "@/lib/brand-colors";
 import { button, card as cardClass, iconButton, input as field, sectionHead, tag as tagClass, textarea, toggle, washOf, brandLine, brandEdge, historyDot, historyDotColor, headerLink, panelTab, panelTabLine } from "@/lib/ui";
 import { StageSelect } from "@/components/StageChip";
 import { MetaLine } from "@/components/MetaLine";
-import { cleanTags, displayCompany, isContactId, metaTokens, parseReferrers } from "@/lib/role-meta";
+import { cleanTags, displayCompany, isContactId, knownItems, metaTokens, parseReferrers, withoutUnknowns } from "@/lib/role-meta";
 import { formLink } from "@/components/PageChrome";
 import { PersonPicker } from "@/components/PersonPicker";
 import { PasteAnything, type PasteRow } from "@/components/PasteAnything";
@@ -957,7 +957,7 @@ export function RoleWorkspace({
               )}
               {/* Body size, like the person panel's summary: the headline is the
                   reading, the meta line above it is the scanning. */}
-              {enrichment.headline && <p className="text-body text-fg-2">{enrichment.headline}</p>}
+              {withoutUnknowns(enrichment.headline) && <p className="text-body text-fg-2">{withoutUnknowns(enrichment.headline)}</p>}
               {cleanTags(enrichment.tags).length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {cleanTags(enrichment.tags).map((t, i) => (
@@ -972,10 +972,10 @@ export function RoleWorkspace({
                   point of opening the form rather than a fact known before. Read-only
                   on purpose: a checklist is one more manual step that stops getting
                   done. */}
-              {(enrichment.applicationNeeds ?? []).length > 0 && (
+              {knownItems(enrichment.applicationNeeds).length > 0 && (
                 <p className="text-meta text-fg-2">
                   <span className="text-fg-3">Needs · </span>
-                  {(enrichment.applicationNeeds ?? []).join(" · ")}
+                  {knownItems(enrichment.applicationNeeds).join(" · ")}
                 </p>
               )}
               {limit && (

@@ -44,6 +44,8 @@ export type PanelContact = {
   id: string;
   name: string;
   company: string;
+  // The company's website, for the logo (lib/company-domain).
+  companyDomain?: string | null;
   title: string | null;
   role: string | null;
   linkedinUrl: string | null;
@@ -313,7 +315,7 @@ export function ContactPanel({
   const stage = contact.stage ?? "Identified";
   const scopes = SCOPES;
   const active = scopes.find((sc) => sc.key === scope) ?? scopes[0];
-  const logoDomain = getLogoDomain(contact.company, contact.linkedinUrl ?? "");
+  const logoDomain = getLogoDomain(contact.company, contact.linkedinUrl ?? "", contact.companyDomain);
   const brand = useBrandColor(logoDomain);
   // The company's colour, for the header band and wash only. Null (a black or grey
   // logo) means no band and no wash: the header is plain raised, and nothing falls

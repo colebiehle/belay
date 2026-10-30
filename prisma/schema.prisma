@@ -21,6 +21,13 @@ model Job {
   redFlags     String   @default("")
   priority     String   @default("MONITOR")
   dateFound    DateTime @default(now())
+  // When you first opened the posting from the queue. Until then, and for three
+  // days after it was found, the card is marked New (lib/role-meta isNewRole).
+  seenAt       DateTime?
+  // Notable investors behind the employer, comma-separated ("Sequoia, GV"), from
+  // the portfolio board that listed the role, YC's board, or the scoring read
+  // (lib/backers). Shown only for companies off your list, whose tier says enough.
+  backers      String   @default("")
   // When the source site originally posted the role. Distinct from dateFound
   // (which is when we discovered it). Nullable because not every source
   // exposes it and historical rows pre-date this column.
@@ -228,6 +235,9 @@ model Contact {
   type                  String
   name                  String
   company               String
+  // The company's website, for its logo (lib/company-domain). Looked up when the
+  // company changes; null falls back to guessing "<name>.com".
+  companyDomain         String?
   title                 String?
   role                  String?
   linkedinUrl           String?

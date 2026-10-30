@@ -9,11 +9,12 @@ import { ListCard, TimingLine } from "@/components/ListCard";
 import { calendarDays } from "@/lib/dates";
 import { RoleWorkspace } from "@/components/RoleWorkspace";
 import { tierRank } from "@/lib/company-tier";
+import { BACKED_RANK, parseBackers } from "@/lib/backers";
 import { ChipFilterRow } from "@/components/ChipFilterRow";
 import { AutoResizeTextarea } from "@/components/AutoResizeTextarea";
 import { STATUSES, OPEN_STATUSES, CLOSED_STATUSES } from "@/lib/statuses";
 import { MetaLine } from "@/components/MetaLine";
-import { cleanTags, daysAgo, displayCompany, metaTokens, nextInterview, referrerNames } from "@/lib/role-meta";
+import { cleanTags, daysAgo, displayCompany, isNewRole, metaTokens, nextInterview, referrerNames, withoutUnknowns } from "@/lib/role-meta";
 import { FormFrame, NoMatch, PageHeader, TabBar, headerButton, openInBackgroundTab } from "@/components/PageChrome";
 import { button, card, cardSub, cardTitle, emptyBox, input, kbd, listGrid, queueCard, revealLink, tag, textarea, verdictBtn } from "@/lib/ui";
 
@@ -38,6 +39,8 @@ type Job = {
   verdict: string | null;
   verdictNotes: string | null;
   dateFound: string;
+  seenAt?: string | null;
+  backers?: string;
   datePosted: string | null;
   dateUpdated: string | null;
   queueEnrichment: string | null;
@@ -184,14 +187,6 @@ export default function ApplicationsPage() {
   // Ingest button state
   const [ingesting, setIngesting] = useState(false);
   const [ingestMsg, setIngestMsg] = useState<string | null>(null);
-  // Null while Gmail works; the reason when it does not (lib/gmail gmailStatus).
-  const [gmailDown, setGmailDown] = useState<string | null>(null);
-  useEffect(() => {
-    fetch("/api/ingest/status")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setGmailDown(d?.gmail && !d.gmail.ok ? d.gmail.message : null))
-      .catch(() => {});
-  }, []);
 
   // Pipeline state
   const [apps, setApps] = useState<Application[]>([]);
@@ -309,6 +304,20 @@ export default function ApplicationsPage() {
       .then((r) => r.json())
       .then(setPassedJobs)
       .catch(() => {});
+  };
+
+  // Opening a posting is what clears its New mark. Once per role: a role already
+  // seen keeps the first time.
+  const markSeen = (id: string) => {
+    const job = jobs.find((j) => j.id === id);
+    if (!job || job.seenAt) return;
+    const seenAt = new Date().toISOString();
+    setJobs((prev) => prev.map((j) => (j.id === id ? { ...j, seenAt } : j)));
+    fetch(`/api/jobs/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seenAt }),
+    }).catch(() => {});
   };
 
   const setVerdict = async (id: string, verdict: string, notes: string) => {
@@ -441,8 +450,9 @@ export default function ApplicationsPage() {
     .sort((a, b) => {
       if (queueSort === "tier") {
         // Company tier outranks everything; score breaks ties inside a tier.
-        // Untracked companies sort last rather than first — see UNTRACKED_RANK.
-        const t = tierRank(a.companyTier ?? null) - tierRank(b.companyTier ?? null);
+        // Untracked companies sort last rather than first — see UNTRACKED_RANK —
+        // except those a notable firm backs, which sort level with C (lib/backers).
+        const t = queueRank(a) - queueRank(b);
         if (t !== 0) return t;
         const aUnscored = a.enrichedAt ? 0 : 1;
         const bUnscored = b.enrichedAt ? 0 : 1;
@@ -517,6 +527,7 @@ export default function ApplicationsPage() {
         }
       } else if (key === "o" && job) {
         e.preventDefault();
+        markSeen(job.id);
         window.open(job.jobUrl, "_blank", "noopener");
       }
     };
@@ -645,17 +656,6 @@ export default function ApplicationsPage() {
         }
         actions={
           <>
-            {/* A source that has stopped working, said quietly where scans are
-                started. Only when something is wrong; otherwise nothing. */}
-            {gmailDown && !ingestMsg && (
-              <span
-                className="flex items-center gap-1 text-meta text-fg-3"
-                title={`${gmailDown}. Your job alert emails are not being read until it is reconnected: run python3 private/scripts/gmail_reauth.py in the Belay folder.`}
-              >
-                <AlertTriangle size={14} strokeWidth={1.5} absoluteStrokeWidth />
-                Job alert emails disconnected
-              </span>
-            )}
             {ingestMsg && (
               // A failed scan is alarm, and alarm always carries a glyph so it is never
               // told from rope by hue alone.
@@ -666,11 +666,11 @@ export default function ApplicationsPage() {
             )}
             {/* One button, and it runs the same scan as the daily schedule, so
                 "scan" means one thing wherever it starts. No Mail icon: the label
-                already says it, and Gmail is one source of many. */}
+                already says it. */}
             <button
               onClick={() => runIngest()}
               disabled={ingesting}
-              title="Scan every tracked company's board, plus LinkedIn, the VC boards and Gmail alerts"
+              title="Scan every tracked company's board, plus LinkedIn, the VC boards and a web search"
               className={headerButton("secondary")}
             >
               {ingesting ? "Scanning…" : "Scan now"}
@@ -805,6 +805,7 @@ export default function ApplicationsPage() {
                     onFile={() => fileDecided(job.id)}
                     focused={keyboardNav && i === cursor}
                     onFocus={() => setCursor(i)}
+                    onOpen={() => markSeen(job.id)}
                     hasContact={contactCompanies.has(job.company.trim().toLowerCase())}
                   />
                 </div>
@@ -1017,6 +1018,11 @@ function firstTwoSentences(text: string): string {
 // like the card beside it. Now the two buttons stay exactly where they were, the
 // chosen one takes a check, and the lower half becomes the reason box. Clicking the
 // checked button clears the verdict; clicking the other switches it.
+function queueRank(job: Job): number {
+  if (job.companyTier != null) return tierRank(job.companyTier);
+  return parseBackers(job.backers).length ? BACKED_RANK : tierRank(null);
+}
+
 function JobCard({
   job,
   verdict,
@@ -1026,6 +1032,7 @@ function JobCard({
   onFile,
   focused = false,
   onFocus,
+  onOpen,
   hasContact = false,
 }: {
   job: Job;
@@ -1036,6 +1043,7 @@ function JobCard({
   onFile: () => void;
   focused?: boolean;
   onFocus?: () => void;
+  onOpen?: () => void;
   hasContact?: boolean;
 }) {
   const [note, setNote] = useState("");
@@ -1061,18 +1069,18 @@ function JobCard({
     }
   })();
 
-  const headline = enrichment?.headline ?? enrichment?.whatItIs ?? firstTwoSentences(job.fitRationale ?? "");
+  const headline = withoutUnknowns(enrichment?.headline ?? enrichment?.whatItIs ?? firstTwoSentences(job.fitRationale ?? ""));
   const tags = cleanTags(enrichment?.tags ?? enrichment?.keyPoints);
 
   const tokens = metaTokens(job);
-  // Only tier 1 and 2 roles are still here past a week (lib/expire-queue keeps
-  // them): late, a referral is what still gets one read, so the card says so.
-  const lateDays = daysAgo(job.datePosted ?? job.dateFound);
-  if (lateDays !== null && lateDays > 7 && job.companyTier != null && job.companyTier <= 2) {
-    tokens.splice(1, 0, {
-      text: "Late: try a referral",
-      title: "Posted over a week ago. At a target company, a referral still gets it read.",
-      tone: "text-fg-2",
+  // Who backs a company you don't track, as a fact beside pay and years: just the
+  // name ("YC", "Sequoia, GV"), with "Backed by" in the tooltip. It is the reason
+  // an unknown company sorts where it does. Tracked companies have their tier.
+  const backers = job.companyTier == null ? parseBackers(job.backers) : [];
+  if (backers.length) {
+    tokens.push({
+      text: `${backers.slice(0, 2).join(", ")}${backers.length > 2 ? ` +${backers.length - 2}` : ""}`,
+      title: `Backed by ${backers.join(", ")}`,
     });
   }
 
@@ -1108,6 +1116,18 @@ function JobCard({
           {hasContact && (
             <span className="shrink-0 text-fg-2" title="You already know someone here. Ask before applying cold.">
               <Users size={14} strokeWidth={1.5} absoluteStrokeWidth />
+            </span>
+          )}
+          {/* New since the last look: rope, because an unseen role is your next move,
+              and a dot with a word rather than a tinted card, because the card's only
+              colour is the company's (STYLE_GUIDE 2.4, 2.6). */}
+          {isNewRole(job) && (
+            <span
+              className="shrink-0 inline-flex items-center gap-1 text-meta font-normal text-rope"
+              title="Found in the last three days and not opened yet. Clears when you open the posting."
+            >
+              <span className="size-1.5 rounded-full bg-rope" />
+              New
             </span>
           )}
         </p>
@@ -1213,10 +1233,12 @@ function JobCard({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => {
+            onOpen?.();
             if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
             e.preventDefault();
             openInBackgroundTab(job.jobUrl);
           }}
+          onAuxClick={() => onOpen?.()}
           className="flex-1 min-h-0 flex flex-col rounded-control"
           title="Open the posting in a background tab (O)"
         >

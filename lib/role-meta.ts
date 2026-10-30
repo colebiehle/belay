@@ -9,6 +9,7 @@
  */
 
 import { calendarDays } from "@/lib/dates";
+import { extractCompRange, yearsRange } from "@/lib/role-filter";
 
 export function displayCompany(company: string): string {
   // Surface unparsed/placeholder company names cleanly
@@ -69,15 +70,16 @@ export function daysAgo(iso: string | null | undefined): number | null {
 }
 
 /**
- * Tint by how stale the posting is. The old 7-day threshold fired on roughly 90% of
- * the real queue, and twenty identical alarm badges per screen carry no information,
- * so the alarm only earns its colour at 30 days — where the req probably is dead.
- * Five of the fourteen roles passed with a written reason were a dead posting.
- * MetaLine adds the alert glyph to an alarm token, because alarm and rope are too
- * close in luminance to be told apart by hue alone.
+ * A role is New until you open its posting, for up to three days after Belay found
+ * it. Three rather than one: the scan runs at noon, and a role found on Friday
+ * should still say so when the queue is next opened on Sunday.
  */
-export function ageTone(days: number): string {
-  return days >= 30 ? "text-alarm" : "text-fg-3";
+export const NEW_ROLE_DAYS = 3;
+
+export function isNewRole(job: { dateFound: string; seenAt?: string | null }): boolean {
+  if (job.seenAt) return false;
+  const found = daysAgo(job.dateFound);
+  return found !== null && found < NEW_ROLE_DAYS;
 }
 
 export type MetaToken = {
@@ -117,14 +119,17 @@ export function metaTokens(job: {
   if (age !== null)
     out.push({
       text: postedAge(age),
+      // No alarm colour for an old posting (the owner's call, Oct 2026): the age
+      // itself says it, and red on a role you might still apply to read as a verdict.
       title:
         age >= 30
           ? "Posted over a month ago. Plenty of these are already filled."
           : "How long the posting has been up.",
-      tone: ageTone(age),
     });
   if (job.location) out.push({ text: briefLocation(job.location) });
-  const exp = inferExpRange(job.roleTitle, job.expRange ?? "");
+  // The figure or nothing: a stored "Not stated" or a sentence about the level
+  // falls through to the title guess, which is marked as one.
+  const exp = inferExpRange(job.roleTitle, yearsRange(job.expRange) ?? "");
   if (exp.text)
     out.push({
       text: exp.text,
@@ -133,7 +138,9 @@ export function metaTokens(job: {
         : "Stated in the posting.",
       guessed: exp.inferred,
     });
-  if (job.compRange && job.compRange !== "Not disclosed") out.push({ text: formatComp(job.compRange) });
+  // Same rule for pay: a range with figures, or nothing on the line.
+  const comp = extractCompRange(job.compRange);
+  if (comp) out.push({ text: formatComp(comp) });
   return out;
 }
 
@@ -150,6 +157,32 @@ export function metaTokens(job: {
  * be re-enriched. Dropping a tag is better than truncating one: a tag clipped to
  * "Requires 3 years specifically in growth…" carries less than no tag at all.
  */
+/**
+ * Drop the sentences, and the "; …" clauses, that only say something is missing.
+ * The scoring prompt now leaves an unknown field empty, but rows scored before
+ * that rule still say "AI is not mentioned" or "scope and team are unknown", and
+ * a line about what a posting lacks is not information about the role.
+ */
+const UNKNOWN_NOTE = /\b(not (stated|disclosed|mentioned|specified|shown|listed)|unknown|unclear|undisclosed|unstated|no (role )?description|cut off|captured (text|page))\b/i;
+
+export function withoutUnknowns(text: string | null | undefined): string {
+  return (text ?? "")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) =>
+      sentence
+        .split(/;\s*/)
+        .filter((clause) => !UNKNOWN_NOTE.test(clause))
+        .join("; "),
+    )
+    .filter((sentence) => sentence.trim() && !UNKNOWN_NOTE.test(sentence))
+    .map((sentence) => (/[.!?]$/.test(sentence.trim()) ? sentence.trim() : `${sentence.trim()}.`))
+    .join(" ");
+}
+
+export function knownItems(items: unknown): string[] {
+  return Array.isArray(items) ? items.map(String).filter((x) => x.trim() && !UNKNOWN_NOTE.test(x)) : [];
+}
+
 const TAG_NOISE = [
   /^no\b/i,
   /unstated|not stated|not mentioned|undescribed|not the focus/i,

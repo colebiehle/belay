@@ -141,16 +141,20 @@ export function passesStatedRules(title: string, company: string): boolean {
  * irrelevant to you depends on where you can work, so the list is yours to set and
  * empty until you do.
  */
-// A US place in the location, so "Remote US/Canada" or "SF or London" is kept
-// even when another of its places is on the exclude list.
-const US_MARKER =
-  /\b(united states|usa|u\.s\.?|us|san francisco|bay area|new york|nyc|seattle|los angeles|boston|austin|chicago|pittsburgh|denver|palo alto|menlo park|mountain view|cupertino|sunnyvale|san jose|san mateo|redmond|brooklyn|washington,? dc)\b|,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)\b/i;
-
+// A US place named in the location, so "Remote US/Canada" or "SF or London" is
+// kept even when another of its places is on the exclude list.
+const US_PLACE =
+  /\b(united states|usa|u\.s\.?|us|san francisco|bay area|new york|nyc|seattle|los angeles|boston|austin|chicago|pittsburgh|denver|palo alto|menlo park|mountain view|cupertino|sunnyvale|san jose|san mateo|redmond|brooklyn|washington,? dc)\b/i;
+// A state code after a comma ("Austin, TX") no longer counts on its own: "Canada,
+// KY" came through on it, a mangled location for a role in Canada. A place name
+// from the list above, or no excluded place at all, is what keeps a role.
 export function isUsLocation(loc: string): boolean {
   if (LOCATION_EXCLUDE.length === 0) return true;
-  if (US_MARKER.test(loc || "")) return true;
+  if (US_PLACE.test(loc || "")) return true;
   const l = (loc || "").toLowerCase();
-  return !LOCATION_EXCLUDE.some((x) => l.includes(x));
+  if (LOCATION_EXCLUDE.some((x) => l.includes(x))) return false;
+  // A state code, a place neither list knows, or no location at all: kept.
+  return true;
 }
 
 // Minimum years of experience, pulled from the job description. This is the
@@ -168,6 +172,21 @@ export function extractMinYoe(text: string): number | null {
     if (n >= 1 && n <= 20) hits.push(n);
   }
   return hits.length ? Math.min(...hits) : null;
+}
+
+// The years figure in a level note, as the card shows it: "5+ yrs" or "3–8 yrs".
+// The scoring read answers in prose ("5+ years; body calls it a founding Senior
+// Product Designer", "Not stated."), and the card should carry the number or
+// nothing, never the sentence. "6 years minimum" and "at least 4 years" count;
+// a line with no figure returns null.
+export function yearsRange(text: unknown): string | null {
+  if (!text) return null;
+  const m = String(text).match(/(\d{1,2})\s*\+?\s*(?:(?:-|–|—|to)\s*(\d{1,2})\s*\+?\s*)?(?:yrs?|years?)\b/i);
+  if (!m) return null;
+  const lo = Number(m[1]);
+  const hi = m[2] ? Number(m[2]) : null;
+  if (lo < 1 || lo > 20) return null;
+  return hi && hi > lo ? `${lo}–${hi} yrs` : `${lo}+ yrs`;
 }
 
 // Pull a salary range out of whatever the extractor returned for comp. It answers
@@ -246,7 +265,7 @@ export const COMPANY_EXCLUDE = [
   // design-led consultancy arms are not on this list, because those are real design
   // jobs and the objection is to being placed rather than hired.
   "capgemini", "infosys", "cognizant", "wipro",
-  "tata consultancy", "kpmg", "pwc", "ernst & young", "mckinsey",
+  "tata consultancy", "kpmg", "pwc", "ernst & young",
   "insight global", "robert half", "aerotek", "randstad", "kforce", "apex systems",
   "motion recruitment", "staffing", "recruiting", "talent solutions",
   // Law firms. "LLP" is the reliable tell.

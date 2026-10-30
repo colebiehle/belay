@@ -1,20 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logJournal } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 1800;
 
 /**
  * Orchestrates a broad ingest pass:
- *   1. Gmail alerts (LinkedIn job emails)
- *   2. Career pages + job sites (HTML scrape)
- *   3. Deep web search (Claude WebSearch tool — catches JS-rendered boards
+ *   1. Career pages + job sites (feeds first, HTML scrape otherwise)
+ *   2. Deep web search (Claude WebSearch tool — catches JS-rendered boards
  *      and surfaces fresh listings that don't appear on tracked sources)
+ *   3. LinkedIn title search
+ *   4. VC portfolio boards
  *
  * Results combined into a single summary.
  */
 export async function POST(req: NextRequest) {
   const origin = new URL(req.url).origin;
   const results: Record<string, unknown> = {};
+  // The weekly gap check (scripts/daily-ingest.sh --weekly): the company-blind arms
+  // read further back and deeper, and the web search aims at your companies and
+  // well-backed startups. Every role it adds is one the daily scan missed.
+  const weekly = new URL(req.url).searchParams.has("weekly");
+  const wk = weekly ? "?weekly=1" : "";
 
   // Forwarded to the career-pages arm. Every tracked company by default: the
   // daily run and the button used to differ here (S and A only versus all), so
@@ -34,39 +41,33 @@ export async function POST(req: NextRequest) {
   };
 
   // Run them in parallel — they hit independent paths and Claude can handle it.
-  const [gmailRes, careerRes, deepRes, linkedinRes, getroRes] = await Promise.allSettled([
-    fetch(`${origin}/api/ingest`, { method: "POST" }).then(async (r) => ({
-      ok: r.ok,
-      data: await r.json(),
-    })),
+  // The Gmail arm (LinkedIn alert emails, /api/ingest) is no longer run: its sign-in
+  // lapsed most of Oct 2026, and when it worked it found 0-1 roles a day that the
+  // LinkedIn search had not (the owner's call, Oct 2026). The route remains.
+  const [careerRes, deepRes, linkedinRes, getroRes] = await Promise.allSettled([
     fetch(`${origin}/api/ingest/career-pages`, careerPagesInit).then(async (r) => ({
       ok: r.ok,
       data: await r.json(),
     })),
-    fetch(`${origin}/api/ingest/deep-search`, { method: "POST" }).then(async (r) => ({
+    fetch(`${origin}/api/ingest/deep-search${wk}`, { method: "POST" }).then(async (r) => ({
       ok: r.ok,
       data: await r.json(),
     })),
     // Searches LinkedIn by title across every employer, not just tracked
     // companies. This is the only arm that surfaces roles at companies not on
     // the target list, and unlike the alert emails it returns the full posting.
-    fetch(`${origin}/api/ingest/linkedin`, { method: "POST" }).then(async (r) => ({
+    fetch(`${origin}/api/ingest/linkedin${wk}`, { method: "POST" }).then(async (r) => ({
       ok: r.ok,
       data: await r.json(),
     })),
     // VC portfolio boards. The only arm that finds well-funded companies before
     // they are famous, and the only one that reliably carries a salary band.
-    fetch(`${origin}/api/ingest/getro`, { method: "POST" }).then(async (r) => ({
+    fetch(`${origin}/api/ingest/getro${wk}`, { method: "POST" }).then(async (r) => ({
       ok: r.ok,
       data: await r.json(),
     })),
   ]);
 
-  if (gmailRes.status === "fulfilled") {
-    results.gmail = { ok: gmailRes.value.ok, summary: gmailRes.value.data?.summary, error: gmailRes.value.data?.error };
-  } else {
-    results.gmail = { ok: false, error: String(gmailRes.reason) };
-  }
   if (careerRes.status === "fulfilled") {
     results.careerPages = { ok: careerRes.value.ok, summary: careerRes.value.data?.summary, added: careerRes.value.data?.added, perCompany: careerRes.value.data?.results };
   } else {
@@ -89,17 +90,6 @@ export async function POST(req: NextRequest) {
   }
 
   const parts: string[] = [];
-  const g = results.gmail as { summary?: string; error?: string };
-  if (g.summary) parts.push(`Gmail: ${g.summary}`);
-  if (g.error) {
-    // agent.py was never committed, so this arm fails on every run. Reporting it
-    // as a failure trains you to ignore the whole summary line.
-    parts.push(
-      /ENOENT|agent\.py|No such file/i.test(g.error)
-        ? "Gmail: not configured"
-        : `Gmail failed: ${g.error}`,
-    );
-  }
   const c = results.careerPages as { summary?: string; error?: string };
   if (c.summary) parts.push(`Career pages: ${c.summary}`);
   if (c.error) parts.push(`Career pages failed: ${c.error}`);
@@ -131,6 +121,18 @@ export async function POST(req: NextRequest) {
   }
   results.enrich = { scored };
   if (scored) parts.push(`Scored: ${scored}`);
+
+  if (weekly) {
+    const added = [results.careerPages, results.deepSearch, results.linkedin, results.getro]
+      .map((r) => Number((r as { added?: number })?.added ?? 0))
+      .reduce((a, b) => a + b, 0);
+    parts.unshift(
+      added === 0
+        ? "Weekly gap check: the daily scan missed nothing"
+        : `Weekly gap check: ${added} role${added === 1 ? "" : "s"} the daily scan missed`,
+    );
+    await logJournal({ type: "ai_run", surface: "ingest/weekly", summary: parts[0], meta: { added } });
+  }
 
   return NextResponse.json({
     ok: true,

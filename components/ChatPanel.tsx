@@ -137,7 +137,7 @@ export function ChatPanel({
       aria-label={open ? "Close chat" : "Open chat"}
     >
       <MessageSquare size={16} strokeWidth={1.5} absoluteStrokeWidth />
-      Ask Claude
+      Ask Belay
       {messages.length > 0 && <span className="text-meta tabular-nums text-fg-3">{messages.length}</span>}
     </button>
   );
@@ -181,7 +181,7 @@ export function ChatPanel({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && !sending && (
           <p className="text-body text-fg-3">
-            {emptyHint ?? "Ask Claude anything. Full context is loaded."}
+            {emptyHint ?? "Ask Belay anything. Full context is loaded."}
           </p>
         )}
         {messages.map((m) =>
@@ -216,7 +216,7 @@ export function ChatPanel({
               send();
             }
           }}
-          placeholder="Ask Claude…"
+          placeholder="Ask Belay…"
           rows={1}
           className={`${textarea()} flex-1 max-h-32`}
         />

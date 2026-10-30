@@ -9,16 +9,39 @@
 # Run it now:
 #   bash scripts/daily-ingest.sh
 #
+# The weekly gap check is the same scan read further back and deeper, looking for
+# roles the daily run missed (Sundays at 13:00, an hour clear of the daily run):
+#   bash scripts/daily-ingest.sh --weekly --install
+#   bash scripts/daily-ingest.sh --weekly --uninstall
+#   bash scripts/daily-ingest.sh --weekly
+#
 # Logs go to private/logs/, which is gitignored.
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LABEL="com.belay.daily-ingest"
-PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 LOGDIR="$ROOT/private/logs"
-LOG="$LOGDIR/daily-ingest.log"
 mkdir -p "$LOGDIR"
+
+if [ "${1:-}" = "--weekly" ]; then
+  shift
+  WEEKLY=1
+  LABEL="com.belay.weekly-gap-check"
+  NAME="weekly gap check"
+  LOG="$LOGDIR/weekly-gap-check.log"
+  QUERY="?weekly=1"
+  WHEN="<key>Weekday</key><integer>0</integer><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer>"
+  SCHEDULED="Sundays at 13:00"
+else
+  WEEKLY=""
+  LABEL="com.belay.daily-ingest"
+  NAME="daily ingest"
+  LOG="$LOGDIR/daily-ingest.log"
+  QUERY=""
+  WHEN="<key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer>"
+  SCHEDULED="daily at 12:00"
+fi
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 case "${1:-}" in
   --install)
@@ -30,23 +53,23 @@ case "${1:-}" in
 <dict>
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/bash</string><string>$ROOT/scripts/daily-ingest.sh</string></array>
+  <array><string>/bin/bash</string><string>$ROOT/scripts/daily-ingest.sh</string>${WEEKLY:+<string>--weekly</string>}</array>
   <key>EnvironmentVariables</key>
   <dict><key>PATH</key><string>$PATH</string></dict>
   <key>StartCalendarInterval</key>
-  <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>0</integer></dict>
+  <dict>$WHEN</dict>
   <key>StandardOutPath</key><string>$LOGDIR/launchd.out.log</string>
   <key>StandardErrorPath</key><string>$LOGDIR/launchd.err.log</string>
 </dict>
 </plist>
 EOF
     launchctl unload "$PLIST" 2>/dev/null
-    launchctl load "$PLIST" && echo "Scheduled daily at 12:00. Logs: $LOG"
+    launchctl load "$PLIST" && echo "Scheduled $SCHEDULED. Logs: $LOG"
     exit $?
     ;;
   --uninstall)
     launchctl unload "$PLIST" 2>/dev/null
-    rm -f "$PLIST" && echo "Removed the daily schedule."
+    rm -f "$PLIST" && echo "Removed the $NAME schedule."
     exit 0
     ;;
 esac
@@ -57,7 +80,7 @@ say() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
 alive() { curl -sf -m 5 "http://localhost:$1/api/jobs" > /dev/null 2>&1; }
 find_port() { for p in 3001 3000; do alive "$p" && { echo "$p"; return 0; }; done; return 1; }
 
-say "--- daily ingest starting ---"
+say "--- $NAME starting ---"
 
 # A run that starts the moment the Mac wakes can beat the network back: Gmail, LinkedIn
 # and the portfolio boards all came back "fetch failed" or empty on 2026-10-21. Wait
@@ -87,7 +110,7 @@ fi
 say "using port $PORT"
 
 # Scanning takes a few minutes and scoring every new role can take several more.
-RESPONSE=$(curl -s -m 2400 -X POST "http://localhost:$PORT/api/ingest/all")
+RESPONSE=$(curl -s -m 2400 -X POST "http://localhost:$PORT/api/ingest/all$QUERY")
 say "response: ${RESPONSE:0:2000}"
 
 SUMMARY=$(printf '%s' "$RESPONSE" | python3 -c "
@@ -99,6 +122,6 @@ except Exception:
 " 2>/dev/null)
 say "$SUMMARY"
 
-osascript -e "display notification \"${SUMMARY//\"/}\" with title \"Belay daily ingest\"" 2>/dev/null
+osascript -e "display notification \"${SUMMARY//\"/}\" with title \"Belay $NAME\"" 2>/dev/null
 
 say "--- done ---"

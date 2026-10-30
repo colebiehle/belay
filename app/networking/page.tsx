@@ -610,7 +610,7 @@ export default function NetworkingPage() {
                         return (
                           <ListCard
                             key={c.id}
-                            logo={<CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} size={40} />}
+                            logo={<CompanyLogo company={c.company} jobUrl={c.linkedinUrl ?? ""} domain={c.companyDomain} size={40} />}
                             name={c.name}
                             // "Company · Role", as in the panel's header.
                             sub={

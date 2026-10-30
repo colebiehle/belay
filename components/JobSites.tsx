@@ -16,18 +16,25 @@ type Site = {
   note: string | null;
   scanStatus: string | null;
   scanNote: string | null;
+  // A VC board from lib/portfolio-boards: listed, never edited or dragged.
+  readOnly?: boolean;
 };
 
 // Grouped by what the daily scan can do with each site, which the scan itself
 // records: the ones it reads (Automatic), and the ones you have to open yourself
 // (Manual). The old groups said what a site was for, which did not tell you which
 // ones needed you. One word each since v1.6: a group name, not a sentence.
+// The VC boards are automatic too, but a group of their own: eleven firms would
+// bury the job sites, and they are read through each platform's API rather than
+// as a page.
 const GROUPS = [
   { key: "daily", label: "Automatic" },
+  { key: "vc", label: "VC boards" },
   { key: "manual", label: "Manual" },
   { key: "unscanned", label: "Not checked yet" },
 ];
-const groupOf = (s: Site) => (s.scanStatus === "daily" || s.scanStatus === "manual" ? s.scanStatus : "unscanned");
+const groupOf = (s: Site) =>
+  s.category === "vc" ? "vc" : s.scanStatus === "daily" || s.scanStatus === "manual" ? s.scanStatus : "unscanned";
 
 export function JobSites({ compact = false }: { compact?: boolean } = {}) {
   const [sites, setSites] = useState<Site[]>([]);
@@ -254,15 +261,15 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                 ) : (
                   <div
                     key={s.id}
-                    draggable
+                    draggable={!s.readOnly}
                     onDragStart={() => setDragId(s.id)}
                     onDragEnd={() => setDragId(null)}
                     onDragOver={(e) => {
-                      if (dragId && dragId !== s.id) e.preventDefault();
+                      if (dragId && dragId !== s.id && !s.readOnly) e.preventDefault();
                     }}
                     onDrop={(e) => {
                       e.stopPropagation();
-                      dropOn(groupOf(s), s.id);
+                      if (!s.readOnly) dropOn(groupOf(s), s.id);
                     }}
                     className={`relative group ${dragId === s.id ? "opacity-40" : ""}`}
                   >
@@ -287,14 +294,16 @@ export function JobSites({ compact = false }: { compact?: boolean } = {}) {
                     </a>
                     {/* Top right, as on the company tiles. Everything you can do to a
                         site lives behind it, so there is no second icon to aim at. */}
-                    <button
-                      onClick={() => startEdit(s)}
-                      className={`absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${iconButton("quiet", "compact")}`}
-                      title="Edit or delete"
-                      aria-label={`Edit or delete ${s.name}`}
-                    >
-                      <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
-                    </button>
+                    {!s.readOnly && (
+                      <button
+                        onClick={() => startEdit(s)}
+                        className={`absolute top-1 right-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 ${iconButton("quiet", "compact")}`}
+                        title="Edit or delete"
+                        aria-label={`Edit or delete ${s.name}`}
+                      >
+                        <Pencil size={14} strokeWidth={1.5} absoluteStrokeWidth />
+                      </button>
+                    )}
                   </div>
                 ),
               )}

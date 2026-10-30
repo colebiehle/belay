@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { extractCompRange } from "@/lib/role-filter";
+import { extractCompRange, yearsRange } from "@/lib/role-filter";
 import { callClaude, extractJson } from "@/lib/claude";
 import { understandingBlock } from "@/lib/foundation";
 import { FIT_RUBRIC } from "@/lib/fit-rubric";
+import { NOTABLE_BACKERS, mergeBackers } from "@/lib/backers";
 import { verdictSignalBlock } from "@/lib/verdict-signal";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
@@ -47,6 +48,7 @@ type Enrichment = {
   askingFor: string[];     // stated requirements, close to the posting's words
   refinedFitScore: number; // written to Job.fitScore, shown bottom-right on the card
   companyWebsite?: string;
+  backers?: string[];      // notable firms only, merged into Job.backers
 };
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -96,11 +98,12 @@ Return ONLY valid JSON, no preamble, no code fences:
   "headline": "ONE sentence, under 28 words: what the designer would own, and the one fact that sets this role apart from other design roles.",
   "tags": ["short label", "..."],
   "askingFor": ["stated requirement, close to the posting's own words", "..."],
-  "levelSignals": "Years required and any seniority language, exactly as written. If unstated, say so.",
-  "comp": "The stated range, or 'Not disclosed'.",
+  "levelSignals": "Years required and any seniority language, exactly as written. Empty string if unstated.",
+  "comp": "The stated range. Empty string if the posting does not state one.",
   "applicationNeeds": ["portfolio required", "cover letter optional", "3 screening questions", "..."],
   "refinedFitScore": <integer 1-10, scored against the rubric below>,
-  "companyWebsite": "The employer's own website domain, e.g. \"medal.tv\". From the posting if it states one, or from your own knowledge only if you are sure which company this is. Empty string otherwise. Never guess from the name."
+  "companyWebsite": "The employer's own website domain, e.g. \"medal.tv\". From the posting if it states one, or from your own knowledge only if you are sure which company this is. Empty string otherwise. Never guess from the name.",
+  "backers": ["Which of these firms have invested in the employer: ${NOTABLE_BACKERS.join(", ")}. Use exactly these names. Only firms the posting names or that you are sure of; an empty array when unsure or when none have. Never guess from the company's sector or stage."]
 }
 
 How to score refinedFitScore:
@@ -109,7 +112,8 @@ ${FIT_RUBRIC}${verdictSignal ? `\n\n${verdictSignal}` : ""}
 Rules:
 - Facts only in the prose fields. No "this is a strong fit", no "they would thrive", no recommendations.
   The score is the one place a judgement belongs, and it belongs there as a number, not as advocacy.
-- If the description is empty, say so plainly in whatItIs and keep the rest short rather than inventing.
+- Report what the posting says, never what it does not. If something is unknown, unstated or undisclosed, leave that field empty (an empty string or array) and do not write a sentence saying so: "AI is not mentioned", "scope and team are unknown", "Not stated", "Not disclosed" are all wrong. The card shows nothing for an empty field, which is the right answer.
+- If the description is empty, leave headline empty and tags empty rather than inventing.
 - Voice: direct, no em-dashes, no marketing language.
 - applicationNeeds: only what the posting states or clearly implies. Empty array if it says nothing.
 - headline and tags must not overlap. The headline says what the designer would own and what is distinctive: the company's stage and size when it is small ("first design hire at a 13-person YC W24 startup"), the product and who uses it, or how central AI is. A reader should be able to tell this role from the other twenty in the queue by the headline alone. "Product Designer on the Growth team" fails that test; "Owns onboarding and activation for a usage-billed developer API, first designer on the team" passes. Facts from the posting only.
@@ -119,7 +123,7 @@ Rules:
 - Give 3 if the posting only supports 3, and never invent a skill it does not mention. An empty array beats padding.
 - Years and seniority belong in levelSignals, application requirements in applicationNeeds. Neither is a tag.
 - Location, hours and comp are already columns on the card. Never spend a bullet on them.
-- levelSignals: the years figure and seniority wording exactly as the posting states it, in under 15 words. If it states nothing, say "Not stated." This is load-bearing — they are calibrated at one specific level and a mismatch is the single most common reason they passes.`;
+- levelSignals: the years figure and seniority wording exactly as the posting states it, in under 15 words. If it states nothing, an empty string. This is load-bearing — they are calibrated at one specific level and a mismatch is the single most common reason they passes.`;
 
   const raw = await callClaude(prompt, 90_000);
   const parsed = extractJson<Enrichment>(raw, "object");
@@ -164,6 +168,18 @@ Rules:
       enrichedAt: new Date(),
       ...(rationale ? { fitRationale: rationale } : {}),
       greenFlags: flagLines(parsed.askingFor),
+      // The years the posting states, read by the model from the full body. It was
+      // extracted and never written back, so the card kept the board's guess or a
+      // title-based one: Figma's "8+ years required" showed nothing, a founding
+      // role asking 5+ showed "Not stated".
+      ...(() => {
+        const years = yearsRange(parsed.levelSignals);
+        return years ? { expRange: years } : {};
+      })(),
+      ...(() => {
+        const backers = mergeBackers(job.backers, Array.isArray(parsed.backers) ? parsed.backers.map(String) : []);
+        return backers !== job.backers ? { backers } : {};
+      })(),
       // applicationNeeds is what the form will demand (portfolio, screening
       // questions, work auth) — mechanics, not risk. It lives in redFlags only
       // because that column already existed; the Applying checklist reads the

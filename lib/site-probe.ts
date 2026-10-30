@@ -18,9 +18,9 @@ const POSTING_LINK = /\[[^\]]*(\/jobs?\/[^\]\s]+|\/companies\/[^\]\s]+\/jobs\/|\
  * change.
  */
 export async function probeSite(name: string, url: string): Promise<SiteScan> {
-  // Searched by its own arm and read from alert mail, whatever its page does.
+  // Searched by its own arm, whatever its page does.
   if (name.trim().toLowerCase() === "linkedin" || /(^|\.)linkedin\.com/.test(url)) {
-    return { scanStatus: "daily", scanNote: "Searched directly every day, plus your LinkedIn alert emails" };
+    return { scanStatus: "daily", scanNote: "Searched directly every day" };
   }
   if (MANUAL_ONLY.has(name.trim().toLowerCase())) {
     return { scanStatus: "manual", scanNote: "Blocks automated reads" };

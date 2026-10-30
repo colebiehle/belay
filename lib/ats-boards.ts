@@ -24,11 +24,12 @@
  *
  * Entries here are only read for companies that exist in TargetCompany, so a
  * token for a company since dropped from the list is dead weight. The batch for
- * companies rejected in Sep 2026 (ElevenLabs, Sierra, Perplexity, Harvey,
- * Cohere, Decagon, Abridge, Suno, Writer, Attio, Glean, Scale AI, Webflow) was
- * removed rather than left to rot.
+ * companies rejected in Sep 2026 (Cohere, Decagon, Abridge, Suno, Writer, Attio,
+ * Glean, Webflow and others) was removed rather than left to rot. Perplexity,
+ * ElevenLabs, Sierra and Scale AI came back onto the list in Oct 2026,
+ * with verified tokens below.
  */
-export type AtsProvider = "greenhouse" | "ashby" | "lever" | "amazon" | "workday" | "eightfold" | "apple";
+export type AtsProvider = "greenhouse" | "ashby" | "lever" | "amazon" | "workday" | "eightfold" | "apple" | "google";
 
 export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }> = {
   figma: { provider: "greenhouse", token: "figma" },
@@ -46,12 +47,9 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
   // there. Every token here was verified against a populated jobs array.
   discord: { provider: "greenhouse", token: "discord" },
   ramp: { provider: "ashby", token: "ramp" },
-  ideo: { provider: "greenhouse", token: "ideo" },
-  strava: { provider: "ashby", token: "strava" },
-  // Games and entertainment.
-  // Riot, Epic and Valve are deliberately absent: Riot renders its jobs page
-  // client-side, Epic's sits behind a bot check, and Valve has no feed at all.
-  nintendo: { provider: "greenhouse", token: "nintendo" },
+  // Games and entertainment. Riot was left out for a client-side page, but it runs
+  // a Greenhouse board behind it (182 roles on 2026-10-29). Valve has no feed.
+  "riot games": { provider: "greenhouse", token: "riotgames" },
   // Sony Interactive's global board. The first-party studios run their own
   // (naughtydog, insomniac, firesprite, housemarque, haven, pdi) — worth adding
   // individually if the global board proves thin on design.
@@ -68,6 +66,26 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
   netflix: { provider: "eightfold", token: "explore.jobs.netflix.net|netflix.com" },
   // No API it will serve a script; read from its search page (fetchAppleListings).
   apple: { provider: "apple", token: "en-us" },
+  // Its search page carries the results as JSON (fetchGoogleListings).
+  google: { provider: "google", token: "product designer|ux designer|interaction designer" },
+  // Added with the Oct 2026 list changes; each answered with a populated jobs
+  // array on 2026-10-29.
+  waymo: { provider: "greenhouse", token: "waymo" },
+  robinhood: { provider: "greenhouse", token: "robinhood" },
+  perplexity: { provider: "ashby", token: "perplexity" },
+  "scale ai": { provider: "greenhouse", token: "scaleai" },
+  elevenlabs: { provider: "ashby", token: "elevenlabs" },
+  sierra: { provider: "ashby", token: "sierra" },
+  roblox: { provider: "greenhouse", token: "roblox" },
+  databricks: { provider: "greenhouse", token: "databricks" },
+  nvidia: { provider: "workday", token: "nvidia.wd5|nvidia|NVIDIAExternalCareerSite" },
+  nike: { provider: "workday", token: "nike.wd1|nike|nke" },
+  // Promoted from the retired watch list, Oct 2026; tokens verified there on
+  // 2026-10-20.
+  vercel: { provider: "greenhouse", token: "vercel" },
+  granola: { provider: "ashby", token: "granola" },
+  runway: { provider: "ashby", token: "runway-ml" },
+  gamma: { provider: "ashby", token: "gamma" },
 };
 
 /**
@@ -79,13 +97,13 @@ export const ATS_BOARDS: Record<string, { provider: AtsProvider; token: string }
  * whose search API is public. The rest were re-probed the same day and stay —
  * Apple's search API 401s without a CSRF token (it is read from its search page
  * instead, see ATS_BOARDS), Microsoft's
- * gcsservices host refuses a plain client, and Google/Meta/Uber/TikTok render
+ * gcsservices host refuses a plain client, and Meta/Uber/TikTok render
  * results client-side. They are not invisible, though: the LinkedIn arm finds
  * them by title, which is where the Google, Microsoft, Meta and Apple rows in
  * the queue actually came from.
  */
 export const MANUAL_ONLY = new Set([
-  "google", "microsoft", "meta", "uber", "tiktok", "linkedin",
+  "microsoft", "meta", "uber", "tiktok", "linkedin",
   // Wellfound and YC's public board (ycombinator.com/jobs) render their listings
   // server-side and are read like any site. Work at a Startup blocks scripts.
   "handshake", "workatastartup",

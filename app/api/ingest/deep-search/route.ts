@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { canonicalCompany } from "@/lib/role-filter";
+import { canonicalCompany, extractCompRange, isUsLocation, yearsRange } from "@/lib/role-filter";
 import { callClaudeWithToolsDetailed, extractJson } from "@/lib/claude";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { understandingBlock } from "@/lib/foundation";
 import { logJournal } from "@/lib/journal";
 import { identityLine } from "@/lib/identity";
+import { NOTABLE_BACKERS } from "@/lib/backers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -36,17 +37,35 @@ type DeepResult = {
   why?: string;
 };
 
-export async function POST() {
-  const [criteria, understanding, existingJobs] = await Promise.all([
+export async function POST(req: NextRequest) {
+  // The weekly gap check (?weekly) asks a different question: not "what is new",
+  // but "what did the daily scan miss at the companies that matter most".
+  const weekly = new URL(req.url).searchParams.has("weekly");
+  const [criteria, understanding, existingJobs, targets] = await Promise.all([
     prisma.material.findMany({ where: { kind: { in: SEARCH_CONTEXT_KINDS } } }),
     understandingBlock(1200),
     // Don't re-recommend listings we already have.
     prisma.job.findMany({ select: { jobUrl: true, company: true, roleTitle: true }, take: 200, orderBy: { createdAt: "desc" } }),
+    prisma.targetCompany.findMany({ select: { name: true }, orderBy: [{ tier: "asc" }, { position: "asc" }] }),
   ]);
   const criteriaBlock = criteria.map((m) => `[${m.kind}]\n${(m.content ?? "").slice(0, 800)}`).join("\n\n");
   const existingBlock = existingJobs.length > 0
-    ? existingJobs.slice(0, 50).map((j) => `- ${j.company}: ${j.roleTitle}`).join("\n")
+    ? existingJobs.slice(0, weekly ? 200 : 50).map((j) => `- ${j.company}: ${j.roleTitle}`).join("\n")
     : "(none)";
+  const task = weekly
+    ? `Use the WebSearch tool to find currently-open product design / UX / interaction design roles posted in the LAST 30 DAYS that the list below does not already have. This is a weekly check for roles a daily scan missed, so aim at where a scan misses things:
+- Each of these companies they track, in this order of priority: ${targets.map((t) => t.name).join(", ")}. Search each one's own careers site and LinkedIn for design roles.
+- Startups backed by ${NOTABLE_BACKERS.join(", ")}, especially founding or first-designer roles, and companies that raised a notable round in the last six months.
+
+Return up to 15. An empty list is a good answer if the scan missed nothing.`
+    : `Use the WebSearch tool to find 5-10 currently-open product design / UX / interaction design / design research roles posted in the LAST 7 DAYS that fit their profile. Look across:
+- AI-native company career pages (Anthropic, OpenAI, Cursor, Granola, etc.)
+- Founding and first-designer roles at early-stage startups (YC, seed and Series A),
+  titled "Founding Designer", "Founding Product Designer" or "first design hire".
+  Spend at least a third of the search here: these sit at companies the user has not
+  heard of yet, which is exactly what the other sources miss.
+- Job boards (LinkedIn, Wellfound, YC's ycombinator.com/jobs, Greenhouse-hosted, AshbyHQ-hosted)
+- Specific role aggregators if useful`;
 
   const who = await identityLine();
   const prompt = `You are doing a fresh deep web search for design job postings for ${who}.
@@ -60,14 +79,7 @@ Jobs they already have in their queue — DO NOT return duplicates:
 ${existingBlock}
 
 TASK:
-Use the WebSearch tool to find 5-10 currently-open product design / UX / interaction design / design research roles posted in the LAST 7 DAYS that fit their profile. Look across:
-- AI-native company career pages (Anthropic, OpenAI, Cursor, Granola, etc.)
-- Founding and first-designer roles at early-stage startups (YC, seed and Series A),
-  titled "Founding Designer", "Founding Product Designer" or "first design hire".
-  Spend at least a third of the search here: these sit at companies the user has not
-  heard of yet, which is exactly what the other sources miss.
-- Job boards (LinkedIn, Wellfound, YC's ycombinator.com/jobs, Greenhouse-hosted, AshbyHQ-hosted)
-- Specific role aggregators if useful
+${task}
 
 Search results are usually enough: you do not need to open every posting, because Belay fetches and reads each one itself afterwards. Use WebFetch only when a result does not show the company, the title or a link. Stop searching once you have your matches; the answer matters more than exhaustiveness.
 
@@ -128,6 +140,7 @@ If you find fewer than 5 strong matches, return what you found — don't pad wit
   const inserted: { company: string; roleTitle: string }[] = [];
   for (const r of results) {
     if (!r.company || !r.roleTitle || !r.jobUrl) continue;
+    if (!isUsLocation(r.location ?? "")) continue;
     // Normalised like every other arm. An un-normalised variant skips the
     // auto-ingest guard, fails to dedupe against the board's own copy of the same
     // role, and misses that company's reapplication cooldown.
@@ -146,8 +159,10 @@ If you find fewer than 5 strong matches, return what you found — don't pad wit
         roleTitle: r.roleTitle,
         jobUrl: r.jobUrl,
         location: r.location ?? "",
-        compRange: r.compRange ?? "Not disclosed",
-        expRange: r.expRange ?? "",
+        // The search answers these in prose when it has no figure ("Not shown; a
+        // related listing on Built In shows…"). Keep the figure or nothing.
+        compRange: extractCompRange(r.compRange) ?? "Not disclosed",
+        expRange: yearsRange(r.expRange) ?? "",
         description: r.descriptionSnippet ?? "",
         fitScore: 0,
         fitRationale: `Surfaced via deep web search. ${r.why ?? ""}`.trim(),

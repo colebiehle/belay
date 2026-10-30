@@ -32,7 +32,7 @@ export default async function Home() {
             The sheet it opens still docks to the bottom edge. */}
         <ChatPanel
           storageKey="homeChatOpen"
-          title="Ask Claude"
+          title="Ask Belay"
           subtitle="What should I focus on today?"
           fetchUrl="/api/home/chat"
           postUrl="/api/home/chat"
